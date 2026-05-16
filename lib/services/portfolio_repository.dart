@@ -101,6 +101,71 @@ class PortfolioRepository {
     await entry.delete();
   }
 
+  // ── Corporate actions / 直接写入 ───────────────────────────────────────
+
+  /// 现金分红：不影响仓位，仅记录。price = 每股分红金额，
+  /// quantity = 分红当日持仓数量，totalValue 自动 = quantity*price。
+  Future<PortfolioTransaction> recordDividend({
+    required String portfolioId,
+    required String symbol,
+    required double quantity,
+    required double dividendPerShare,
+    DateTime? date,
+    String name = '',
+    String sector = '',
+    String assetClass = '',
+    String notes = '',
+  }) async {
+    final txn = PortfolioTransaction(
+      portfolioId: portfolioId,
+      symbol: symbol,
+      name: name,
+      sector: sector,
+      assetClass: assetClass,
+      type: 'dividend',
+      quantity: quantity,
+      price: dividendPerShare,
+      date: date,
+      notes: notes,
+    );
+    await transactionsBox.add(txn);
+    return txn;
+  }
+
+  /// 股票拆分（送股）：quantity 字段存放拆分比例（>1 表示 1 拆 N，例如 2 = 1 拆 2，
+  /// 0.5 = 2 合 1）；price = 0。
+  Future<PortfolioTransaction> recordSplit({
+    required String portfolioId,
+    required String symbol,
+    required double ratio,
+    DateTime? date,
+    String name = '',
+    String sector = '',
+    String assetClass = '',
+    String notes = '',
+  }) async {
+    final txn = PortfolioTransaction(
+      portfolioId: portfolioId,
+      symbol: symbol,
+      name: name,
+      sector: sector,
+      assetClass: assetClass,
+      type: 'split',
+      quantity: ratio,
+      price: 0,
+      totalValue: 0,
+      date: date,
+      notes: notes,
+    );
+    await transactionsBox.add(txn);
+    return txn;
+  }
+
+  /// 直接写入一条已构造好的交易（CSV 批量导入用）
+  Future<void> addRawTransaction(PortfolioTransaction txn) async {
+    await transactionsBox.add(txn);
+  }
+
   // ── Aggregation ─────────────────────────────────────────────────────────
 
   List<PortfolioTransaction> transactionsFor(String portfolioId) {
@@ -178,6 +243,14 @@ class _Holding {
         qty = 0;
         cost = 0;
       }
+    } else if (t.type == 'split') {
+      // 拆分（送股）：仓位按比例放大，总成本保持不变 → 均价自动下调。
+      final ratio = t.quantity;
+      if (ratio > 0 && qty > 0) {
+        qty *= ratio;
+        // cost 不变
+      }
     }
+    // dividend：仅作记账，不改变仓位与成本基
   }
 }
