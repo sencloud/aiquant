@@ -43,10 +43,13 @@ class _AssistantScreenState extends State<AssistantScreen> {
     });
   }
 
-  Future<void> _send() async {
-    final text = _input.text.trim();
+  Future<void> _send([String? override]) async {
+    final raw = override ?? _input.text;
+    final text = raw.trim();
     if (text.isEmpty) return;
     _input.clear();
+    // 发送即收起键盘 + 失焦，让聊天区视野最大化
+    _focus.unfocus();
     await context.read<ChatState>().sendMessage(text);
     _scrollToBottom();
   }
@@ -175,10 +178,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ),
           child: InkWell(
             customBorder: const StadiumBorder(),
-            onTap: () {
-              _input.text = text;
-              _focus.requestFocus();
-            },
+            onTap: () => _send(text),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
