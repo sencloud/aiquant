@@ -20,7 +20,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final FocusNode _focus = FocusNode();
-  bool _showReasoning = true;
+  // 推理过程默认始终展示；不再提供顶部隐藏开关。
+  static const bool _showReasoning = true;
 
   @override
   void dispose() {
@@ -73,30 +74,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: (session?.toolsEnabled ?? false)
-                ? '已启用工具调用 (Tushare)'
-                : '点击启用工具调用',
-            icon: Icon(
-              (session?.toolsEnabled ?? false)
-                  ? Icons.handyman
-                  : Icons.handyman_outlined,
-              size: 18,
-              color: (session?.toolsEnabled ?? false)
-                  ? AppColors.amber
-                  : AppColors.textSecondary,
-            ),
-            onPressed: () => chat
-                .setToolsEnabled(!(session?.toolsEnabled ?? false)),
-          ),
-          IconButton(
-            tooltip: _showReasoning ? '隐藏推理过程' : '显示推理过程',
-            icon: Icon(
-                _showReasoning ? Icons.visibility : Icons.visibility_off,
-                size: 18),
-            onPressed: () =>
-                setState(() => _showReasoning = !_showReasoning),
-          ),
           IconButton(
             tooltip: '新对话',
             icon: const Icon(Icons.add_comment_outlined, size: 18),
