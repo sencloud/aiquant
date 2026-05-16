@@ -43,8 +43,21 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
   assets:
     - .env
+
+flutter_launcher_icons:
+  image_path: "assets/branding/app_icon.png"
+  android: "ic_launcher"
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#D97706"
+  web:
+    generate: true
+    image_path: "assets/branding/app_icon.png"
+    background_color: "#D97706"
+    theme_color: "#D97706"
