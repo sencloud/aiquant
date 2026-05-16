@@ -1,0 +1,57 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+.fvm/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# Build outputs
+*.iml
+*.ipa
+*.apk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Generated
+**/generated_plugin_registrant.dart
+
+# Environment / secrets
+.env
+.env.local
+lib/core/config/secrets.dart
+
+# Code-signing materials (NEVER commit)
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+github_secrets.txt
+AuthKey_*.p8
+
+# macOS
+.DS_Store
+
+# CocoaPods
+ios/Pods/
+
+# Xcode user state
+**/xcuserdata/
+**/*.xcuserstate
+
+# Symbols
+**/*.dSYM/
+**/*.dSYM.zip
+
+# Documentation export from Cursor
+cursor_*.md
+
+# Hive runtime files (NOT pubspec.lock)
+*.hive

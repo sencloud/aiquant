@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Fincept — AI 助理 + Tushare 投资组合 (H5)">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Fincept">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="manifest" href="manifest.json">
+
+  <title>Fincept</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#0A0A0A; }
+    body { color:#E5E5E5; font-family:-apple-system, BlinkMacSystemFont, "PingFang SC",
+                                  "Microsoft YaHei", sans-serif; }
+    #loading { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+               flex-direction:column; gap:12px; }
+    .dot { width:8px; height:8px; background:#D97706; border-radius:50%; animation:pulse 1s infinite ease-in-out; }
+    @keyframes pulse { 0%,100% { transform:scale(1); opacity:0.6 } 50% { transform:scale(1.6); opacity:1 } }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="dot"></div><div style="font-size:12px;letter-spacing:0.6px;">FINCEPT 加载中…</div></div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
