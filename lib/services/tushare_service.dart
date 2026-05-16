@@ -26,6 +26,16 @@ class TushareService {
   }
   final Dio _dio;
 
+  /// 直接发起一次 Tushare API 请求并返回行式结果。
+  /// 上层工具（财务/资金面 / 宏观）通过这个口子访问任何 Tushare 接口，
+  /// 不需要为每个 api_name 写专门的方法。
+  Future<List<Map<String, dynamic>>> query({
+    required String apiName,
+    Map<String, dynamic> params = const {},
+    String fields = '',
+  }) =>
+      _post(apiName: apiName, params: params, fields: fields);
+
   Future<List<Map<String, dynamic>>> _post({
     required String apiName,
     Map<String, dynamic> params = const {},

@@ -31,6 +31,11 @@ class BuiltInSecrets {
   static String get deepseekBaseUrl =>
       _optional('DEEPSEEK_BASE_URL', 'https://api.deepseek.com');
 
+  /// NASA FIRMS 卫星火点 API 的免费 MAP_KEY。空值表示未配置——
+  /// 对应 AI 工具会返回提示让用户去申请。
+  /// 申请地址：https://firms.modaps.eosdis.nasa.gov/api/area/
+  static String get firmsMapKey => _optional('FIRMS_MAP_KEY', '');
+
   /// 默认走深度模式（携带 reasoning），用户实际上看不到模型切换
   /// 入口——AI 助理顶部不再显示模型 badge。
   static const String reasoningDeepseekModel = 'deepseek-reasoner';
@@ -66,6 +71,10 @@ class AppConfig {
   /// 用户不再能通过 UI 切换模型；默认就是深度模式。
   String get deepseekModel => BuiltInSecrets.reasoningDeepseekModel;
   bool get deepMode => true;
+
+  // ── 卫星 / 全球事件 ────────────────────────────────────────────────────
+  /// NASA FIRMS MAP_KEY；未配置时事件流里的火点工具会返回空。
+  String get firmsMapKey => BuiltInSecrets.firmsMapKey;
 
   // ── Theme ──────────────────────────────────────────────────────────────
   /// 当前 App 仅支持 light 模式（Dark 模式入口已被隐藏）。

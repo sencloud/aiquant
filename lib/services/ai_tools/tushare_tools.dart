@@ -482,15 +482,12 @@ class ListEtfsByThemeTool extends AiTool {
   }
 }
 
-/// 构建一组 Tushare 工具（共享一个 service + 缓存）
-ToolRegistry buildTushareToolRegistry({TushareService? service}) {
-  final ctx = TushareToolsContext(svc: service ?? TushareService());
-  return ToolRegistry([
-    SearchInstrumentTool(ctx),
-    GetQuoteTool(ctx),
-    CompareQuotesTool(ctx),
-    ListIndustryStocksTool(ctx),
-    GetMarketSnapshotTool(ctx),
-    ListEtfsByThemeTool(ctx),
-  ]);
-}
+/// 构建一组 Tushare 基础工具（搜索 / 行情 / 对比 / 行业 / 大盘 / ETF）
+List<AiTool> buildBaseTushareTools(TushareToolsContext ctx) => [
+      SearchInstrumentTool(ctx),
+      GetQuoteTool(ctx),
+      CompareQuotesTool(ctx),
+      ListIndustryStocksTool(ctx),
+      GetMarketSnapshotTool(ctx),
+      ListEtfsByThemeTool(ctx),
+    ];

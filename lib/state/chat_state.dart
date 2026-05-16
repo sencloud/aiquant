@@ -7,7 +7,7 @@ import '../core/storage/hive_setup.dart';
 import '../models/chat.dart';
 import '../models/persona.dart';
 import '../services/ai_tools.dart';
-import '../services/ai_tools/tushare_tools.dart';
+import '../services/ai_tools/registry.dart';
 import '../services/deepseek_service.dart';
 
 /// Tool execution loop 最大迭代次数 — 防止 LLM 自循环耗尽 token
@@ -18,7 +18,7 @@ class ChatState extends ChangeNotifier {
     DeepSeekService? service,
     ToolRegistry? registry,
   })  : _svc = service ?? DeepSeekService(),
-        _registry = registry ?? buildTushareToolRegistry();
+        _registry = registry ?? buildAllTools();
 
   final DeepSeekService _svc;
   final ToolRegistry _registry;
@@ -275,11 +275,25 @@ class ChatState extends ChangeNotifier {
 
 ——
 
-你拥有以下工具用于查询真实市场数据（Tushare）。当回答需要具体行情、个股代码、指数走势、ETF 列表时，**优先调用工具**而不是凭记忆作答。
-- 用户给的"代码"可能是 6 位数字（如 600519）；调用工具时直接传入即可，工具会自动归一化到 ts_code（如 600519.SH）。
-- 多个标的对比时使用 compare_quotes 一次调用，避免分多次。
-- 工具调用结果是 JSON；总结时把数字转成易读形式（如 +3.21%、收盘价 ¥1830.00）并标注交易日范围。
-- 调用工具失败时（结果含 error 字段），向用户解释原因并尝试合理替代方案。''';
+你拥有以下五类工具，可以查询真实数据后再作答；当回答需要具体行情/财务/资金/事件信息时，**优先调用工具，不要凭记忆**：
+
+A. 行情与基础（Tushare）：search_instrument / get_quote / compare_quotes / list_industry_stocks / get_market_snapshot / list_etfs_by_theme
+B. 量化指标（本地计算）：calc_returns / calc_sharpe / calc_max_drawdown / calc_correlation / calc_beta / calc_moving_average / calc_rsi / calc_macd
+C. 基本面（财报）：get_valuation / get_income_statement / get_balance_sheet / get_cash_flow / get_top_holders / get_dividend_history
+D. 宏观资金面：get_index_components / get_margin_trading / get_northbound_flow / get_industry_money_flow
+E. 全球事件流：search_global_events（GDELT 全球新闻+事件）/ search_chinese_news（中文媒体）/ search_shipping_events（航运/海运中断）/ search_geopolitics_events（地缘冲突/制裁）/ get_satellite_fire_hotspots（NASA 卫星火点）
+
+调用规范：
+- 用户给的"代码"可能是 6 位数字（如 600519）；工具会自动归一化到 ts_code。
+- 多个标的横向比较时使用 compare_quotes / calc_correlation 等批量工具，避免分次调用。
+- 工具结果是 JSON；总结时把数字翻译成易读形式（+3.21%、¥1830.00、近 252 个交易日…）并标注时间范围与样本数。
+- 工具返回 {error:...} 时，向用户解释原因并尝试合理替代或备选数据源。
+
+事件流分析方法（重要）：
+- 当用户关注的标的可能受外部事件影响时（如航运板块 / 大宗商品 / 军工 / 能源 / 跨境电商），主动调用 E 类工具拉取最近事件，再结合 A/B 类行情/指标做"事件 → 标的"的影响分析。
+- 分析时按"事件摘要 → 传导链条 → 受益/受损标的 → 验证（行情/资金面）→ 风险与不确定性"的结构。
+- GDELT 返回的 tone 字段为新闻情绪基调（正值正面、负值负面、典型范围 -10~+10），可作为情绪指标参考。
+- 注意：事件影响是概率性叙事，不是确定性预测；务必给出对立观点和风险提示。''';
   }
 
   String _summarizeForTitle(String text) {
