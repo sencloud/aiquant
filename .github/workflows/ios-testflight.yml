@@ -100,9 +100,17 @@ jobs:
           api-private-key: ${{ steps.asc_key.outputs.asc_api_key }}
 
       - name: Build IPA
+        env:
+          # Apple TestFlight 要求 CFBundleVersion 严格递增，
+          # 直接用 GitHub Actions 的 run_number 自增并加上 100 的 offset，
+          # 避开之前本地/手动构建用过的小数字。
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
+          BN=$((100 + BUILD_NUMBER))
+          echo "Using build number: ${BN}"
           flutter build ipa \
             --release \
+            --build-number="${BN}" \
             --export-options-plist=ios/ExportOptions.plist
 
       - name: Locate IPA
