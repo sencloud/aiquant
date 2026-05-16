@@ -4,7 +4,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../models/chat.dart';
 import '../../../theme/app_theme.dart';
 import 'reasoning_block.dart';
-import 'tool_call_card.dart';
 
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
@@ -28,9 +27,8 @@ class MessageBubble extends StatelessWidget {
     final isUser = message.role == 'user';
     final hasReasoning =
         showReasoning && (message.reasoning?.isNotEmpty ?? false);
-    final hasToolCalls =
-        (message.toolCalls?.isNotEmpty ?? false);
     final hasContent = message.content.trim().isNotEmpty;
+    // tool 调用过程对终端用户隐藏 —— 用户只关心最终答复，工具调用卡片不再渲染。
 
     final bg = isUser ? AppColors.amber : AppColors.bgRaised;
     final fg = isUser ? Colors.black : AppColors.textPrimary;
@@ -59,17 +57,7 @@ class MessageBubble extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: _content(context, fg),
             ),
-          if (hasToolCalls)
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.92,
-              ),
-              child: ToolCallList(
-                calls: message.toolCalls!,
-                findResult: _findToolResult,
-              ),
-            ),
-          if (message.streaming && !hasReasoning && !hasContent && !hasToolCalls)
+          if (message.streaming && !hasReasoning && !hasContent)
             const Padding(
               padding: EdgeInsets.only(top: 4),
               child: _TypingDots(),
@@ -79,13 +67,6 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  ChatMessage? _findToolResult(String toolCallId) {
-    for (final m in allMessages) {
-      if (m.role == 'tool' && m.toolCallId == toolCallId) return m;
-    }
-    return null;
-  }
-
   Widget _content(BuildContext context, Color fg) {
     if (message.role == 'user') {
       return Text(
@@ -93,7 +74,9 @@ class MessageBubble extends StatelessWidget {
         style: TextStyle(color: fg, fontSize: 13, height: 1.4),
       );
     }
-    return MarkdownBody(
+    // 流式输出时把内容末尾追加一个零宽 marker，再用一个底部光标动画
+    // 配合，模仿元宝的"逐字浮现 + 末尾光标"效果。
+    final markdown = MarkdownBody(
       data: message.content.isEmpty ? '…' : message.content,
       selectable: true,
       styleSheet: MarkdownStyleSheet(
@@ -123,6 +106,73 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
         tableHead: TextStyle(color: fg, fontWeight: FontWeight.w800),
+      ),
+    );
+
+    if (!message.streaming) return markdown;
+
+    // streaming 时给整个 markdown 加 0.92 → 1.0 的淡入动画 +
+    // 文末闪烁的金黄光标，模仿主流 LLM 客户端「逐字浮现」的视觉效果。
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOut,
+          transitionBuilder: (child, anim) =>
+              FadeTransition(opacity: anim, child: child),
+          // 用内容长度作为 key，每来一段 delta 就跑一次淡入
+          child: KeyedSubtree(
+            key: ValueKey(message.content.length ~/ 16),
+            child: markdown,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const _BlinkingCursor(),
+      ],
+    );
+  }
+}
+
+/// 流式输出末尾的闪烁光标 — 用一个 800ms 周期的不透明度脉冲。
+class _BlinkingCursor extends StatefulWidget {
+  const _BlinkingCursor();
+
+  @override
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<_BlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.2, end: 1.0).animate(
+          CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
+      child: Container(
+        width: 8,
+        height: 12,
+        decoration: BoxDecoration(
+          color: AppColors.amber,
+          borderRadius: BorderRadius.circular(1.5),
+        ),
       ),
     );
   }

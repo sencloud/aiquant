@@ -10,8 +10,9 @@ import '../services/ai_tools.dart';
 import '../services/ai_tools/registry.dart';
 import '../services/deepseek_service.dart';
 
-/// Tool execution loop 最大迭代次数 — 防止 LLM 自循环耗尽 token
-const int _kMaxToolIterations = 5;
+/// Tool execution loop 最大迭代次数 — 防止 LLM 自循环耗尽 token。
+/// 设置得相对宽松，确保模型在多轮工具调用后仍有空间给出最终总结。
+const int _kMaxToolIterations = 12;
 
 class ChatState extends ChangeNotifier {
   ChatState({
@@ -158,11 +159,38 @@ class ChatState extends ChangeNotifier {
       notifyListeners();
 
       // 构建 OpenAI 协议 messages
+      // 关键：每个 assistant.tool_calls 必须紧跟着完整的 role=tool 应答；
+      // 若上一轮中断/失败导致某个 tool_call 没有对应结果，OpenAI 会 400
+      // 整个 history → 模型表现为"失忆"。这里把孤儿 tool_calls 剥掉。
+      final completedToolIds = <String>{
+        for (final m in session.messages)
+          if (m.role == 'tool' && !m.streaming && m.toolCallId != null)
+            m.toolCallId!,
+      };
       final history = <Map<String, dynamic>>[
         {'role': 'system', 'content': _systemPrompt(session)},
-        for (final m in session.messages.where((m) => !m.streaming))
-          chatMessageToOpenAi(m),
       ];
+      for (final m in session.messages) {
+        if (m.streaming) continue;
+        if (m.role == 'tool' &&
+            (m.toolCallId == null ||
+                !completedToolIds.contains(m.toolCallId))) {
+          continue;
+        }
+        if (m.role == 'assistant' &&
+            m.toolCalls != null &&
+            m.toolCalls!.isNotEmpty) {
+          final allDone =
+              m.toolCalls!.every((c) => completedToolIds.contains(c.id));
+          if (!allDone) {
+            // 剥掉 tool_calls，仅保留正文（可能为空，会被 service 转成 null）
+            history.add(chatMessageToOpenAi(
+                ChatMessage(role: 'assistant', content: m.content)));
+            continue;
+          }
+        }
+        history.add(chatMessageToOpenAi(m));
+      }
 
       final tools = session.toolsEnabled ? _registry.toOpenAiList() : null;
 
@@ -200,6 +228,7 @@ class ChatState extends ChangeNotifier {
       }, onError: (Object e, StackTrace st) {
         assistant.content +=
             '${assistant.content.isEmpty ? '' : '\n'}⚠️ 调用失败：$e';
+        finishReason = 'error';
         if (!completer.isCompleted) completer.complete();
       }, onDone: () {
         if (!completer.isCompleted) completer.complete();

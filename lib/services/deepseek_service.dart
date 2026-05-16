@@ -136,7 +136,9 @@ class DeepSeekService {
 
     http.StreamedResponse resp;
     try {
-      resp = await client.send(req).timeout(const Duration(seconds: 60));
+      // reasoner 起手 + tools 时模型会"思考"较久（reasoning_content）
+      // 初始 headers 等待时间放宽到 180s 避免在工具调用链中途被 timeout 切流
+      resp = await client.send(req).timeout(const Duration(seconds: 180));
     } catch (e) {
       client.close();
       yield DeepSeekChunk(delta: '⚠️ 网络错误：$e', done: true);
