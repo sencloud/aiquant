@@ -48,7 +48,7 @@ class PortfolioCommandBar extends StatelessWidget {
           IconButton(
             tooltip: '删除组合',
             icon: const Icon(Icons.delete_outline,
-                color: AppColors.negative, size: 18),
+                color: AppColors.danger, size: 18),
             onPressed: onDelete,
           ),
         ],

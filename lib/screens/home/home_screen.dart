@@ -20,31 +20,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          height: 54,
-          decoration: BoxDecoration(
-            color: AppColors.bgSurface,
-            border: Border(top: BorderSide(color: AppColors.borderDim)),
-          ),
-          child: Row(
-            children: [
-              _NavItem(
-                icon: Icons.psychology_outlined,
-                activeIcon: Icons.psychology,
-                label: '助理',
-                active: _index == 0,
-                onTap: () => setState(() => _index = 0),
-              ),
-              _NavItem(
-                icon: Icons.pie_chart_outline,
-                activeIcon: Icons.pie_chart,
-                label: '组合',
-                active: _index == 1,
-                onTap: () => setState(() => _index = 1),
-              ),
-            ],
+      // 直接用 Container 外包 SafeArea，让 tab 背景色一直延伸到 home indicator
+      // 区域，避免出现「tab 上方一截 + 下方一截留白」的视觉浪费。
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          border: Border(top: BorderSide(color: AppColors.borderDim)),
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.only(bottom: 4),
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                _NavItem(
+                  icon: Icons.psychology_outlined,
+                  activeIcon: Icons.psychology,
+                  label: '助理',
+                  active: _index == 0,
+                  onTap: () => setState(() => _index = 0),
+                ),
+                _NavItem(
+                  icon: Icons.pie_chart_outline,
+                  activeIcon: Icons.pie_chart,
+                  label: '组合',
+                  active: _index == 1,
+                  onTap: () => setState(() => _index = 1),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -76,8 +81,8 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(active ? activeIcon : icon, size: 20, color: color),
-            const SizedBox(height: 2),
+            Icon(active ? activeIcon : icon, size: 18, color: color),
+            const SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(

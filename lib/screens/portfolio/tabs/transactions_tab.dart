@@ -69,7 +69,7 @@ class TransactionsTab extends StatelessWidget {
                       key: ValueKey(t.id),
                       background: Container(
                         alignment: Alignment.centerRight,
-                        color: AppColors.negative,
+                        color: AppColors.danger,
                         padding: const EdgeInsets.only(right: 16),
                         child: const Icon(Icons.delete_outline,
                             color: Colors.white),
@@ -92,7 +92,7 @@ class TransactionsTab extends StatelessWidget {
                                         Navigator.pop(ctx, true),
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                            AppColors.negative),
+                                            AppColors.danger),
                                     child: const Text('删除'),
                                   ),
                                 ],

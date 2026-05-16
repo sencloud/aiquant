@@ -111,22 +111,12 @@ class MessageBubble extends StatelessWidget {
 
     if (!message.streaming) return markdown;
 
-    // streaming 时给整个 markdown 加 0.92 → 1.0 的淡入动画 +
-    // 文末闪烁的金黄光标，模仿主流 LLM 客户端「逐字浮现」的视觉效果。
+    // streaming 时不再对整段 markdown 做淡入（会让旧内容反复重绘 → 闪动）。
+    // 直接渲染最新内容，并在末尾放一个金黄闪烁光标作为"还在打字"的视觉提示。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          switchInCurve: Curves.easeOut,
-          transitionBuilder: (child, anim) =>
-              FadeTransition(opacity: anim, child: child),
-          // 用内容长度作为 key，每来一段 delta 就跑一次淡入
-          child: KeyedSubtree(
-            key: ValueKey(message.content.length ~/ 16),
-            child: markdown,
-          ),
-        ),
+        markdown,
         const SizedBox(height: 2),
         const _BlinkingCursor(),
       ],
