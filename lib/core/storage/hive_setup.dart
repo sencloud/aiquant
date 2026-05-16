@@ -15,6 +15,7 @@ Future<void> registerHiveAdapters() async {
   if (_registered) return;
   Hive.registerAdapter(PortfolioAdapter());
   Hive.registerAdapter(PortfolioTransactionAdapter());
+  Hive.registerAdapter(ToolCallAdapter());
   Hive.registerAdapter(ChatMessageAdapter());
   Hive.registerAdapter(ChatSessionAdapter());
   _registered = true;

@@ -3,22 +3,34 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../../models/chat.dart';
 import '../../../theme/app_theme.dart';
+import 'reasoning_block.dart';
+import 'tool_call_card.dart';
 
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    required this.allMessages,
     this.showReasoning = true,
   });
 
   final ChatMessage message;
+  final List<ChatMessage> allMessages;
   final bool showReasoning;
 
   @override
   Widget build(BuildContext context) {
+    // role=tool 不渲染独立气泡——结果会在所属 assistant 气泡里展示
+    if (message.role == 'tool') {
+      return const SizedBox.shrink();
+    }
+
     final isUser = message.role == 'user';
     final hasReasoning =
         showReasoning && (message.reasoning?.isNotEmpty ?? false);
+    final hasToolCalls =
+        (message.toolCalls?.isNotEmpty ?? false);
+    final hasContent = message.content.trim().isNotEmpty;
 
     final bg = isUser ? AppColors.amber : AppColors.bgRaised;
     final fg = isUser ? Colors.black : AppColors.textPrimary;
@@ -29,20 +41,35 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment:
             isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (hasReasoning) _reasoningBlock(message.reasoning!),
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.86,
+          if (hasReasoning)
+            ReasoningBlock(
+              text: message.reasoning!,
+              streaming: message.streaming && !hasContent,
             ),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: const BorderRadius.all(Radius.circular(8)),
+          if (hasContent)
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.86,
+              ),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: _content(context, fg),
             ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: _content(context, fg),
-          ),
-          if (message.streaming)
+          if (hasToolCalls)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.92,
+              ),
+              child: ToolCallList(
+                calls: message.toolCalls!,
+                findResult: _findToolResult,
+              ),
+            ),
+          if (message.streaming && !hasReasoning && !hasContent && !hasToolCalls)
             const Padding(
               padding: EdgeInsets.only(top: 4),
               child: _TypingDots(),
@@ -52,40 +79,12 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _reasoningBlock(String txt) => Container(
-        margin: const EdgeInsets.only(bottom: 6, top: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          border: Border.all(color: AppColors.borderDim),
-          borderRadius: const BorderRadius.all(Radius.circular(6)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [
-              Icon(Icons.psychology_outlined,
-                  size: 12, color: AppColors.amber),
-              SizedBox(width: 4),
-              Text('深度推理',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.amber,
-                      letterSpacing: 0.6)),
-            ]),
-            const SizedBox(height: 4),
-            Text(
-              txt,
-              style: TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 11,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      );
+  ChatMessage? _findToolResult(String toolCallId) {
+    for (final m in allMessages) {
+      if (m.role == 'tool' && m.toolCallId == toolCallId) return m;
+    }
+    return null;
+  }
 
   Widget _content(BuildContext context, Color fg) {
     if (message.role == 'user') {

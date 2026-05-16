@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/persona.dart';
 import '../../state/chat_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_theme.dart';
 import '../../ui/theme_toggle_button.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/persona_picker.dart';
 import 'widgets/session_drawer.dart';
 
 class AssistantScreen extends StatefulWidget {
@@ -55,6 +57,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final chat = context.watch<ChatState>();
     final settings = context.watch<SettingsState>();
     final session = chat.active;
+    final persona = chat.currentPersona;
 
     if (chat.streaming) _scrollToBottom();
 
@@ -63,31 +66,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
         title: Row(
           children: [
             const Text('AI 助理'),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: settings.deepMode
-                      ? AppColors.amber
-                      : AppColors.borderMed,
-                ),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: Text(
-                settings.deepMode
-                    ? '深度模式 · DeepSeek-R'
-                    : settings.deepseekModel,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: settings.deepMode
-                      ? AppColors.amber
-                      : AppColors.textSecondary,
-                ),
-              ),
-            ),
             const SizedBox(width: 8),
+            _modelBadge(settings, session?.toolsEnabled ?? false),
+            const SizedBox(width: 6),
             if (chat.totalTokens > 0)
               Text(
                 '${chat.totalTokens} tok',
@@ -98,10 +79,28 @@ class _AssistantScreenState extends State<AssistantScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: (session?.toolsEnabled ?? false)
+                ? '已启用工具调用 (Tushare)'
+                : '点击启用工具调用',
+            icon: Icon(
+              (session?.toolsEnabled ?? false)
+                  ? Icons.handyman
+                  : Icons.handyman_outlined,
+              size: 18,
+              color: (session?.toolsEnabled ?? false)
+                  ? AppColors.amber
+                  : AppColors.textSecondary,
+            ),
+            onPressed: () => chat
+                .setToolsEnabled(!(session?.toolsEnabled ?? false)),
+          ),
+          IconButton(
             tooltip: _showReasoning ? '隐藏推理过程' : '显示推理过程',
-            icon: Icon(_showReasoning ? Icons.visibility : Icons.visibility_off,
+            icon: Icon(
+                _showReasoning ? Icons.visibility : Icons.visibility_off,
                 size: 18),
-            onPressed: () => setState(() => _showReasoning = !_showReasoning),
+            onPressed: () =>
+                setState(() => _showReasoning = !_showReasoning),
           ),
           IconButton(
             tooltip: '新对话',
@@ -123,9 +122,25 @@ class _AssistantScreenState extends State<AssistantScreen> {
       body: Column(
         children: [
           if (!settings.hasDeepseekKey) _missingKeyBanner(),
+          // Persona 选择条
+          PersonaPicker(
+            activeId: persona.id,
+            disabled: chat.streaming,
+            onPick: (id) async {
+              final isNewSessionEmpty =
+                  (session?.messages.isEmpty ?? true);
+              if (isNewSessionEmpty) {
+                await chat.setPersona(id);
+              } else {
+                // 已有对话不切 persona，直接开新会话避免 prompt 跳变
+                await chat.newSession(personaId: id);
+              }
+            },
+          ),
+          Container(height: 1, color: AppColors.borderDim),
           Expanded(
             child: session == null || session.messages.isEmpty
-                ? _welcomePanel(context)
+                ? _welcomePanel(persona)
                 : ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.symmetric(
@@ -135,6 +150,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       final msg = session.messages[i];
                       return MessageBubble(
                         message: msg,
+                        allMessages: session.messages,
                         showReasoning: _showReasoning,
                       );
                     },
@@ -142,6 +158,35 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ),
           _composer(chat),
         ],
+      ),
+    );
+  }
+
+  Widget _modelBadge(SettingsState settings, bool toolsOn) {
+    final label = toolsOn
+        ? '工具模式 · DeepSeek-Chat'
+        : (settings.deepMode
+            ? '深度模式 · DeepSeek-R'
+            : settings.deepseekModel);
+    final color =
+        toolsOn ? AppColors.info : (settings.deepMode ? AppColors.amber : AppColors.borderMed);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: toolsOn
+              ? AppColors.info
+              : (settings.deepMode
+                  ? AppColors.amber
+                  : AppColors.textSecondary),
+        ),
       ),
     );
   }
@@ -156,7 +201,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '尚未配置 DeepSeek API Key — 前往“设置”填写后即可对话。',
+                '尚未配置 DeepSeek API Key — 前往"设置"填写后即可对话。',
                 style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
               ),
             ),
@@ -170,8 +215,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         ),
       );
 
-  Widget _welcomePanel(BuildContext context) {
-    final settings = context.read<SettingsState>();
+  Widget _welcomePanel(Persona persona) {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 540),
@@ -181,20 +225,35 @@ class _AssistantScreenState extends State<AssistantScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('欢迎使用 Fincept AI 助理',
-                  style: TextStyle(
-                      color: AppColors.amber,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0)),
-              const SizedBox(height: 8),
-              Text(
-                settings.deepMode
-                    ? '当前默认模型：deepseek-reasoner（深度模式 / 推理）。'
-                    : '当前模型：${settings.deepseekModel}。可在“设置”切换。',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-              ),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: persona.color.withValues(alpha: 0.18),
+                    border: Border.all(color: persona.color),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(persona.icon, size: 18, color: persona.color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(persona.displayName,
+                          style: TextStyle(
+                              color: persona.color,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0)),
+                      const SizedBox(height: 2),
+                      Text(persona.title,
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ]),
               const SizedBox(height: 24),
               Text('试试这些提问：',
                   style: TextStyle(
@@ -202,10 +261,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       fontSize: 11,
                       letterSpacing: 0.6)),
               const SizedBox(height: 8),
-              _suggestion('帮我分析一下沪深300近期的成交结构'),
-              _suggestion('我持有 600519、000858、300750，请给出风险提示'),
-              _suggestion('列出最近 5 天涨幅靠前的有色金属板块个股'),
-              _suggestion('如何用波动率构建一个稳健的 ETF 组合？'),
+              for (final q in persona.welcomeSuggestions) _suggestion(q),
             ],
           ),
         ),

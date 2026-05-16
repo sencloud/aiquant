@@ -3,13 +3,82 @@ import 'package:uuid/uuid.dart';
 
 const _uuid = Uuid();
 
+/// AI 工具调用请求（assistant 消息携带）。
+class ToolCall {
+  String id;
+  String name;
+  /// 序列化后的 JSON 字符串参数（OpenAI 协议规定 string 而非 object）
+  String argumentsJson;
+
+  ToolCall({
+    required this.id,
+    required this.name,
+    required this.argumentsJson,
+  });
+
+  Map<String, dynamic> toOpenAiJson() => {
+        'id': id,
+        'type': 'function',
+        'function': {
+          'name': name,
+          'arguments': argumentsJson,
+        },
+      };
+}
+
+class ToolCallAdapter extends TypeAdapter<ToolCall> {
+  @override
+  final int typeId = 5;
+
+  @override
+  ToolCall read(BinaryReader reader) {
+    final n = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < n; i++) reader.readByte(): reader.read(),
+    };
+    return ToolCall(
+      id: fields[0] as String,
+      name: fields[1] as String,
+      argumentsJson: fields[2] as String,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, ToolCall obj) {
+    writer
+      ..writeByte(3)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.name)
+      ..writeByte(2)
+      ..write(obj.argumentsJson);
+  }
+}
+
+/// 一条对话消息。
+///
+/// role:
+///   - user / assistant / system：常规
+///   - tool：工具执行结果（必须填 toolCallId、name）
+///
+/// toolCalls：assistant 消息发起的工具调用（可能不止一个）
 class ChatMessage extends HiveObject {
   String id;
-  String role; // user / assistant / system
+  String role;
   String content;
-  String? reasoning; // optional reasoning trace ("深度模式")
+  String? reasoning;
   DateTime timestamp;
   bool streaming;
+
+  /// assistant 消息：本轮请求触发的工具调用列表
+  List<ToolCall>? toolCalls;
+
+  /// role=tool 消息：对应 assistant 触发的 tool_call_id
+  String? toolCallId;
+
+  /// role=tool 消息：对应工具名称
+  String? name;
 
   ChatMessage({
     String? id,
@@ -18,6 +87,9 @@ class ChatMessage extends HiveObject {
     this.reasoning,
     DateTime? timestamp,
     this.streaming = false,
+    this.toolCalls,
+    this.toolCallId,
+    this.name,
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now();
 }
@@ -39,13 +111,16 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       reasoning: fields[3] as String?,
       timestamp: fields[4] as DateTime,
       streaming: fields[5] as bool? ?? false,
+      toolCalls: (fields[6] as List?)?.cast<ToolCall>(),
+      toolCallId: fields[7] as String?,
+      name: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -57,7 +132,13 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(4)
       ..write(obj.timestamp)
       ..writeByte(5)
-      ..write(obj.streaming);
+      ..write(obj.streaming)
+      ..writeByte(6)
+      ..write(obj.toolCalls)
+      ..writeByte(7)
+      ..write(obj.toolCallId)
+      ..writeByte(8)
+      ..write(obj.name);
   }
 }
 
@@ -70,6 +151,12 @@ class ChatSession extends HiveObject {
   bool deepMode;
   List<ChatMessage> messages;
 
+  /// Persona id（绑定 lib/models/persona.dart 内置库）
+  String personaId;
+
+  /// 是否启用工具调用（开启时 service 层会强制使用 deepseek-chat）
+  bool toolsEnabled;
+
   ChatSession({
     String? id,
     this.title = '新对话',
@@ -78,6 +165,8 @@ class ChatSession extends HiveObject {
     this.model = 'deepseek-reasoner',
     this.deepMode = true,
     List<ChatMessage>? messages,
+    this.personaId = 'default',
+    this.toolsEnabled = true,
   })  : id = id ?? _uuid.v4(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
@@ -102,13 +191,15 @@ class ChatSessionAdapter extends TypeAdapter<ChatSession> {
       model: fields[4] as String,
       deepMode: fields[5] as bool,
       messages: (fields[6] as List).cast<ChatMessage>(),
+      personaId: fields[7] as String? ?? 'default',
+      toolsEnabled: fields[8] as bool? ?? true,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatSession obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -122,6 +213,10 @@ class ChatSessionAdapter extends TypeAdapter<ChatSession> {
       ..writeByte(5)
       ..write(obj.deepMode)
       ..writeByte(6)
-      ..write(obj.messages);
+      ..write(obj.messages)
+      ..writeByte(7)
+      ..write(obj.personaId)
+      ..writeByte(8)
+      ..write(obj.toolsEnabled);
   }
 }
