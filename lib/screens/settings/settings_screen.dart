@@ -1,194 +1,60 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/config/app_config.dart';
-import '../../state/settings_state.dart';
 import '../../theme/app_theme.dart';
 
-class SettingsScreen extends StatefulWidget {
+/// "我的"页面 — 包含喜点余额展示 + 充值套餐列表。
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
+  static const _balance = 0; // 暂时本地展示；后续对接后端账户后从 state 读
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  late final TextEditingController _tushare;
-  late final TextEditingController _tushareEndpoint;
-  late final TextEditingController _deepseek;
-  bool _showTushare = false;
-  bool _showDeepseek = false;
-  bool _showAdvanced = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final s = context.read<SettingsState>();
-    _tushare = TextEditingController(
-        text: s.hasTushareToken ? s.tushareToken : '');
-    _tushareEndpoint =
-        TextEditingController(text: s.tushareEndpoint);
-    _deepseek = TextEditingController(
-        text: s.hasDeepseekKey ? s.deepseekKey : '');
-  }
-
-  @override
-  void dispose() {
-    _tushare.dispose();
-    _tushareEndpoint.dispose();
-    _deepseek.dispose();
-    super.dispose();
-  }
+  static const List<_TopupPackage> _packages = [
+    _TopupPackage(points: 100, priceYuan: 6, bonus: 0),
+    _TopupPackage(points: 500, priceYuan: 28, bonus: 50),
+    _TopupPackage(points: 1000, priceYuan: 58, bonus: 200),
+    _TopupPackage(points: 5000, priceYuan: 288, bonus: 1500),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsState>();
-
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: const Text('我的')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section('AI 助理（DeepSeek）'),
-          _kvRow(
-            label: 'API Key',
-            child: _masked(_deepseek, _showDeepseek, (v) {
-              setState(() => _showDeepseek = v);
-            }),
-          ),
-          _kvRow(
-            label: '模型',
-            child: DropdownButton<String>(
-              value: settings.deepseekModel,
-              isExpanded: true,
-              dropdownColor: AppColors.bgRaised,
-              underline: const SizedBox.shrink(),
-              items: const [
-                DropdownMenuItem(
-                  value: BuiltInSecrets.defaultDeepseekModel,
-                  child: Text('deepseek-v4-flash（默认 · 极速）'),
-                ),
-                DropdownMenuItem(
-                  value: BuiltInSecrets.reasoningDeepseekModel,
-                  child: Text('deepseek-reasoner（深度模式 / 推理）'),
-                ),
-                DropdownMenuItem(
-                  value: BuiltInSecrets.chatDeepseekModel,
-                  child: Text('deepseek-chat（对话模式）'),
-                ),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                settings.updateDeepseekModel(v);
-                settings.updateDeepMode(
-                    v == BuiltInSecrets.reasoningDeepseekModel);
+          const _BalanceCard(balance: _balance),
+          const SizedBox(height: 24),
+          _section('充值喜点'),
+          const SizedBox(height: 8),
+          for (final p in _packages) ...[
+            _PackageTile(
+              pkg: p,
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('支付通道接入中，敬请期待'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
               },
             ),
-          ),
-          SwitchListTile(
-            value: settings.deepMode,
-            activeThumbColor: AppColors.amber,
-            title: const Text('启用“深度模式”',
-                style: TextStyle(fontSize: 12)),
-            subtitle: Text(
-              '切换到 deepseek-reasoner，先生成推理过程再给出最终答案；'
-              '关闭则使用默认的 deepseek-v4-flash。',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
-            onChanged: (v) => settings.updateDeepMode(v),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              await settings.updateDeepseekKey(_deepseek.text);
-              if (!mounted) return;
-              messenger.showSnackBar(
-                const SnackBar(content: Text('DeepSeek API Key 已保存')),
-              );
-            },
-            child: const Text('保存 DeepSeek 设置'),
-          ),
-
-          const SizedBox(height: 28),
-          _section('行情数据（Tushare Pro）'),
-          _kvRow(
-            label: 'Token',
-            child: _masked(_tushare, _showTushare, (v) {
-              setState(() => _showTushare = v);
-            }),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              await settings.updateTushareToken(_tushare.text);
-              await settings.updateTushareEndpoint(_tushareEndpoint.text);
-              if (!mounted) return;
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Tushare 设置已保存')),
-              );
-            },
-            child: const Text('保存 Tushare 设置'),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '提示：默认已内置 Tushare Token，开箱即用。如需替换 Token 或'
-            '在 Web (H5) 上绕过 CORS，可在“高级”里改 Endpoint。',
-            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-          ),
-          const SizedBox(height: 8),
-          InkWell(
-            onTap: () => setState(() => _showAdvanced = !_showAdvanced),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    _showAdvanced
-                        ? Icons.keyboard_arrow_down
-                        : Icons.keyboard_arrow_right,
-                    size: 16,
-                    color: AppColors.amber,
-                  ),
-                  const SizedBox(width: 4),
-                  const Text('高级 · Tushare Endpoint',
-                      style: TextStyle(
-                          color: AppColors.amber,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6)),
-                ],
-              ),
-            ),
-          ),
-          if (_showAdvanced) ...[
-            const SizedBox(height: 4),
-            TextField(
-              controller: _tushareEndpoint,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              decoration: const InputDecoration(
-                hintText: 'http://api.tushare.pro',
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '默认 http://api.tushare.pro。Web 端浏览器会跨域拦截，'
-              '可换成你自己的 HTTPS 反向代理（Cloudflare Worker / Nginx 均可），'
-              '后端只需把 POST body 透传到 Tushare 即可。',
-              style: TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary, height: 1.5),
-            ),
+            const SizedBox(height: 8),
           ],
-
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
+          _section('喜点说明'),
+          const SizedBox(height: 6),
+          _bulletText('• 喜点是 App 内的虚拟资产，用于解锁高级 AI 助理与深度行情分析。'),
+          _bulletText('• 每次深度模式（含推理过程）的 AI 回答消耗 5 喜点。'),
+          _bulletText('• 每次工具调用（拉取行情/对比/筛选）消耗 1 喜点。'),
+          _bulletText('• 喜点为虚拟商品，购买后不可退换、不可转让。'),
+          const SizedBox(height: 24),
           _section('关于'),
           ListTile(
             dense: true,
             leading: const Icon(Icons.info_outline, color: AppColors.amber),
-            title: Text('Fincept App',
+            title: Text('喜宽 AIQuant',
                 style: TextStyle(color: AppColors.textPrimary)),
-            subtitle: Text('FINCEPT 终端的移动 / Web 简化版',
+            subtitle: Text('AI 量化助手',
                 style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 11)),
           ),
@@ -197,44 +63,210 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _section(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 8, top: 4),
+  static Widget _section(String t) => Text(
+        t,
+        style: const TextStyle(
+          color: AppColors.amber,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
+        ),
+      );
+
+  static Widget _bulletText(String t) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Text(
           t,
-          style: const TextStyle(
-            color: AppColors.amber,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+            height: 1.6,
           ),
         ),
       );
+}
 
-  Widget _kvRow({required String label, required Widget child}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11)),
-            const SizedBox(height: 6),
-            child,
-          ],
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({required this.balance});
+  final int balance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.amber, AppColors.amberDim],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      );
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars_rounded, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                '我的喜点',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$balance',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '喜点',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-  Widget _masked(TextEditingController c, bool show, ValueChanged<bool> onTap) {
-    return TextField(
-      controller: c,
-      obscureText: !show,
-      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-      decoration: InputDecoration(
-        hintText: '在此粘贴密钥',
-        suffixIcon: IconButton(
-          icon: Icon(show ? Icons.visibility_off : Icons.visibility,
-              size: 18, color: AppColors.textTertiary),
-          onPressed: () => onTap(!show),
+class _TopupPackage {
+  const _TopupPackage({
+    required this.points,
+    required this.priceYuan,
+    required this.bonus,
+  });
+  final int points;
+  final int priceYuan;
+  final int bonus;
+
+  int get totalPoints => points + bonus;
+
+  /// 等效单价（每喜点折合多少元，用 0.001 精度）
+  double get unitPriceYuan => priceYuan / totalPoints;
+}
+
+class _PackageTile extends StatelessWidget {
+  const _PackageTile({required this.pkg, required this.onTap});
+  final _TopupPackage pkg;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBonus = pkg.bonus > 0;
+    return Material(
+      color: AppColors.bgRaised,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderDim),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.amber),
+                ),
+                child: const Icon(Icons.stars_rounded,
+                    color: AppColors.amber, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '${pkg.points} 喜点',
+                          style: const TextStyle(
+                            color: AppColors.amber,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (hasBonus) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.positive.withValues(alpha: 0.18),
+                              border: Border.all(color: AppColors.positive),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              '送 ${pkg.bonus}',
+                              style: const TextStyle(
+                                color: AppColors.positive,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasBonus
+                          ? '到账 ${pkg.totalPoints} 喜点 · 折合 ¥${pkg.unitPriceYuan.toStringAsFixed(3)}/喜点'
+                          : '折合 ¥${pkg.unitPriceYuan.toStringAsFixed(3)}/喜点',
+                      style: TextStyle(
+                          color: AppColors.textTertiary, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.amber,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '¥${pkg.priceYuan}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

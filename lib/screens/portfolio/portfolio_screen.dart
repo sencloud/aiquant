@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
-import '../../ui/theme_toggle_button.dart';
 import '../settings/settings_screen.dart';
 import 'dialogs/create_portfolio_dialog.dart';
 import 'dialogs/instrument_picker_dialog.dart';
@@ -43,10 +42,9 @@ class PortfolioScreen extends StatelessWidget {
               icon: const Icon(Icons.refresh, size: 18),
               onPressed: ps.activeId == null ? null : () => ps.refreshQuotes(),
             ),
-            const ThemeToggleButton(),
             IconButton(
-              tooltip: '设置',
-              icon: const Icon(Icons.settings_outlined, size: 18),
+              tooltip: '我的',
+              icon: const Icon(Icons.person_outline, size: 18),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const SettingsScreen())),
             ),
