@@ -31,15 +31,24 @@ class _AssistantScreenState extends State<AssistantScreen> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  /// 滚动到底部。
+  /// - [animate]=false：用 jumpTo（流式期间使用，避免每帧都启动新的 animateTo
+  ///   打断旧动画造成抖动闪烁）。
+  /// - [animate]=true：用 animateTo（首次发送 / 接收完毕调用一次）。
+  void _scrollToBottom({bool animate = true}) {
     if (!_scroll.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent + 240,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-      );
+      final target = _scroll.position.maxScrollExtent;
+      if (animate) {
+        _scroll.animateTo(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scroll.jumpTo(target);
+      }
     });
   }
 
@@ -60,7 +69,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final session = chat.active;
     final persona = chat.currentPersona;
 
-    if (chat.streaming) _scrollToBottom();
+    if (chat.streaming) _scrollToBottom(animate: false);
 
     return Scaffold(
       appBar: AppBar(

@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 /// dark / light at runtime — call [AppColors.applyMode] then rebuild the
 /// `MaterialApp` (see `lib/app.dart`).
 ///
-/// Bloomberg-style: amber accent, signed colour for gains (green) /
-/// losses (red). The light variant keeps the same accent so the look stays
-/// consistent across modes.
+/// 中国市场配色：涨 = 红 / 跌 = 绿（A 股、港股惯例）。
+/// `AppColors.positive` 永远代表「正向 = 上涨 / 盈利 / 买入」 → 红；
+/// `AppColors.negative` 永远代表「负向 = 下跌 / 亏损 / 卖出」 → 绿。
+/// 调用方按语义使用即可，不要根据数值正负去硬编码颜色。
 class AppColors {
   // ---- runtime fields (do NOT mark const at call sites) ----
   static Color bgBase = _darkBgBase;
@@ -23,10 +24,12 @@ class AppColors {
   // Accents that are the same in both modes.
   static const Color amber = Color(0xFFD97706);
   static const Color amberDim = Color(0xFFB35B05);
-  static const Color positive = Color(0xFF16A34A);
-  static const Color negative = Color(0xFFDC2626);
+  static const Color positive = Color(0xFFDC2626); // 红 = 涨/盈利/买入（中国惯例）
+  static const Color negative = Color(0xFF16A34A); // 绿 = 跌/亏损/卖出（中国惯例）
   static const Color warning = Color(0xFFEAB308);
   static const Color info = Color(0xFF2563EB);
+  /// 破坏性 / 错误 UI（删除按钮、错误图标等），与"涨跌色"语义解耦。
+  static const Color danger = Color(0xFFDC2626);
 
   /// Used for tabs / accent badges that are purely decorative.
   static const sectorPalette = [
@@ -94,7 +97,7 @@ class AppTheme {
         primary: AppColors.amber,
         secondary: AppColors.amberDim,
         surface: AppColors.bgSurface,
-        error: AppColors.negative,
+        error: AppColors.danger,
         onPrimary: Colors.black,
         onSecondary: Colors.black,
         onSurface: AppColors.textPrimary,
@@ -110,7 +113,7 @@ class AppTheme {
         primary: AppColors.amber,
         secondary: AppColors.amberDim,
         surface: AppColors.bgSurface,
-        error: AppColors.negative,
+        error: AppColors.danger,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.textPrimary,

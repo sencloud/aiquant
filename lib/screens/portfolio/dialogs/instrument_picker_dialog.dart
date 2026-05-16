@@ -397,7 +397,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.error_outline,
-                  color: AppColors.negative, size: 36),
+                  color: AppColors.danger, size: 36),
               const SizedBox(height: 12),
               Text(err,
                   textAlign: TextAlign.center,

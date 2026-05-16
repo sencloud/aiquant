@@ -174,7 +174,7 @@ class PortfolioScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.negative,
+              backgroundColor: AppColors.danger,
             ),
             child: const Text('删除'),
           ),

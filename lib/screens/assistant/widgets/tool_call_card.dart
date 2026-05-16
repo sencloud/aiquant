@@ -66,8 +66,8 @@ class _ToolCallCardState extends State<_ToolCallCard> {
   @override
   Widget build(BuildContext context) {
     final accent = _hasError
-        ? AppColors.negative
-        : (_running ? AppColors.info : AppColors.positive);
+        ? AppColors.danger
+        : (_running ? AppColors.info : AppColors.amber);
     final argsPretty = _prettyJson(widget.call.argumentsJson);
     final resultPretty =
         widget.result == null ? '执行中…' : _prettyJson(widget.result!.content);
