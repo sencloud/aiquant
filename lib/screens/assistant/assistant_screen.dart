@@ -3,9 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/persona.dart';
 import '../../state/chat_state.dart';
-import '../../state/settings_state.dart';
 import '../../theme/app_theme.dart';
-import '../../ui/theme_toggle_button.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
@@ -55,7 +53,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
   @override
   Widget build(BuildContext context) {
     final chat = context.watch<ChatState>();
-    final settings = context.watch<SettingsState>();
     final session = chat.active;
     final persona = chat.currentPersona;
 
@@ -67,8 +64,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
           children: [
             const Text('AI 助理'),
             const SizedBox(width: 8),
-            _modelBadge(settings, session?.toolsEnabled ?? false),
-            const SizedBox(width: 6),
             if (chat.totalTokens > 0)
               Text(
                 '${chat.totalTokens} tok',
@@ -107,10 +102,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
             icon: const Icon(Icons.add_comment_outlined, size: 18),
             onPressed: () => chat.newSession(),
           ),
-          const ThemeToggleButton(),
           IconButton(
-            tooltip: '设置',
-            icon: const Icon(Icons.settings_outlined, size: 18),
+            tooltip: '我的',
+            icon: const Icon(Icons.person_outline, size: 18),
             onPressed: () {
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const SettingsScreen()));
@@ -121,8 +115,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
       drawer: const SessionDrawer(),
       body: Column(
         children: [
-          if (!settings.hasDeepseekKey) _missingKeyBanner(),
-          // Persona 选择条
           PersonaPicker(
             activeId: persona.id,
             disabled: chat.streaming,
@@ -161,59 +153,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
       ),
     );
   }
-
-  Widget _modelBadge(SettingsState settings, bool toolsOn) {
-    final label = toolsOn
-        ? '工具模式 · DeepSeek-Chat'
-        : (settings.deepMode
-            ? '深度模式 · DeepSeek-R'
-            : settings.deepseekModel);
-    final color =
-        toolsOn ? AppColors.info : (settings.deepMode ? AppColors.amber : AppColors.borderMed);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: toolsOn
-              ? AppColors.info
-              : (settings.deepMode
-                  ? AppColors.amber
-                  : AppColors.textSecondary),
-        ),
-      ),
-    );
-  }
-
-  Widget _missingKeyBanner() => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        color: AppColors.bgRaised,
-        child: Row(
-          children: [
-            const Icon(Icons.key_off, color: AppColors.warning, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '尚未配置 DeepSeek API Key — 前往"设置"填写后即可对话。',
-                style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ),
-              child: const Text('打开设置'),
-            ),
-          ],
-        ),
-      );
 
   Widget _welcomePanel(Persona persona) {
     return Center(

@@ -26,6 +26,7 @@ build/
 # Environment / secrets
 .env
 .env.local
+!.env.example
 lib/core/config/secrets.dart
 
 # Code-signing materials (NEVER commit)
