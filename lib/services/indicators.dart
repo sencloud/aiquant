@@ -81,6 +81,248 @@ class Indicators {
     return (ar - riskFree) / av;
   }
 
+  /// 年化 Sortino Ratio：分母只用下行波动（负收益的标准差）
+  static double sortinoRatio(List<CandlePoint> series, {double riskFree = 0.02}) {
+    final rs = dailyReturns(series);
+    if (rs.length < 2) return 0;
+    final dailyRf = riskFree / 252;
+    final downsides = [for (final r in rs) if (r < dailyRf) r - dailyRf];
+    if (downsides.isEmpty) return 0;
+    var sumSq = 0.0;
+    for (final d in downsides) {
+      sumSq += d * d;
+    }
+    final downStd = math.sqrt(sumSq / downsides.length) * math.sqrt(252);
+    if (downStd == 0) return 0;
+    final ar = annualizedReturn(series);
+    return (ar - riskFree) / downStd;
+  }
+
+  /// Calmar Ratio = annualized_return / |max_drawdown|
+  static double calmarRatio(List<CandlePoint> series) {
+    final ar = annualizedReturn(series);
+    final mdd = maxDrawdown(series).drawdown;
+    if (mdd == 0) return 0;
+    return ar / mdd;
+  }
+
+  /// Information Ratio = (Rp - Rb) / tracking_error，所有量年化
+  static double informationRatio(
+      List<CandlePoint> portfolio, List<CandlePoint> benchmark) {
+    final (rp, rb) = alignReturns(portfolio, benchmark);
+    if (rp.length < 2) return 0;
+    final diff = <double>[for (var i = 0; i < rp.length; i++) rp[i] - rb[i]];
+    final m = _mean(diff);
+    final std = _stddev(diff);
+    if (std == 0) return 0;
+    return (m / std) * math.sqrt(252);
+  }
+
+  /// 上行/下行捕获率：基准为正/负的日子里，组合的累计收益 / 基准累计收益
+  static (double up, double down) captureRatios(
+      List<CandlePoint> portfolio, List<CandlePoint> benchmark) {
+    final (rp, rb) = alignReturns(portfolio, benchmark);
+    if (rp.length < 2) return (0, 0);
+    var pUp = 0.0, bUp = 0.0, pDn = 0.0, bDn = 0.0;
+    for (var i = 0; i < rp.length; i++) {
+      if (rb[i] > 0) {
+        pUp += rp[i];
+        bUp += rb[i];
+      } else if (rb[i] < 0) {
+        pDn += rp[i];
+        bDn += rb[i];
+      }
+    }
+    final up = bUp == 0 ? 0.0 : pUp / bUp;
+    final down = bDn == 0 ? 0.0 : pDn / bDn;
+    return (up, down);
+  }
+
+  /// 偏度（Fisher–Pearson 三阶矩）
+  static double skewness(List<double> xs) {
+    if (xs.length < 3) return 0;
+    final m = _mean(xs);
+    final s = _stddev(xs);
+    if (s == 0) return 0;
+    var sum = 0.0;
+    for (final x in xs) {
+      final d = (x - m) / s;
+      sum += d * d * d;
+    }
+    return sum / xs.length;
+  }
+
+  /// 超额峰度（excess kurtosis = E[(x-m)^4 / s^4] - 3）
+  static double excessKurtosis(List<double> xs) {
+    if (xs.length < 4) return 0;
+    final m = _mean(xs);
+    final s = _stddev(xs);
+    if (s == 0) return 0;
+    var sum = 0.0;
+    for (final x in xs) {
+      final d = (x - m) / s;
+      sum += d * d * d * d;
+    }
+    return sum / xs.length - 3;
+  }
+
+  /// VaR：参数法（正态假设），返回正数（如 0.025 表示 2.5%）
+  /// p 取 0.95 / 0.99 等。
+  static double varParametric(List<CandlePoint> series, {double p = 0.95}) {
+    final rs = dailyReturns(series);
+    if (rs.length < 5) return 0;
+    final m = _mean(rs);
+    final s = _stddev(rs);
+    final z = _normalQuantile(p);
+    final v = -(m - z * s);
+    return v < 0 ? 0 : v;
+  }
+
+  /// VaR：历史模拟法
+  static double varHistorical(List<CandlePoint> series, {double p = 0.95}) {
+    final rs = dailyReturns(series);
+    if (rs.length < 20) return 0;
+    final sorted = [...rs]..sort();
+    final idx = ((1 - p) * sorted.length).floor().clamp(0, sorted.length - 1);
+    final q = sorted[idx];
+    return q < 0 ? -q : 0;
+  }
+
+  /// CVaR / Expected Shortfall：超过 VaR 后的平均损失
+  static double cvarHistorical(List<CandlePoint> series, {double p = 0.95}) {
+    final rs = dailyReturns(series);
+    if (rs.length < 20) return 0;
+    final sorted = [...rs]..sort();
+    final n = ((1 - p) * sorted.length).floor().clamp(1, sorted.length);
+    final worst = sorted.take(n);
+    if (worst.isEmpty) return 0;
+    final mean = worst.reduce((a, b) => a + b) / worst.length;
+    return mean < 0 ? -mean : 0;
+  }
+
+  /// 标准正态分布的反函数（Beasley-Springer-Moro 近似），用于 VaR 参数法
+  static double _normalQuantile(double p) {
+    if (p <= 0) return -double.infinity;
+    if (p >= 1) return double.infinity;
+    const a = [
+      -3.969683028665376e+01,
+      2.209460984245205e+02,
+      -2.759285104469687e+02,
+      1.383577518672690e+02,
+      -3.066479806614716e+01,
+      2.506628277459239e+00,
+    ];
+    const b = [
+      -5.447609879822406e+01,
+      1.615858368580409e+02,
+      -1.556989798598866e+02,
+      6.680131188771972e+01,
+      -1.328068155288572e+01,
+    ];
+    const c = [
+      -7.784894002430293e-03,
+      -3.223964580411365e-01,
+      -2.400758277161838e+00,
+      -2.549732539343734e+00,
+      4.374664141464968e+00,
+      2.938163982698783e+00,
+    ];
+    const d = [
+      7.784695709041462e-03,
+      3.224671290700398e-01,
+      2.445134137142996e+00,
+      3.754408661907416e+00,
+    ];
+    const pLow = 0.02425;
+    const pHigh = 1 - pLow;
+    if (p < pLow) {
+      final q = math.sqrt(-2 * math.log(p));
+      return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q +
+              c[5]) /
+          ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    } else if (p <= pHigh) {
+      final q = p - 0.5;
+      final r = q * q;
+      return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r +
+              a[5]) *
+          q /
+          (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+    } else {
+      final q = math.sqrt(-2 * math.log(1 - p));
+      return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q +
+              c[5]) /
+          ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    }
+  }
+
+  /// 把日 NAV 序列折算成月度收益（按月最后一个交易日 / 上月最后一个交易日 - 1）
+  static List<MapEntry<DateTime, double>> monthlyReturns(
+      List<CandlePoint> series) {
+    if (series.length < 2) return const [];
+    // 按月分组
+    final monthClose = <String, MapEntry<DateTime, double>>{};
+    for (final c in series) {
+      final key =
+          '${c.date.year}-${c.date.month.toString().padLeft(2, '0')}';
+      monthClose[key] = MapEntry(DateTime(c.date.year, c.date.month, 1), c.close);
+    }
+    final keys = monthClose.keys.toList()..sort();
+    final out = <MapEntry<DateTime, double>>[];
+    for (var i = 1; i < keys.length; i++) {
+      final prev = monthClose[keys[i - 1]]!.value;
+      final cur = monthClose[keys[i]]!;
+      if (prev == 0) continue;
+      out.add(MapEntry(cur.key, (cur.value - prev) / prev));
+    }
+    return out;
+  }
+
+  /// 滚动 N 日收益率波动率（年化），输出长度 = series.length - n
+  static List<MapEntry<DateTime, double>> rollingVolatility(
+      List<CandlePoint> series, int window) {
+    if (series.length <= window || window < 2) return const [];
+    final out = <MapEntry<DateTime, double>>[];
+    final rs = dailyReturns(series);
+    for (var i = window; i <= rs.length; i++) {
+      final slice = rs.sublist(i - window, i);
+      out.add(MapEntry(series[i].date, _stddev(slice) * math.sqrt(252)));
+    }
+    return out;
+  }
+
+  /// 滚动 N 日 Sharpe（窗口内年化 mean / 年化 std）
+  static List<MapEntry<DateTime, double>> rollingSharpe(
+      List<CandlePoint> series, int window,
+      {double riskFree = 0.02}) {
+    if (series.length <= window || window < 2) return const [];
+    final out = <MapEntry<DateTime, double>>[];
+    final rs = dailyReturns(series);
+    final dailyRf = riskFree / 252;
+    for (var i = window; i <= rs.length; i++) {
+      final slice = rs.sublist(i - window, i);
+      final m = _mean(slice);
+      final s = _stddev(slice);
+      if (s == 0) continue;
+      out.add(MapEntry(
+          series[i].date, ((m - dailyRf) / s) * math.sqrt(252)));
+    }
+    return out;
+  }
+
+  /// 回撤序列（每个时点的回撤值，0..1 的正数）
+  static List<MapEntry<DateTime, double>> drawdownSeries(
+      List<CandlePoint> series) {
+    if (series.length < 2) return const [];
+    final out = <MapEntry<DateTime, double>>[];
+    var peak = series.first.close;
+    for (final c in series) {
+      if (c.close > peak) peak = c.close;
+      final dd = peak == 0 ? 0.0 : (peak - c.close) / peak;
+      out.add(MapEntry(c.date, dd));
+    }
+    return out;
+  }
+
   /// 最大回撤：从历史峰值到谷底的最大跌幅，返回正数（如 0.235 表示 -23.5%）
   static MaxDrawdownResult maxDrawdown(List<CandlePoint> series) {
     if (series.length < 2) {

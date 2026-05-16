@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../settings/settings_screen.dart';
+import 'compare_screen.dart';
 import 'dialogs/create_portfolio_dialog.dart';
 import 'dialogs/instrument_picker_dialog.dart';
 import 'tabs/analytics_tab.dart';
@@ -41,6 +42,14 @@ class PortfolioScreen extends StatelessWidget {
               tooltip: '刷新行情',
               icon: const Icon(Icons.refresh, size: 18),
               onPressed: ps.activeId == null ? null : () => ps.refreshQuotes(),
+            ),
+            IconButton(
+              tooltip: '组合对比',
+              icon: const Icon(Icons.compare_arrows, size: 18),
+              onPressed: ps.portfolios.length < 2
+                  ? null
+                  : () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const PortfolioCompareScreen())),
             ),
             IconButton(
               tooltip: '我的',
