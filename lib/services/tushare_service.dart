@@ -315,4 +315,25 @@ class TushareService {
       '${d.year.toString().padLeft(4, '0')}'
       '${d.month.toString().padLeft(2, '0')}'
       '${d.day.toString().padLeft(2, '0')}';
+
+  /// 启动预热：发起一个轻量请求，目的有两个——
+  ///   1. 触发 iOS 中国地区首启时的"允许 App 使用 Wi-Fi 和蜂窝数据"系统弹窗，
+  ///      避免用户首次发消息时 AI 请求直接失败；
+  ///   2. 让 DNS / TLS / 长连接预先建立，AI 首条消息延迟更低。
+  /// 失败完全静默，不阻塞 UI。
+  Future<void> warmup() async {
+    try {
+      await _post(
+        apiName: 'trade_cal',
+        params: {
+          'exchange': 'SSE',
+          'is_open': '1',
+          'limit': '1',
+        },
+        fields: 'cal_date',
+      );
+    } catch (_) {
+      // 静默：联网失败/权限被拒等情况都不影响 app 启动。
+    }
+  }
 }
