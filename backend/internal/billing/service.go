@@ -1,0 +1,227 @@
+package billing
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/store"
+)
+
+// Service 是 billing 模块对外的总入口。
+//
+// 职责：
+//   - 暴露 SKU 列表 / 用户余额；
+//   - 管理订单全生命周期；
+//   - 在 verify IAP 流程内做"验签 → 订单 paid → 发币 → 订单 credited"原子化；
+//   - dev_topup：env=dev 直冲，跳过 IAP（联调用）。
+type Service struct {
+	cfg     *platform.Config
+	store   *store.Store
+	skus    *SKURepo
+	orders  *OrderRepo
+	ledger  *LedgerRepo
+	iap     IAPVerifier
+}
+
+func NewService(st *store.Store, cfg *platform.Config) (*Service, error) {
+	skus := NewSKURepo(st)
+	if err := SeedDefault(context.Background(), skus); err != nil {
+		return nil, fmt.Errorf("seed default skus: %w", err)
+	}
+	verifier := buildIAPVerifier(cfg)
+	return &Service{
+		cfg:    cfg,
+		store:  st,
+		skus:   skus,
+		orders: NewOrderRepo(st),
+		ledger: NewLedgerRepo(st),
+		iap:    verifier,
+	}, nil
+}
+
+func buildIAPVerifier(cfg *platform.Config) IAPVerifier {
+	// 暂时一律用 Mock；当 Apple Key 接入后改这里。
+	if cfg.Env == "dev" {
+		return MockIAPVerifier{}
+	}
+	// prod 默认仍走 mock 占位，便于先上线骨架；上正式 IAP 时改为 AppleIAPVerifier{...}。
+	return MockIAPVerifier{}
+}
+
+// ListSKUs 返回前端展示的 SKU。
+func (s *Service) ListSKUs(ctx context.Context) ([]SKU, error) {
+	return s.skus.ListActive(ctx)
+}
+
+// GetBalance 当前用户的喜点余额。直接从 users.credit_balance 读，
+// 流水表与 balance 由 Apply() 同事务保证一致。
+func (s *Service) GetBalance(ctx context.Context, userID int64) (int64, error) {
+	var balance int64
+	err := s.store.DB.GetContext(ctx, &balance,
+		"SELECT credit_balance FROM users WHERE id=?", userID)
+	return balance, err
+}
+
+// CreateOrder 客户端发起购买前先创建订单。
+type CreateOrderInput2 struct {
+	UserID          int64
+	SKUCode         string
+	Channel         string // 仅 apple_iap 进入；其它渠道后续接入
+	ClientRequestID string
+}
+
+func (s *Service) CreateOrder(ctx context.Context, in CreateOrderInput2) (*Order, error) {
+	if in.Channel != ChannelAppleIAP {
+		return nil, platform.ErrBadRequest("BILLING.CHANNEL_UNSUPPORTED",
+			"only apple_iap supported for now", nil)
+	}
+	sku, err := s.skus.FindByCode(ctx, in.SKUCode)
+	if err != nil {
+		return nil, platform.ErrInternal("BILLING.SKU_LOOKUP", err)
+	}
+	if sku == nil || !sku.IsActive() {
+		return nil, platform.ErrBadRequest("BILLING.SKU_NOT_FOUND", "sku not found or inactive", nil)
+	}
+	order, err := s.orders.Create(ctx, CreateOrderInput{
+		UserID:          in.UserID,
+		SKUCode:         sku.Code,
+		Credits:         sku.TotalCredits(),
+		AmountCents:     sku.PriceCentsCNY,
+		Channel:         in.Channel,
+		ClientRequestID: in.ClientRequestID,
+	})
+	if err != nil {
+		return nil, platform.ErrInternal("BILLING.CREATE_ORDER", err)
+	}
+	return order, nil
+}
+
+// VerifyIAP 验证 IAP receipt → 标记订单 paid → 写流水 → credited。
+//
+// 强幂等：
+//   - 同 transaction_id 已绑定到任意订单 → 直接返回那笔订单（已发币）；
+//   - 同 order_no 已 credited → 直接返回最新状态；
+//   - 流水唯一索引 (reason='topup', ref_type='order', ref_id=order_no) 兜底。
+func (s *Service) VerifyIAP(ctx context.Context, userID int64, orderNo, jwsReceipt string) (*Order, int64, error) {
+	order, err := s.orders.FindByOrderNo(ctx, orderNo)
+	if err != nil {
+		return nil, 0, platform.ErrInternal("BILLING.ORDER_LOOKUP", err)
+	}
+	if order == nil {
+		return nil, 0, platform.ErrNotFound("BILLING.ORDER_NOT_FOUND", "order not found")
+	}
+	if order.UserID != userID {
+		return nil, 0, platform.ErrForbidden("BILLING.ORDER_OWNER", "order does not belong to user")
+	}
+	if order.Status == OrderCredited {
+		bal, _ := s.GetBalance(ctx, userID)
+		return order, bal, nil
+	}
+	if order.Status != OrderPending && order.Status != OrderPaid {
+		return nil, 0, platform.ErrConflict("BILLING.ORDER_BAD_STATE",
+			"order is "+order.Status+", cannot verify")
+	}
+
+	res, err := s.iap.Verify(ctx, jwsReceipt)
+	if err != nil {
+		_ = s.orders.MarkFailed(ctx, order.ID)
+		return nil, 0, platform.ErrBadRequest("BILLING.IAP_INVALID",
+			"iap receipt verification failed", err)
+	}
+
+	// 反查 SKU 校验 product_id 一致
+	sku, err := s.skus.FindByAppleProductID(ctx, res.ProductID)
+	if err != nil || sku == nil {
+		_ = s.orders.MarkFailed(ctx, order.ID)
+		return nil, 0, platform.ErrBadRequest("BILLING.PRODUCT_MISMATCH",
+			fmt.Sprintf("product_id %q not found in our SKUs", res.ProductID), nil)
+	}
+	if sku.Code != order.SKUCode {
+		_ = s.orders.MarkFailed(ctx, order.ID)
+		return nil, 0, platform.ErrBadRequest("BILLING.PRODUCT_MISMATCH",
+			"receipt product_id does not match order sku", nil)
+	}
+
+	// 同 transaction_id 已绑过别的订单 → 拒绝（防止用同一笔 IAP 给多个订单发币）
+	existing, err := s.orders.FindByChannelOrderID(ctx, ChannelAppleIAP, res.TransactionID)
+	if err != nil {
+		return nil, 0, platform.ErrInternal("BILLING.LOOKUP_TX", err)
+	}
+	if existing != nil && existing.ID != order.ID {
+		return nil, 0, platform.ErrConflict("BILLING.TXID_CONSUMED",
+			"this iap transaction has been used")
+	}
+
+	// 落 receipt
+	rid, err := s.orders.SaveRawReceipt(ctx, ChannelAppleIAP, jwsReceipt, true)
+	if err == nil {
+		_ = s.orders.AttachReceiptID(ctx, order.ID, rid)
+	}
+
+	// pending → paid
+	if order.Status == OrderPending {
+		if err := s.orders.MarkPaid(ctx, order.ID, res.TransactionID); err != nil {
+			return nil, 0, platform.ErrInternal("BILLING.MARK_PAID", err)
+		}
+	}
+
+	// 发币 + credited
+	entry, err := s.ledger.Apply(ctx, ApplyParams{
+		UserID:  userID,
+		Delta:   order.Credits,
+		Reason:  ReasonTopup,
+		RefType: "order",
+		RefID:   order.OrderNo,
+		Remark:  fmt.Sprintf("IAP txid=%s", res.TransactionID),
+	})
+	if err != nil && !errors.Is(err, ErrLedgerDuplicate) {
+		return nil, 0, platform.ErrInternal("BILLING.LEDGER_APPLY", err)
+	}
+	_ = s.orders.MarkCredited(ctx, order.ID)
+
+	bal, _ := s.GetBalance(ctx, userID)
+	updated, _ := s.orders.FindByID(ctx, order.ID)
+	if entry != nil {
+		_ = entry
+	}
+	return updated, bal, nil
+}
+
+// DevTopup 仅 env=dev 启用：直冲，不经过 IAP。
+func (s *Service) DevTopup(ctx context.Context, userID int64, credits int64, remark string) (int64, error) {
+	if s.cfg.Env != "dev" {
+		return 0, platform.ErrForbidden("BILLING.DEV_ONLY", "dev_topup is dev-only")
+	}
+	if credits <= 0 || credits > 100_000 {
+		return 0, platform.ErrBadRequest("BILLING.AMOUNT_INVALID", "credits out of range", nil)
+	}
+	refID := platform.NewUUID()
+	_, err := s.ledger.Apply(ctx, ApplyParams{
+		UserID:  userID,
+		Delta:   credits,
+		Reason:  ReasonDevTopup,
+		RefType: "dev",
+		RefID:   refID,
+		Remark:  remark,
+	})
+	if err != nil {
+		return 0, platform.ErrInternal("BILLING.LEDGER_APPLY", err)
+	}
+	bal, _ := s.GetBalance(ctx, userID)
+	return bal, nil
+}
+
+// ListLedger 分页流水。
+func (s *Service) ListLedger(ctx context.Context, userID int64, cursor int64, limit int) ([]LedgerJSON, int64, error) {
+	rows, next, err := s.ledger.ListByUser(ctx, userID, cursor, limit)
+	if err != nil {
+		return nil, 0, platform.ErrInternal("BILLING.LEDGER_LIST", err)
+	}
+	out := make([]LedgerJSON, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.ToJSON())
+	}
+	return out, next, nil
+}

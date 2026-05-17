@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sencloud/finme-backend/internal/auth"
+	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
@@ -27,6 +28,7 @@ type Deps struct {
 	Auth    *auth.Service
 	Users   *users.Service
 	Devices *devices.Service
+	Billing *billing.Service
 }
 
 // NewRouter 装配业务路由。
@@ -52,11 +54,13 @@ func NewRouter(d *Deps) http.Handler {
 
 	r.Route("/v1", func(r chi.Router) {
 		mountAuth(r, d)
+		mountBillingPublic(r, d)
 		// 受保护的路由：JWT 中间件
 		r.Group(func(r chi.Router) {
 			r.Use(JWTMiddleware(d.Auth))
 			mountMe(r, d)
 			mountDevices(r, d)
+			mountBillingPrivate(r, d)
 		})
 	})
 
