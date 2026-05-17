@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
@@ -17,8 +18,15 @@ import '../services/iap_service.dart';
 class BillingState extends ChangeNotifier {
   BillingState({BillingService? service, IapService? iap})
       : _service = service ?? BillingService(),
-        _iap = iap ?? MockIapService() {
+        _iap = iap ?? _defaultIap() {
     _logoutSub = ApiClient.instance.onForcedLogout.listen((_) => reset());
+  }
+
+  static IapService _defaultIap() {
+    if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
+      return AppleIapService();
+    }
+    return MockIapService();
   }
 
   final BillingService _service;
@@ -144,6 +152,7 @@ class BillingState extends ChangeNotifier {
       notifyListeners();
 
       late final IapPurchaseResult iap;
+      final apple = _iap is AppleIapService ? _iap : null;
       try {
         iap = await _iap.purchase(sku.appleProductId);
       } on IapException catch (e) {
@@ -152,19 +161,26 @@ class BillingState extends ChangeNotifier {
         } else {
           _lastError = e.message;
         }
+        apple?.abort();
         return false;
       }
 
-      final r = await _service.verifyIap(
-        orderNo: order.orderNo,
-        jwsReceipt: iap.jwsReceipt,
-      );
-      _balance = r.balance;
-      _pendingOrder = r.order;
-      _lastError = null;
-      notifyListeners();
-      await refreshLedger(reset: true);
-      return true;
+      try {
+        final r = await _service.verifyIap(
+          orderNo: order.orderNo,
+          jwsReceipt: iap.jwsReceipt,
+        );
+        _balance = r.balance;
+        _pendingOrder = r.order;
+        _lastError = null;
+        await apple?.confirm();
+        notifyListeners();
+        await refreshLedger(reset: true);
+        return true;
+      } catch (e) {
+        apple?.abort();
+        rethrow;
+      }
     } catch (e) {
       _lastError = _msg(e);
       return false;

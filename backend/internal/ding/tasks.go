@@ -207,6 +207,39 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID int64) ([]Task, error)
 	return rows, err
 }
 
+// ListDue 返回 next_run_at <= now 的启用任务，按 id 排序，最多 limit 条。
+func (r *TaskRepo) ListDue(ctx context.Context, now time.Time, limit int) ([]Task, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows := []Task{}
+	err := r.st.DB.SelectContext(ctx, &rows, `
+		SELECT * FROM ding_tasks
+		WHERE enabled=1 AND next_run_at IS NOT NULL AND next_run_at <= ?
+		ORDER BY next_run_at ASC, id ASC
+		LIMIT ?`, now.UnixMilli(), limit)
+	return rows, err
+}
+
+// AdvanceNextRun 在选中 due task 后立即把 next_run_at 推到下一个周期，
+// 防止任务跑期间同一 tick 再次进入下次轮询。返回更新后是否需要继续（仍 enabled=1）。
+func (r *TaskRepo) AdvanceNextRun(ctx context.Context, t *Task, base time.Time) error {
+	if t.Enabled == 0 {
+		return nil
+	}
+	next, err := NextFireTime(t.Schedule, base)
+	if err != nil {
+		return err
+	}
+	t.NextRunAt = sql.NullInt64{Int64: next.UnixMilli(), Valid: true}
+	t.UpdatedAt = time.Now().UnixMilli()
+	_, err = r.st.DB.ExecContext(ctx,
+		"UPDATE ding_tasks SET next_run_at=?, updated_at=? WHERE id=?",
+		t.NextRunAt.Int64, t.UpdatedAt, t.ID,
+	)
+	return err
+}
+
 // MarkRan 在客户端上报本次执行结果后调用：更新 last_run_at + 重算 next_run_at。
 func (r *TaskRepo) MarkRan(ctx context.Context, t *Task, ranAt time.Time) error {
 	t.LastRunAt = sql.NullInt64{Int64: ranAt.UnixMilli(), Valid: true}

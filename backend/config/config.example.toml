@@ -34,6 +34,45 @@ bundle_id = "com.aiquant.app"
 # Sign in with Apple 公钥 JWKS — 启动时拉取，每天刷新
 jwks_url = "https://appleid.apple.com/auth/keys"
 
+# In-App Purchase 验签（App Store Server API）
+# .p8 来自 App Store Connect → Users and Access → Integrations → In-App Purchase Key
+# environment：production / sandbox / auto（auto 时先 prod，404 自动 fallback sandbox）
+[apple_iap]
+bundle_id = "com.aiquant.app"
+issuer_id = ""
+key_id = ""
+private_key = ""              # 直接粘 .p8 全文（推荐用环境变量 FINME_APPLE_IAP__PRIVATE_KEY）
+# 或：private_key_path = "/server/secrets/AuthKey_IAP.p8"
+environment = "auto"
+
+# APNs 推送（Apple Push Notification service）
+# .p8 来自 Apple Developer → Certificates, IDs & Profiles → Keys
+# environment：production / sandbox（TestFlight 与 App Store 走 production）
+[apns]
+bundle_id = "com.aiquant.app"
+team_id = ""
+key_id = ""
+private_key = ""
+# 或：private_key_path = "/server/secrets/AuthKey_APNs.p8"
+environment = "production"
+
+# FCM 推送（Firebase Cloud Messaging HTTP v1）— 仅 Android 用
+[fcm]
+project_id = ""
+service_account_json = ""    # 整段 service-account.json 文本
+# 或：service_account_json_path = "/server/secrets/fcm-sa.json"
+
+# DING 服务端定时执行的 LLM 客户端
+# api_key 必填；base_url / chat_model 不填则用默认
+[llm]
+provider = "deepseek"
+api_key = ""                 # FINME_LLM__API_KEY 注入更安全
+base_url = "https://api.deepseek.com"
+chat_model = "deepseek-chat"
+reason_model = "deepseek-reasoner"
+timeout_sec = 180
+max_tool_loops = 6
+
 [sms]
 provider = "mock"              # mock / aliyun / tencent — mock 模式下验证码打印到日志
 sign_name = ""
