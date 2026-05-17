@@ -42,7 +42,7 @@ class GetIndexComponentsTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['index_code'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'index_code 必填'});
-    final top = ((args['top'] as num?)?.toInt() ?? 30).clamp(1, 100);
+    final top = (toNum(args['top'])?.toInt() ?? 30).clamp(1, 100);
     final end = DateTime.now();
     final start = end.subtract(const Duration(days: 60));
     final rows = await _ctx.svc.query(
@@ -63,8 +63,8 @@ class GetIndexComponentsTool extends AiTool {
     final latestDate = rows.first['trade_date'];
     final latest = rows.where((r) => r['trade_date'] == latestDate).toList();
     latest.sort((a, b) {
-      final wa = (a['weight'] as num?)?.toDouble() ?? 0;
-      final wb = (b['weight'] as num?)?.toDouble() ?? 0;
+      final wa = toNum(a['weight'])?.toDouble() ?? 0;
+      final wb = toNum(b['weight'])?.toDouble() ?? 0;
       return wb.compareTo(wa);
     });
     return jsonEncode({
@@ -107,7 +107,7 @@ class GetMarginTradingTool extends AiTool {
 
   @override
   Future<String> run(Map<String, dynamic> args) async {
-    final days = ((args['days'] as num?)?.toInt() ?? 10).clamp(1, 60);
+    final days = (toNum(args['days'])?.toInt() ?? 10).clamp(1, 60);
     final exchange =
         (args['exchange'] as String? ?? 'ALL').toUpperCase();
     final end = DateTime.now();
@@ -168,7 +168,7 @@ class GetNorthboundFlowTool extends AiTool {
 
   @override
   Future<String> run(Map<String, dynamic> args) async {
-    final days = ((args['days'] as num?)?.toInt() ?? 10).clamp(1, 60);
+    final days = (toNum(args['days'])?.toInt() ?? 10).clamp(1, 60);
     final end = DateTime.now();
     final start = end.subtract(Duration(days: days * 2 + 7));
     final rows = await _ctx.svc.query(
@@ -189,7 +189,7 @@ class GetNorthboundFlowTool extends AiTool {
     final tail = rows.take(days).toList();
     var sumNorth = 0.0;
     for (final r in tail) {
-      final n = (r['north_money'] as num?)?.toDouble() ?? 0;
+      final n = toNum(r['north_money'])?.toDouble() ?? 0;
       sumNorth += n;
     }
     return jsonEncode({
@@ -230,7 +230,7 @@ class GetIndustryMoneyFlowTool extends AiTool {
 
   @override
   Future<String> run(Map<String, dynamic> args) async {
-    final top = ((args['top'] as num?)?.toInt() ?? 15).clamp(1, 50);
+    final top = (toNum(args['top'])?.toInt() ?? 15).clamp(1, 50);
     final end = DateTime.now();
     final start = end.subtract(const Duration(days: 7));
     final rows = await _ctx.svc.query(
@@ -251,8 +251,8 @@ class GetIndustryMoneyFlowTool extends AiTool {
     final latestDate = rows.first['trade_date'];
     final latest = rows.where((r) => r['trade_date'] == latestDate).toList();
     latest.sort((a, b) {
-      final na = (a['net_amount'] as num?)?.toDouble() ?? 0;
-      final nb = (b['net_amount'] as num?)?.toDouble() ?? 0;
+      final na = toNum(a['net_amount'])?.toDouble() ?? 0;
+      final nb = toNum(b['net_amount'])?.toDouble() ?? 0;
       return nb.compareTo(na);
     });
     return jsonEncode({

@@ -107,7 +107,7 @@ class GetIncomeStatementTool extends AiTool {
     if (!ChinaMarket.isStock(code)) {
       return jsonEncode({'error': 'income 只支持 A 股个股'});
     }
-    final n = ((args['periods'] as num?)?.toInt() ?? 4).clamp(1, 12);
+    final n = (toNum(args['periods'])?.toInt() ?? 4).clamp(1, 12);
     final rows = await _ctx.svc.query(
       apiName: 'income',
       params: {'ts_code': code},
@@ -168,7 +168,7 @@ class GetBalanceSheetTool extends AiTool {
     if (!ChinaMarket.isStock(code)) {
       return jsonEncode({'error': 'balancesheet 只支持 A 股'});
     }
-    final n = ((args['periods'] as num?)?.toInt() ?? 4).clamp(1, 12);
+    final n = (toNum(args['periods'])?.toInt() ?? 4).clamp(1, 12);
     final rows = await _ctx.svc.query(
       apiName: 'balancesheet',
       params: {'ts_code': code},
@@ -232,7 +232,7 @@ class GetCashFlowTool extends AiTool {
     if (!ChinaMarket.isStock(code)) {
       return jsonEncode({'error': 'cashflow 只支持 A 股'});
     }
-    final n = ((args['periods'] as num?)?.toInt() ?? 4).clamp(1, 12);
+    final n = (toNum(args['periods'])?.toInt() ?? 4).clamp(1, 12);
     final rows = await _ctx.svc.query(
       apiName: 'cashflow',
       params: {'ts_code': code},
@@ -348,7 +348,7 @@ class GetDividendTool extends AiTool {
     if (!ChinaMarket.isStock(code)) {
       return jsonEncode({'error': 'dividend 只支持 A 股'});
     }
-    final limit = ((args['limit'] as num?)?.toInt() ?? 10).clamp(1, 30);
+    final limit = (toNum(args['limit'])?.toInt() ?? 10).clamp(1, 30);
     final rows = await _ctx.svc.query(
       apiName: 'dividend',
       params: {'ts_code': code},

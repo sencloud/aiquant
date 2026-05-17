@@ -5,6 +5,22 @@ import '../../models/instrument.dart';
 import '../tushare_service.dart';
 import '../ai_tools.dart';
 
+/// 兼容性数字解析：Tushare 偶尔把数值字段返回成字符串，直接 `as num?`
+/// 在某些行（特别是含逗号 / 空字符串 / null 的字段）会抛
+/// `type 'String' is not a subtype of type 'num?' in type cast`，导致整个
+/// 工具调用失败。统一走这里，做到：null → null；num → 自身；String → tryParse
+/// 后返回 null（而非抛）。
+num? toNum(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v;
+  if (v is String) {
+    final t = v.replaceAll(',', '').trim();
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
+  }
+  return null;
+}
+
 /// 共享 Tushare 服务实例，避免每个工具自建 Dio。
 class TushareToolsContext {
   TushareToolsContext({required this.svc});
@@ -85,7 +101,7 @@ class SearchInstrumentTool extends AiTool {
       return jsonEncode({'error': '查询关键字不能为空'});
     }
     final assetClass = (args['asset_class'] as String? ?? 'all').toLowerCase();
-    final limit = (args['limit'] as num?)?.toInt().clamp(1, 20) ?? 8;
+    final limit = toNum(args['limit'])?.toInt().clamp(1, 20) ?? 8;
 
     final pools = <List<Instrument>>[];
     if (assetClass == 'all' || assetClass == 'stock') {
@@ -166,7 +182,7 @@ class GetQuoteTool extends AiTool {
       return jsonEncode({'error': 'symbol 必填'});
     }
     final code = ChinaMarket.normalizeSymbol(raw);
-    final days = ((args['days'] as num?)?.toInt() ?? 20).clamp(1, 120);
+    final days = (toNum(args['days'])?.toInt() ?? 20).clamp(1, 120);
 
     final end = DateTime.now();
     // 拉 days*2 天确保留有足够交易日（剔除周末/节假日）
@@ -262,7 +278,7 @@ class CompareQuotesTool extends AiTool {
     if (symbols.length > 6) {
       return jsonEncode({'error': '一次最多比较 6 个标的，请拆分多次调用'});
     }
-    final days = ((args['days'] as num?)?.toInt() ?? 30).clamp(1, 120);
+    final days = (toNum(args['days'])?.toInt() ?? 30).clamp(1, 120);
     final end = DateTime.now();
     final start = end.subtract(Duration(days: days * 2 + 30));
 
@@ -296,8 +312,8 @@ class CompareQuotesTool extends AiTool {
       }
     }
     out.sort((a, b) {
-      final pa = (a['period_pct_chg'] as num?) ?? -1e9;
-      final pb = (b['period_pct_chg'] as num?) ?? -1e9;
+      final pa = toNum(a['period_pct_chg']) ?? -1e9;
+      final pb = toNum(b['period_pct_chg']) ?? -1e9;
       return pb.compareTo(pa);
     });
     return jsonEncode({
@@ -341,7 +357,7 @@ class ListIndustryStocksTool extends AiTool {
     if (kw.isEmpty) {
       return jsonEncode({'error': 'industry_keyword 必填'});
     }
-    final limit = (args['limit'] as num?)?.toInt().clamp(1, 60) ?? 20;
+    final limit = toNum(args['limit'])?.toInt().clamp(1, 60) ?? 20;
     final stocks = await _ctx.stocks();
     final hits = <Map<String, dynamic>>[];
     final kwLower = kw.toLowerCase();
@@ -457,7 +473,7 @@ class ListEtfsByThemeTool extends AiTool {
     if (kw.isEmpty) {
       return jsonEncode({'error': 'theme_keyword 必填'});
     }
-    final limit = (args['limit'] as num?)?.toInt().clamp(1, 40) ?? 15;
+    final limit = toNum(args['limit'])?.toInt().clamp(1, 40) ?? 15;
     final etfs = await _ctx.etfs();
     final kwLower = kw.toLowerCase();
     final hits = <Map<String, dynamic>>[];

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../ai_tools.dart';
 import '../news_service.dart';
+import 'tushare_tools.dart' show toNum;
 
 class EventToolsContext {
   EventToolsContext({required this.svc, this.firmsKey});
@@ -74,7 +75,7 @@ class SearchGlobalEventsTool extends AiTool {
     if (q.isEmpty) return jsonEncode({'error': 'query 必填'});
     final lookback = _parseLookback(
         args['lookback'] as String?, const Duration(hours: 24));
-    final limit = ((args['limit'] as num?)?.toInt() ?? 12).clamp(1, 50);
+    final limit = (toNum(args['limit'])?.toInt() ?? 12).clamp(1, 50);
     final country = (args['country'] as String?)?.trim();
     final lang = (args['lang'] as String?)?.trim();
     final items = await _ctx.svc.searchGdelt(
@@ -133,7 +134,7 @@ class SearchChineseNewsTool extends AiTool {
   Future<String> run(Map<String, dynamic> args) async {
     final q = (args['query'] as String? ?? '').trim();
     if (q.isEmpty) return jsonEncode({'error': 'query 必填'});
-    final limit = ((args['limit'] as num?)?.toInt() ?? 10).clamp(1, 25);
+    final limit = (toNum(args['limit'])?.toInt() ?? 10).clamp(1, 25);
     final items = await _ctx.svc.searchGoogleNews(query: q, maxItems: limit);
     return jsonEncode({
       'query': q,
@@ -176,7 +177,7 @@ class SearchShippingEventsTool extends AiTool {
   Future<String> run(Map<String, dynamic> args) async {
     final lookback =
         _parseLookback(args['lookback'] as String?, const Duration(days: 7));
-    final limit = ((args['limit'] as num?)?.toInt() ?? 15).clamp(1, 50);
+    final limit = (toNum(args['limit'])?.toInt() ?? 15).clamp(1, 50);
     final extra = (args['extra_keyword'] as String?)?.trim() ?? '';
     const base =
         '(shipping OR port OR maritime OR vessel OR strait OR canal OR "sea route")';
@@ -227,7 +228,7 @@ class SearchGeopoliticsEventsTool extends AiTool {
   Future<String> run(Map<String, dynamic> args) async {
     final lookback =
         _parseLookback(args['lookback'] as String?, const Duration(days: 3));
-    final limit = ((args['limit'] as num?)?.toInt() ?? 15).clamp(1, 50);
+    final limit = (toNum(args['limit'])?.toInt() ?? 15).clamp(1, 50);
     final region = (args['region'] as String?)?.trim() ?? '';
     const base =
         '(conflict OR sanction OR military OR war OR treaty OR summit OR diplomatic)';
@@ -294,14 +295,14 @@ class GetFireHotspotsTool extends AiTool {
             '未配置 FIRMS_MAP_KEY；请去 https://firms.modaps.eosdis.nasa.gov/api/ 申请免费 key 后写入 .env',
       });
     }
-    final w = (args['west'] as num?)?.toDouble();
-    final s = (args['south'] as num?)?.toDouble();
-    final e = (args['east'] as num?)?.toDouble();
-    final n = (args['north'] as num?)?.toDouble();
+    final w = toNum(args['west'])?.toDouble();
+    final s = toNum(args['south'])?.toDouble();
+    final e = toNum(args['east'])?.toDouble();
+    final n = toNum(args['north'])?.toDouble();
     if (w == null || s == null || e == null || n == null) {
       return jsonEncode({'error': '需要 west/south/east/north 四个边界'});
     }
-    final dayRange = ((args['day_range'] as num?)?.toInt() ?? 1).clamp(1, 10);
+    final dayRange = (toNum(args['day_range'])?.toInt() ?? 1).clamp(1, 10);
     final dataset = (args['dataset'] as String?) ?? 'VIIRS_SNPP_NRT';
     final pts = await _ctx.svc.firmsHotspots(
       west: w,

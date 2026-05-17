@@ -49,8 +49,12 @@ class BillingState extends ChangeNotifier {
   CreditOrder? _pendingOrder;
   CreditOrder? get pendingOrder => _pendingOrder;
 
-  bool _purchasing = false;
-  bool get purchasing => _purchasing;
+  /// 当前正在购买的 sku.code；null 表示空闲。配合 UI 区分单个 tile 的 loading
+  /// 与"全局购买中"的禁用态。
+  String? _purchasingSku;
+  String? get purchasingSku => _purchasingSku;
+  bool get purchasing => _purchasingSku != null;
+  bool isPurchasingSku(String code) => _purchasingSku == code;
 
   String? _lastError;
   String? get lastError => _lastError;
@@ -142,8 +146,8 @@ class BillingState extends ChangeNotifier {
   ///
   /// 任一步失败 → lastError 已置好，UI 显示中文。返回是否成功到账。
   Future<bool> purchase(CreditSku sku) async {
-    if (_purchasing) return false;
-    _purchasing = true;
+    if (purchasing) return false;
+    _purchasingSku = sku.code;
     _lastError = null;
     notifyListeners();
     try {
@@ -185,7 +189,7 @@ class BillingState extends ChangeNotifier {
       _lastError = _msg(e);
       return false;
     } finally {
-      _purchasing = false;
+      _purchasingSku = null;
       notifyListeners();
     }
   }
