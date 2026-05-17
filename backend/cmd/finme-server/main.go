@@ -22,6 +22,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
+	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
@@ -89,6 +90,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	if err != nil {
 		l.Fatal().Err(err).Msg("init billing")
 	}
+	dingSvc := ding.NewService(st, cfg)
 
 	deps := &api.Deps{
 		Config:  cfg,
@@ -98,6 +100,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Users:   usersSvc,
 		Devices: devicesSvc,
 		Billing: billingSvc,
+		Ding:    dingSvc,
 	}
 	router := api.NewRouter(deps)
 

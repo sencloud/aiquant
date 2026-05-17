@@ -15,6 +15,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
+	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
@@ -29,6 +30,7 @@ type Deps struct {
 	Users   *users.Service
 	Devices *devices.Service
 	Billing *billing.Service
+	Ding    *ding.Service
 }
 
 // NewRouter 装配业务路由。
@@ -61,6 +63,7 @@ func NewRouter(d *Deps) http.Handler {
 			mountMe(r, d)
 			mountDevices(r, d)
 			mountBillingPrivate(r, d)
+			mountDing(r, d)
 		})
 	})
 
