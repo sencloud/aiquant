@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/app_config.dart';
@@ -8,6 +10,20 @@ import 'auth_models.dart';
 import 'token_storage.dart';
 
 const _uuid = Uuid();
+
+/// 统一构造一个"绕过系统代理"的 Dio 适配器。
+///
+/// 真机上常因用户安装过 ProxyMan / Surge / Shadowrocket 等，留下系统级
+/// HTTP 代理设置（`127.0.0.1:<端口>`），代理工具关闭后端口已无人监听，
+/// 但 dart:io HttpClient 仍会读 CFNetwork 代理配置 → 所有请求挂到那条
+/// 死代理上，报 `Connection refused, address = 127.0.0.1, port = ...`。
+///
+/// 本应用所有出网调用都强制走直连（findProxy = DIRECT），不依赖系统代理。
+HttpClientAdapter buildNoProxyAdapter() {
+  return IOHttpClientAdapter(
+    createHttpClient: () => HttpClient()..findProxy = (uri) => 'DIRECT',
+  );
+}
 
 /// ApiClient 是 Flutter 端访问 Finme Backend 的唯一入口。
 ///
@@ -44,6 +60,7 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
       validateStatus: (s) => s != null && s < 500,
     ));
+    dio.httpClientAdapter = buildNoProxyAdapter();
     final c = ApiClient._(dio: dio, storage: storage);
     dio.interceptors.add(_AuthInterceptor(c));
     dio.interceptors.add(_ErrorInterceptor());
