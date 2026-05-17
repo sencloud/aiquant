@@ -57,7 +57,7 @@ func NewService(st *store.Store, cfg *platform.Config, usersSvc *users.Service) 
 // TokenPair 是登录/刷新接口下发给客户端的载荷。
 type TokenPair struct {
 	AccessToken      string `json:"access_token"`
-	AccessExpiresIn  int64  `json:"access_expires_in"`  // 秒
+	AccessExpiresIn  int64  `json:"access_expires_in"` // 秒
 	RefreshToken     string `json:"refresh_token"`
 	RefreshExpiresIn int64  `json:"refresh_expires_in"` // 秒
 }
@@ -123,11 +123,11 @@ func (s *Service) VerifySMS(ctx context.Context, in VerifySMSInput) (*TokenPair,
 	now := time.Now().UnixMilli()
 
 	type smsRow struct {
-		ID       int64  `db:"id"`
-		CodeHash string `db:"code_hash"`
-		Expires  int64  `db:"expires_at"`
+		ID       int64         `db:"id"`
+		CodeHash string        `db:"code_hash"`
+		Expires  int64         `db:"expires_at"`
 		Consumed sql.NullInt64 `db:"consumed_at"`
-		Attempts int64  `db:"attempts"`
+		Attempts int64         `db:"attempts"`
 	}
 	var row smsRow
 	err := s.st.DB.GetContext(ctx, &row, `
@@ -182,7 +182,7 @@ func (s *Service) AppleLogin(ctx context.Context, in AppleLoginInput) (*TokenPai
 	if err != nil {
 		return nil, nil, platform.ErrUnauthorized("AUTH.APPLE_VERIFY_FAILED", err.Error())
 	}
-	user, err := s.users.EnsureByApple(ctx, c.Sub, in.Nickname)
+	user, err := s.users.EnsureByApple(ctx, c.Subject, in.Nickname)
 	if err != nil {
 		return nil, nil, err
 	}
