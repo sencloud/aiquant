@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
+import '../ding/ding_screen.dart';
 import '../portfolio/portfolio_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -11,17 +14,37 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  int _index = 0; // 0 = 助理, 1 = 组合
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
+  int _index = 0; // 0 = 助理, 1 = 组合, 2 = DING
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // 回到前台时让 DING 调度器追赶一次（移动端无真后台 cron）
+      if (mounted) context.read<DingState>().resumeFromBackground();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const pages = [AssistantScreen(), PortfolioScreen()];
+    const pages = [AssistantScreen(), PortfolioScreen(), DingScreen()];
+    final unread = context.watch<DingState>().unreadCount;
 
     return Scaffold(
       body: IndexedStack(index: _index, children: pages),
-      // 直接用 Container 外包 SafeArea，让 tab 背景色一直延伸到 home indicator
-      // 区域，避免出现「tab 上方一截 + 下方一截留白」的视觉浪费。
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.bgSurface,
@@ -48,6 +71,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   active: _index == 1,
                   onTap: () => setState(() => _index = 1),
                 ),
+                _NavItem(
+                  icon: Icons.notifications_none,
+                  activeIcon: Icons.notifications_active,
+                  label: 'DING',
+                  active: _index == 2,
+                  badge: unread,
+                  onTap: () => setState(() => _index = 2),
+                ),
               ],
             ),
           ),
@@ -64,6 +95,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.badge = 0,
   });
 
   final IconData icon;
@@ -71,6 +103,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +114,39 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(active ? activeIcon : icon, size: 18, color: color),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(active ? activeIcon : icon, size: 18, color: color),
+                if (badge > 0)
+                  Positioned(
+                    right: -8,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 1),
+                      constraints:
+                          const BoxConstraints(minWidth: 14, minHeight: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger,
+                        borderRadius: BorderRadius.circular(7),
+                        border:
+                            Border.all(color: AppColors.bgSurface, width: 1),
+                      ),
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 1),
             Text(
               label,

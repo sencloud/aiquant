@@ -7,6 +7,7 @@ import 'core/config/app_config.dart';
 import 'core/storage/hive_setup.dart';
 import 'services/tushare_service.dart';
 import 'state/chat_state.dart';
+import 'state/ding_state.dart';
 import 'state/portfolio_state.dart';
 import 'state/settings_state.dart';
 
@@ -30,6 +31,11 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => SettingsState()..bootstrap()),
         ChangeNotifierProvider(create: (_) => PortfolioState()..bootstrap()),
         ChangeNotifierProvider(create: (_) => ChatState()..bootstrap()),
+        // DingState 依赖 ChatState 的 executeOneShot
+        ChangeNotifierProxyProvider<ChatState, DingState>(
+          create: (ctx) => DingState(chat: ctx.read<ChatState>())..bootstrap(),
+          update: (_, chat, prev) => prev ?? (DingState(chat: chat)..bootstrap()),
+        ),
       ],
       child: const FinceptApp(),
     ),

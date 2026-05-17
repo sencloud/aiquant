@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/persona.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_theme.dart';
+import '../ding/widgets/ding_task_editor.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
@@ -63,6 +64,36 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _scrollToBottom();
   }
 
+  /// 把当前对话最近一条用户提问 / 输入框正在输入的内容作为预填，弹出
+  /// DING 任务编辑器供用户设置定时执行。
+  void _addToDing(BuildContext context, ChatState chat) {
+    final fromInput = _input.text.trim();
+    String? promptInit;
+    String? titleInit;
+    if (fromInput.isNotEmpty) {
+      promptInit = fromInput;
+    } else {
+      // 取当前会话最近的一条 user 消息
+      for (final m in chat.messages.reversed) {
+        if (m.role == 'user' && m.content.trim().isNotEmpty) {
+          promptInit = m.content.trim();
+          break;
+        }
+      }
+    }
+    if (promptInit != null && promptInit.isNotEmpty) {
+      titleInit = promptInit.length > 14
+          ? '${promptInit.substring(0, 14)}…'
+          : promptInit;
+    }
+    DingTaskEditor.show(
+      context,
+      initialPrompt: promptInit,
+      initialTitle: titleInit,
+      initialPersonaId: chat.currentPersona.id,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = context.watch<ChatState>();
@@ -90,6 +121,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
             tooltip: '新对话',
             icon: const Icon(Icons.add_comment_outlined, size: 18),
             onPressed: () => chat.newSession(),
+          ),
+          IconButton(
+            tooltip: '加入 DING（定时执行）',
+            icon: const Icon(Icons.add_alarm, size: 18),
+            onPressed: () => _addToDing(context, chat),
           ),
           IconButton(
             tooltip: '我的',

@@ -337,6 +337,132 @@ E. 全球事件流：search_global_events（GDELT 全球新闻+事件）/ search
     return null;
   }
 
+  /// 一次性后台执行：用指定 [personaId] 跑一段 prompt，等完整结果（含工具
+  /// 调用 loop）后返回 markdown 字符串。供 DING 定时任务使用，不会写入
+  /// 任何会话历史。
+  ///
+  /// [withTools]=true 时启用全部工具（默认）；模型若选择调用工具会自动跑
+  /// 完一整轮 tool loop 再返回最终答复。
+  Future<DingExecutionResult> executeOneShot({
+    required String prompt,
+    String? personaId,
+    bool withTools = true,
+    int maxIterations = _kMaxToolIterations,
+  }) async {
+    final persona = Personas.byId(personaId);
+    final history = <Map<String, dynamic>>[
+      {'role': 'system', 'content': _composedSystemPrompt(persona, withTools)},
+      {'role': 'user', 'content': prompt},
+    ];
+
+    final tools = withTools ? _registry.toOpenAiList() : null;
+    var totalTokens = 0;
+    final toolTrace = <Map<String, String>>[];
+
+    for (var iter = 0; iter < maxIterations; iter++) {
+      final pendingTools = <int, _PendingToolCall>{};
+      final contentBuf = StringBuffer();
+      String? finishReason;
+      final completer = Completer<void>();
+
+      late StreamSubscription<DeepSeekChunk> sub;
+      sub = _svc
+          .chatStreamRaw(messages: history, tools: tools)
+          .listen((chunk) {
+        if (chunk.delta != null) contentBuf.write(chunk.delta);
+        if (chunk.toolCalls != null) {
+          for (final tc in chunk.toolCalls!) {
+            final p =
+                pendingTools.putIfAbsent(tc.index, () => _PendingToolCall());
+            if (tc.id != null && tc.id!.isNotEmpty) p.id = tc.id;
+            if (tc.name != null && tc.name!.isNotEmpty) p.name = tc.name;
+            if (tc.argumentsDelta != null) p.arguments += tc.argumentsDelta!;
+          }
+        }
+        if (chunk.totalTokens != null) totalTokens = chunk.totalTokens!;
+        if (chunk.done) {
+          finishReason = chunk.finishReason;
+          if (!completer.isCompleted) completer.complete();
+        }
+      }, onError: (Object e, StackTrace st) {
+        if (!completer.isCompleted) completer.completeError(e);
+      }, onDone: () {
+        if (!completer.isCompleted) completer.complete();
+      });
+
+      try {
+        await completer.future;
+      } finally {
+        await sub.cancel();
+      }
+
+      final calls = pendingTools.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      final toolCalls = [
+        for (final entry in calls)
+          ToolCall(
+            id: entry.value.id ?? 'call_${iter}_${entry.key}',
+            name: entry.value.name ?? '',
+            argumentsJson: entry.value.arguments,
+          ),
+      ];
+      final assistantMsg = ChatMessage(
+        role: 'assistant',
+        content: contentBuf.toString(),
+        toolCalls: toolCalls.isEmpty ? null : toolCalls,
+      );
+      history.add(chatMessageToOpenAi(assistantMsg));
+
+      if (finishReason != 'tool_calls' || toolCalls.isEmpty) {
+        return DingExecutionResult(
+          content: contentBuf.toString(),
+          totalTokens: totalTokens,
+          toolTrace: toolTrace,
+        );
+      }
+
+      for (final tc in toolCalls) {
+        final result =
+            _trimToolResult(await _registry.dispatch(tc.name, tc.argumentsJson));
+        toolTrace.add({'name': tc.name, 'result_brief': _briefForTrace(result)});
+        history.add(chatMessageToOpenAi(ChatMessage(
+          role: 'tool',
+          content: result,
+          toolCallId: tc.id,
+          name: tc.name,
+        )));
+      }
+    }
+    return DingExecutionResult(
+      content: '执行超过最大迭代次数，未生成完整结果。',
+      totalTokens: totalTokens,
+      toolTrace: toolTrace,
+    );
+  }
+
+  String _composedSystemPrompt(Persona persona, bool withTools) {
+    final base = persona.systemPrompt.trim();
+    if (!withTools) return base;
+    return '''$base
+
+——
+
+你拥有以下五类工具，可以查询真实数据后再作答；当回答需要具体行情/财务/资金/事件信息时，**优先调用工具，不要凭记忆**：
+
+A. 行情与基础（Tushare）：search_instrument / get_quote / compare_quotes / list_industry_stocks / get_market_snapshot / list_etfs_by_theme
+B. 量化指标（本地计算）：calc_returns / calc_sharpe / calc_max_drawdown / calc_correlation / calc_beta / calc_moving_average / calc_rsi / calc_macd
+C. 基本面（财报）：get_valuation / get_income_statement / get_balance_sheet / get_cash_flow / get_top_holders / get_dividend_history
+D. 宏观资金面：get_index_components / get_margin_trading / get_northbound_flow / get_industry_money_flow
+E. 全球事件流：search_global_events / search_chinese_news / search_shipping_events / search_geopolitics_events / get_satellite_fire_hotspots
+
+输出格式：用中文 Markdown，结构化（要点 / 表格 / 数字 / 数据来源），最后给出关键风险提示。''';
+  }
+
+  String _briefForTrace(String raw) {
+    final s = raw.replaceAll(RegExp(r'\s+'), ' ');
+    return s.length > 120 ? '${s.substring(0, 120)}…' : s;
+  }
+
   @override
   void dispose() {
     _activeStream?.cancel();
@@ -348,6 +474,18 @@ class _PendingToolCall {
   String? id;
   String? name;
   String arguments = '';
+}
+
+/// DING 一次性执行的产物。
+class DingExecutionResult {
+  final String content;
+  final int totalTokens;
+  final List<Map<String, String>> toolTrace;
+  DingExecutionResult({
+    required this.content,
+    required this.totalTokens,
+    required this.toolTrace,
+  });
 }
 
 // ignore: unused_element
