@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/china_market.dart';
 import '../../../models/portfolio.dart';
 import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
@@ -47,7 +48,8 @@ class RiskTab extends StatelessWidget {
               children: [
                 const _T('集中度概览'),
                 const SizedBox(height: 8),
-                _Kv('单品种最大占比 (${largestSym.first.symbol})',
+                _Kv(
+                    '单品种最大占比 (${largestSym.first.name.isEmpty ? ChinaMarket.displaySymbol(largestSym.first.symbol) : largestSym.first.name})',
                     '${fmt.format(topShare)}%',
                     warn: topShare > 30),
                 if (topSector != null)
@@ -123,7 +125,10 @@ class _Heatmap extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(h.name.isEmpty ? h.symbol : h.name,
+                Text(
+                    h.name.isEmpty
+                        ? ChinaMarket.displaySymbol(h.symbol)
+                        : h.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

@@ -206,6 +206,8 @@ class PortfolioRepository {
               assetClass: h.assetClass,
               quantity: h.qty,
               avgBuyPrice: h.qty == 0 ? 0 : h.cost / h.qty,
+              multiplier:
+                  ChinaMarket.contractMultiplier(h.symbol, h.assetClass),
             ))
         .toList();
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/utils/china_market.dart';
 import '../../../models/instrument.dart';
 import '../../../services/tushare_service.dart';
 import '../../../theme/app_theme.dart';
@@ -32,8 +33,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
     super.initState();
     _qtyCtrls = {
       for (final ins in widget.instruments)
-        ins.tsCode: TextEditingController(
-            text: ins.assetClass == '股票' ? '100' : '1'),
+        ins.tsCode: TextEditingController(text: _defaultQty(ins)),
     };
     _priceCtrls = {
       for (final ins in widget.instruments)
@@ -175,14 +175,21 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
                           flex: 3,
                           child: TextField(
                             controller: _qtyCtrls[ins.tsCode],
-                            keyboardType: const TextInputType
-                                .numberWithOptions(decimal: true),
+                            keyboardType: TextInputType.numberWithOptions(
+                                decimal: ins.assetClass == '期货'
+                                    ? false
+                                    : false),
                             inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9.]')),
+                              FilteringTextInputFormatter.digitsOnly,
                             ],
-                            decoration: const InputDecoration(
-                                labelText: '数量', isDense: true),
+                            decoration: InputDecoration(
+                              labelText:
+                                  '数量(${ChinaMarket.quantityUnit(ins.assetClass)})',
+                              isDense: true,
+                              helperText: _qtyHint(ins),
+                              helperStyle: TextStyle(
+                                  color: AppColors.textTertiary, fontSize: 9),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -275,12 +282,63 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
 
   void _confirm() {
     final out = <String, AssetLot>{};
+    final problems = <String>[];
     for (final ins in widget.instruments) {
-      final qty = double.tryParse(_qtyCtrls[ins.tsCode]?.text ?? '') ?? 0;
+      final raw = _qtyCtrls[ins.tsCode]?.text ?? '';
+      final qty = double.tryParse(raw) ?? 0;
       final price = double.tryParse(_priceCtrls[ins.tsCode]?.text ?? '') ?? 0;
       if (qty <= 0) continue;
+      // 中国市场业务校验：A 股 / ETF 必须 100 整数倍；期货必须整数手。
+      final lot = ChinaMarket.lotSize(ins.assetClass);
+      if (lot > 1 && (qty % lot) != 0) {
+        problems.add('${ins.name}：${ChinaMarket.quantityUnit(ins.assetClass)}'
+            '数需为 $lot 的整数倍');
+        continue;
+      }
+      if (ins.assetClass == '期货' && qty != qty.roundToDouble()) {
+        problems.add('${ins.name}：手数必须为整数');
+        continue;
+      }
       out[ins.tsCode] = AssetLot(qty, price);
     }
+    if (problems.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(problems.join(' ; ')),
+        backgroundColor: AppColors.danger,
+      ));
+      return;
+    }
     Navigator.pop(context, out);
+  }
+
+  String _defaultQty(Instrument ins) {
+    switch (ins.assetClass) {
+      case '股票':
+      case 'ETF':
+      case 'LOF':
+        return '100';
+      case '期货':
+        return '1';
+      default:
+        return '1';
+    }
+  }
+
+  String _qtyHint(Instrument ins) {
+    switch (ins.assetClass) {
+      case '股票':
+        return 'A 股 ≥ 100 且为 100 整数倍';
+      case 'ETF':
+      case 'LOF':
+        return '场内基金 ≥ 100 且为 100 整数倍';
+      case '期货':
+        final mult = ChinaMarket.contractMultiplier(ins.tsCode, ins.assetClass);
+        if (mult > 1) {
+          return '1 手 = ${mult.toStringAsFixed(0)} 个标的单位';
+        }
+        return '按手输入（整数）';
+      default:
+        return '';
+    }
   }
 }
