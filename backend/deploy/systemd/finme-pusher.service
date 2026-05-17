@@ -1,0 +1,24 @@
+[Unit]
+Description=Finme Backend - Pusher
+After=finme-api.service
+
+[Service]
+Type=simple
+User=finme
+Group=finme
+WorkingDirectory=/opt/finme
+ExecStart=/opt/finme/bin/finme-server pusher --config /opt/finme/config/config.toml
+Restart=on-failure
+RestartSec=3s
+
+LimitNOFILE=8192
+MemoryMax=512M
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/finme/data
+
+[Install]
+WantedBy=multi-user.target

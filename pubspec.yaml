@@ -39,6 +39,12 @@ dependencies:
   share_plus: ^13.1.0
   file_picker: ^3.0.4
 
+  # Backend SDK：双 token 安全存储 / SiwA / 设备信息 / 应用版本
+  flutter_secure_storage: ^10.0.0
+  sign_in_with_apple: ^6.1.4
+  device_info_plus: ^13.1.0
+  package_info_plus: ^10.1.0
+
 dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_test:

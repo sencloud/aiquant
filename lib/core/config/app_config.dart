@@ -36,6 +36,11 @@ class BuiltInSecrets {
   /// 申请地址：https://firms.modaps.eosdis.nasa.gov/api/area/
   static String get firmsMapKey => _optional('FIRMS_MAP_KEY', '');
 
+  /// Finme Backend API base URL（开发本机 / 生产 https）。
+  /// 缺失时使用本机默认值，便于开发期不强制配置。
+  static String get apiBaseUrl =>
+      _optional('API_BASE_URL', 'http://127.0.0.1:8080');
+
   /// 默认走深度模式（携带 reasoning），用户实际上看不到模型切换
   /// 入口——AI 助理顶部不再显示模型 badge。
   static const String reasoningDeepseekModel = 'deepseek-reasoner';
@@ -75,6 +80,10 @@ class AppConfig {
   // ── 卫星 / 全球事件 ────────────────────────────────────────────────────
   /// NASA FIRMS MAP_KEY；未配置时事件流里的火点工具会返回空。
   String get firmsMapKey => BuiltInSecrets.firmsMapKey;
+
+  // ── Finme Backend ─────────────────────────────────────────────────────
+  /// Finme Backend API base URL。
+  String get apiBaseUrl => BuiltInSecrets.apiBaseUrl;
 
   // ── Theme ──────────────────────────────────────────────────────────────
   /// 当前 App 仅支持 light 模式（Dark 模式入口已被隐藏）。

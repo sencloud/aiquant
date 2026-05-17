@@ -1,0 +1,29 @@
+api.fincept.ai {
+    encode zstd gzip
+
+    # 默认 60s；上传 IAP 凭证大体积兜底 60s
+    reverse_proxy 127.0.0.1:8080 {
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 60s
+            read_timeout 60s
+            write_timeout 60s
+        }
+    }
+
+    # 安全头
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        # API 不需要 frame，禁用所有 iframe
+        X-Frame-Options "DENY"
+        # 移除 server header
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/api.fincept.ai.access.log
+        format json
+    }
+}

@@ -1,0 +1,10 @@
+/bin/
+/data/
+*.db
+*.db-shm
+*.db-wal
+config/config.toml
+.env
+.env.local
+.idea/
+.vscode/

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 
-/// "我的"页面 — 包含喜点余额展示 + 充值套餐列表。
+/// "我的"页面 — 包含喜点余额展示 + 充值套餐列表 + 账号管理。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  static const _balance = 0; // 暂时本地展示；后续对接后端账户后从 state 读
 
   static const List<_TopupPackage> _packages = [
     _TopupPackage(points: 100, priceYuan: 6, bonus: 0),
@@ -17,12 +17,16 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    final user = auth.currentUser;
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const _BalanceCard(balance: _balance),
+          if (user != null) _AccountTile(nickname: user.nickname, uuid: user.uuid),
+          if (user != null) const SizedBox(height: 16),
+          _BalanceCard(balance: user?.creditBalance ?? 0),
           const SizedBox(height: 24),
           _section('充值喜点'),
           const SizedBox(height: 8),
@@ -47,6 +51,12 @@ class SettingsScreen extends StatelessWidget {
           _bulletText('• 每次深度模式（含推理过程）的 AI 回答消耗 5 喜点。'),
           _bulletText('• 每次工具调用（拉取行情/对比/筛选）消耗 1 喜点。'),
           _bulletText('• 喜点为虚拟商品，购买后不可退换、不可转让。'),
+          if (user != null) ...[
+            const SizedBox(height: 24),
+            _section('账号管理'),
+            const SizedBox(height: 6),
+            _LogoutTile(),
+          ],
           const SizedBox(height: 24),
           _section('关于'),
           ListTile(
@@ -265,6 +275,110 @@ class _PackageTile extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountTile extends StatelessWidget {
+  const _AccountTile({required this.nickname, required this.uuid});
+  final String nickname;
+  final String uuid;
+
+  @override
+  Widget build(BuildContext context) {
+    final shortId = uuid.length > 8 ? uuid.substring(0, 8) : uuid;
+    final display = nickname.isEmpty ? 'Apple 账号用户' : nickname;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.bgRaised,
+        border: Border.all(color: AppColors.borderDim),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.amber.withValues(alpha: 0.18),
+            child: const Icon(Icons.apple, color: AppColors.amber, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(display,
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text('UID · $shortId',
+                    style: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 11)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoutTile extends StatelessWidget {
+  Future<void> _confirmAndLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('退出登录？'),
+        content: const Text('退出后本机的会话将清除，下次启动需要重新通过 Apple 登录。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await context.read<AuthState>().logout();
+    if (context.mounted) Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bgRaised,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderDim),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        onTap: () => _confirmAndLogout(context),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.logout, color: AppColors.danger, size: 18),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('退出登录',
+                    style: TextStyle(
+                        color: AppColors.danger,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ),
+              Icon(Icons.chevron_right,
+                  color: AppColors.textTertiary, size: 18),
             ],
           ),
         ),
