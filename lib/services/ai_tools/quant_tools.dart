@@ -53,7 +53,7 @@ class CalcReturnsTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['symbol'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
-    final days = ((args['days'] as num?)?.toInt() ?? 252).clamp(20, 750);
+    final days = (toNum(args['days'])?.toInt() ?? 252).clamp(20, 750);
     final series = await _loadSeries(_ctx.svc, code, days);
     if (series.length < 5) {
       return jsonEncode({'symbol': code, 'error': '行情数据不足以计算（仅 ${series.length} 条）'});
@@ -102,8 +102,8 @@ class CalcSharpeTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['symbol'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
-    final days = ((args['days'] as num?)?.toInt() ?? 252).clamp(20, 750);
-    final rf = (args['risk_free_rate'] as num?)?.toDouble() ?? 0.02;
+    final days = (toNum(args['days'])?.toInt() ?? 252).clamp(20, 750);
+    final rf = toNum(args['risk_free_rate'])?.toDouble() ?? 0.02;
     final series = await _loadSeries(_ctx.svc, code, days);
     if (series.length < 20) {
       return jsonEncode({'symbol': code, 'error': '样本不足以计算 Sharpe'});
@@ -147,7 +147,7 @@ class CalcMaxDrawdownTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['symbol'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
-    final days = ((args['days'] as num?)?.toInt() ?? 252).clamp(20, 1500);
+    final days = (toNum(args['days'])?.toInt() ?? 252).clamp(20, 1500);
     final series = await _loadSeries(_ctx.svc, code, days);
     if (series.length < 5) {
       return jsonEncode({'symbol': code, 'error': '样本不足'});
@@ -201,7 +201,7 @@ class CalcCorrelationTool extends AiTool {
     if (symbols.length > 6) {
       return jsonEncode({'error': '最多 6 个标的'});
     }
-    final days = ((args['days'] as num?)?.toInt() ?? 120).clamp(20, 500);
+    final days = (toNum(args['days'])?.toInt() ?? 120).clamp(20, 500);
 
     final allSeries = <String, List<CandlePoint>>{};
     for (final s in symbols) {
@@ -267,7 +267,7 @@ class CalcBetaTool extends AiTool {
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
     final benchmark = ChinaMarket.normalizeSymbol(
         (args['benchmark'] as String? ?? '000300.SH').trim());
-    final days = ((args['days'] as num?)?.toInt() ?? 252).clamp(20, 1000);
+    final days = (toNum(args['days'])?.toInt() ?? 252).clamp(20, 1000);
     final w = _windowOfDays(days);
     final asset =
         await _ctx.svc.historyFor(code, start: w.start, end: w.end);
@@ -383,7 +383,7 @@ class CalcRsiTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['symbol'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
-    final period = ((args['period'] as num?)?.toInt() ?? 14).clamp(2, 60);
+    final period = (toNum(args['period'])?.toInt() ?? 14).clamp(2, 60);
     final series = await _loadSeries(_ctx.svc, code, period * 4 + 20);
     final rsi = Indicators.rsi(series, period: period);
     String? signal;
@@ -433,9 +433,9 @@ class CalcMacdTool extends AiTool {
     final code = ChinaMarket.normalizeSymbol(
         (args['symbol'] as String? ?? '').trim());
     if (code.isEmpty) return jsonEncode({'error': 'symbol 必填'});
-    final fast = ((args['fast'] as num?)?.toInt() ?? 12).clamp(3, 60);
-    final slow = ((args['slow'] as num?)?.toInt() ?? 26).clamp(5, 100);
-    final signal = ((args['signal'] as num?)?.toInt() ?? 9).clamp(2, 30);
+    final fast = (toNum(args['fast'])?.toInt() ?? 12).clamp(3, 60);
+    final slow = (toNum(args['slow'])?.toInt() ?? 26).clamp(5, 100);
+    final signal = (toNum(args['signal'])?.toInt() ?? 9).clamp(2, 30);
     final series = await _loadSeries(_ctx.svc, code, slow * 4 + signal + 30);
     final r = Indicators.macd(series, fast: fast, slow: slow, signal: signal);
     return jsonEncode({

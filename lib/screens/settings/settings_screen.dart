@@ -96,7 +96,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               for (final sku in billing.skus) ...[
                 _PackageTile(
                   sku: sku,
-                  busy: billing.purchasing,
+                  loading: billing.isPurchasingSku(sku.code),
+                  // 当前正在买另一档 → 本档不可点，但不显示 loading
+                  disabled: billing.purchasing &&
+                      !billing.isPurchasingSku(sku.code),
                   onTap: () => _onPackageTap(billing, sku),
                 ),
                 const SizedBox(height: 8),
@@ -246,17 +249,20 @@ class _BalanceCard extends StatelessWidget {
 class _PackageTile extends StatelessWidget {
   const _PackageTile({
     required this.sku,
-    required this.busy,
+    required this.loading,
+    required this.disabled,
     required this.onTap,
   });
   final CreditSku sku;
-  final bool busy;
+  final bool loading;
+  final bool disabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final hasBonus = sku.bonusCredits > 0;
     final unitPrice = sku.priceYuan / sku.totalCredits;
+    final tappable = !loading && !disabled;
     return Material(
       color: AppColors.bgRaised,
       shape: RoundedRectangleBorder(
@@ -264,7 +270,7 @@ class _PackageTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: InkWell(
-        onTap: busy ? null : onTap,
+        onTap: tappable ? onTap : null,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding:
@@ -332,7 +338,7 @@ class _PackageTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              busy
+              loading
                   ? const SizedBox(
                       width: 22,
                       height: 22,
