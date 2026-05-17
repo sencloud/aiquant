@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/china_market.dart';
 import '../../../models/portfolio.dart';
 import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
@@ -153,8 +154,7 @@ class _ReportsTabState extends State<ReportsTab> {
                   fontSize: 11,
                 ),
                 columns: const [
-                  DataColumn(label: Text('代码')),
-                  DataColumn(label: Text('名称')),
+                  DataColumn(label: Text('品种')),
                   DataColumn(label: Text('行业')),
                   DataColumn(label: Text('数量'), numeric: true),
                   DataColumn(label: Text('均价'), numeric: true),
@@ -165,10 +165,25 @@ class _ReportsTabState extends State<ReportsTab> {
                 rows: [
                   for (final h in s.holdings)
                     DataRow(cells: [
-                      DataCell(Text(h.symbol)),
-                      DataCell(Text(h.name)),
+                      DataCell(Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(h.name.isEmpty
+                              ? ChinaMarket.displaySymbol(h.symbol)
+                              : h.name),
+                          Text(
+                            ChinaMarket.displaySymbol(h.symbol),
+                            style: TextStyle(
+                                color: AppColors.textTertiary,
+                                fontFamily: 'monospace',
+                                fontSize: 9),
+                          ),
+                        ],
+                      )),
                       DataCell(Text(h.sector)),
-                      DataCell(Text(fmt.format(h.quantity))),
+                      DataCell(Text(
+                          '${fmt.format(h.quantity)} ${ChinaMarket.quantityUnit(h.assetClass)}')),
                       DataCell(Text(fmt.format(h.avgBuyPrice))),
                       DataCell(Text(h.currentPrice == null
                           ? '--'

@@ -79,8 +79,10 @@ class PortfolioAsset {
   final String assetClass; // 股票 / 期货 / ETF / 指数
   final double quantity;
   final double avgBuyPrice;
+  /// 合约乘数：股票 / ETF / 指数 = 1；期货 = 每手对应的标的单位数
+  /// （SR=10、IF=300、AU=1000…）。市值/成本/盈亏统一通过 multiplier 缩放。
+  final double multiplier;
 
-  // Live (filled at refresh time, nullable when no quote)
   final double? currentPrice;
   final double? dayChangePercent;
 
@@ -91,12 +93,14 @@ class PortfolioAsset {
     required this.assetClass,
     required this.quantity,
     required this.avgBuyPrice,
+    this.multiplier = 1.0,
     this.currentPrice,
     this.dayChangePercent,
   });
 
-  double get costBasis => quantity * avgBuyPrice;
-  double get marketValue => (currentPrice ?? avgBuyPrice) * quantity;
+  double get costBasis => quantity * avgBuyPrice * multiplier;
+  double get marketValue =>
+      (currentPrice ?? avgBuyPrice) * quantity * multiplier;
   double get unrealizedPnl => marketValue - costBasis;
   double get unrealizedPnlPercent =>
       costBasis == 0 ? 0 : unrealizedPnl / costBasis * 100.0;
@@ -106,6 +110,7 @@ class PortfolioAsset {
     double? avgBuyPrice,
     double? currentPrice,
     double? dayChangePercent,
+    double? multiplier,
     String? sector,
     String? name,
     String? assetClass,
@@ -117,6 +122,7 @@ class PortfolioAsset {
       assetClass: assetClass ?? this.assetClass,
       quantity: quantity ?? this.quantity,
       avgBuyPrice: avgBuyPrice ?? this.avgBuyPrice,
+      multiplier: multiplier ?? this.multiplier,
       currentPrice: currentPrice ?? this.currentPrice,
       dayChangePercent: dayChangePercent ?? this.dayChangePercent,
     );
@@ -146,7 +152,7 @@ class PortfolioSummary {
           final pct = h.dayChangePercent;
           if (pct == null || h.currentPrice == null) return s;
           final prev = h.currentPrice! / (1 + pct / 100.0);
-          return s + (h.currentPrice! - prev) * h.quantity;
+          return s + (h.currentPrice! - prev) * h.quantity * h.multiplier;
         },
       );
   double get totalDayChangePercent {

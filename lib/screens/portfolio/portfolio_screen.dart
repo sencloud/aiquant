@@ -93,15 +93,6 @@ class PortfolioScreen extends StatelessWidget {
                   EconomicsTab(),
                 ],
               ),
-        floatingActionButton: ps.activeId == null
-            ? null
-            : FloatingActionButton.extended(
-                backgroundColor: AppColors.amber,
-                foregroundColor: Colors.black,
-                icon: const Icon(Icons.add),
-                label: const Text('加入品种'),
-                onPressed: () => _addAsset(context),
-              ),
       ),
     );
   }

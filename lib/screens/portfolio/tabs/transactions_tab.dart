@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/china_market.dart';
 import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
 
@@ -121,14 +122,29 @@ class TransactionsTab extends StatelessWidget {
                         title: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                '${t.symbol}  ${t.name}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    t.name.isEmpty
+                                        ? ChinaMarket.displaySymbol(t.symbol)
+                                        : t.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                  Text(
+                                    ChinaMarket.displaySymbol(t.symbol),
+                                    style: TextStyle(
+                                        color: AppColors.textTertiary,
+                                        fontSize: 10,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                ],
                               ),
                             ),
                             Text(df.format(t.date),
@@ -169,13 +185,14 @@ class TransactionsTab extends StatelessWidget {
 
   String _subtitleText(
       String type, dynamic t, NumberFormat fmt) {
+    final unit = ChinaMarket.quantityUnit(t.assetClass);
     switch (type) {
       case 'split':
         return '拆分比例 ${fmt.format(t.quantity)}（仓位 × ${fmt.format(t.quantity)}）';
       case 'dividend':
-        return '${fmt.format(t.quantity)} 股 × ${fmt.format(t.price)}/股 = ${fmt.format(t.totalValue)} 现金';
+        return '${fmt.format(t.quantity)} $unit × ${fmt.format(t.price)}/$unit = ${fmt.format(t.totalValue)} 现金';
       default:
-        return '${fmt.format(t.quantity)} × ${fmt.format(t.price)} = ${fmt.format(t.totalValue)}';
+        return '${fmt.format(t.quantity)} $unit × ${fmt.format(t.price)} = ${fmt.format(t.totalValue)}';
     }
   }
 

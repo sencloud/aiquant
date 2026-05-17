@@ -143,12 +143,25 @@ class PortfolioStatsRibbon extends StatelessWidget {
 
   static String _fmtMoney(double? v) {
     if (v == null) return '--';
-    return NumberFormat('#,##0.00').format(v);
+    return _fmtCny(v);
   }
 
   static String _fmtSignedMoney(double v) {
-    final f = NumberFormat('#,##0.00').format(v.abs());
     final sign = v > 0 ? '+' : (v < 0 ? '-' : '');
-    return '$sign$f';
+    return '$sign${_fmtCny(v.abs())}';
+  }
+
+  /// 中国财经 App 习惯：>= 1 亿 → "X.XX 亿"；>= 1 万 → "X.XX 万"；
+  /// 否则按千分位显示（最多两位小数）。这样 Hero 区不会出现 264,123.45
+  /// 之类被截断为 "264,12..." 的尴尬情况。
+  static String _fmtCny(double v) {
+    final abs = v.abs();
+    if (abs >= 1e8) {
+      return '${(v / 1e8).toStringAsFixed(2)} 亿';
+    }
+    if (abs >= 1e4) {
+      return '${(v / 1e4).toStringAsFixed(2)} 万';
+    }
+    return NumberFormat('#,##0.00').format(v);
   }
 }

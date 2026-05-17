@@ -4,6 +4,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../models/chat.dart';
 import '../../../theme/app_theme.dart';
 import 'reasoning_block.dart';
+import 'tool_call_card.dart';
 
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
@@ -27,8 +28,8 @@ class MessageBubble extends StatelessWidget {
     final isUser = message.role == 'user';
     final hasReasoning =
         showReasoning && (message.reasoning?.isNotEmpty ?? false);
+    final hasToolCalls = (message.toolCalls?.isNotEmpty ?? false);
     final hasContent = message.content.trim().isNotEmpty;
-    // tool 调用过程对终端用户隐藏 —— 用户只关心最终答复，工具调用卡片不再渲染。
 
     final bg = isUser ? AppColors.amber : AppColors.bgRaised;
     final fg = isUser ? Colors.black : AppColors.textPrimary;
@@ -57,7 +58,20 @@ class MessageBubble extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: _content(context, fg),
             ),
-          if (message.streaming && !hasReasoning && !hasContent)
+          if (hasToolCalls)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.92,
+              ),
+              child: ToolCallList(
+                calls: message.toolCalls!,
+                findResult: _findToolResult,
+              ),
+            ),
+          if (message.streaming &&
+              !hasReasoning &&
+              !hasContent &&
+              !hasToolCalls)
             const Padding(
               padding: EdgeInsets.only(top: 4),
               child: _TypingDots(),
@@ -65,6 +79,13 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  ChatMessage? _findToolResult(String toolCallId) {
+    for (final m in allMessages) {
+      if (m.role == 'tool' && m.toolCallId == toolCallId) return m;
+    }
+    return null;
   }
 
   Widget _content(BuildContext context, Color fg) {
