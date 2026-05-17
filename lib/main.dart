@@ -35,10 +35,10 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => BillingState()),
         ChangeNotifierProvider(create: (_) => PortfolioState()..bootstrap()),
         ChangeNotifierProvider(create: (_) => ChatState()..bootstrap()),
-        // DingState 依赖 ChatState 的 executeOneShot
+        // DingState 依赖 ChatState；登录后由 AuthGate 触发 bootstrap()
         ChangeNotifierProxyProvider<ChatState, DingState>(
-          create: (ctx) => DingState(chat: ctx.read<ChatState>())..bootstrap(),
-          update: (_, chat, prev) => prev ?? (DingState(chat: chat)..bootstrap()),
+          create: (ctx) => DingState(chat: ctx.read<ChatState>()),
+          update: (_, chat, prev) => prev ?? DingState(chat: chat),
         ),
       ],
       child: const FinceptApp(),

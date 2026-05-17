@@ -2,56 +2,145 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../core/storage/hive_setup.dart';
 import '../models/ding.dart';
+import '../services/ding_service.dart';
 import 'chat_state.dart';
 
-/// DING：定时任务 + 消息聚合。
+/// DingState — 服务端为唯一真源，客户端仅缓存与本地驱动调度。
 ///
-/// 移动端没有真后台 cron，因此本调度器走"前台 + 启动追赶"的策略：
-/// - App 在前台时每 60s 扫一次任务列表，到点的任务立即执行；
-/// - App 启动 / 从后台回到前台时，对所有 nextRunAt < now 的任务做"补跑"
-///   （只补跑一次最近一次窗口，避免久不打开 App 后产生雪崩）；
-/// - 任务跑完后调用 ChatState.executeOneShot 拿到 markdown 结果，写入
-///   DingMessage 收件箱并 notifyListeners。
+/// 调度策略（移动端没有真后台 cron）：
+/// - 前台时每 60s 扫一次 [_tasks] 中 enabled 的任务；
+/// - 启动 / 从后台回到前台时 catchUp = true，把 nextRunAt < now 的任务"补跑一次"；
+/// - 实际跑由 [ChatState.executeOneShot] 完成；结果通过 DingService.reportRun
+///   上传到服务端（生成 notification + 更新 last/next_run_at）。
 class DingState extends ChangeNotifier {
-  DingState({required ChatState chat}) : _chat = chat;
+  DingState({
+    required ChatState chat,
+    DingService? service,
+  })  : _chat = chat,
+        _service = service ?? DingService();
 
   final ChatState _chat;
+  final DingService _service;
+
   Timer? _ticker;
   bool _ticking = false;
-  // 正在执行的任务 id（防止 tick 重叠）
+  bool _bootstrapped = false;
+  // 正在执行的任务 uuid（防止 tick 重叠）
   final Set<String> _running = {};
 
-  List<DingTask> get tasks {
-    final list = dingTasksBox.values.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    return list;
-  }
+  // ── 状态 ──────────────────────────────────────────────────────────────
+  final List<DingTask> _tasks = [];
+  final List<DingMessage> _messages = [];
+  int _nextCursor = 0;
+  bool _hasMoreMessages = true;
+  bool _loadingMessages = false;
+  String? _lastError;
 
-  List<DingMessage> get messages {
-    final list = dingMessagesBox.values.toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
-  }
-
-  int get unreadCount => dingMessagesBox.values.where((m) => !m.read).length;
+  List<DingTask> get tasks => List.unmodifiable(_tasks);
+  List<DingMessage> get messages => List.unmodifiable(_messages);
+  int get unreadCount => _messages.where((m) => !m.read).length;
+  bool get loadingMessages => _loadingMessages;
+  bool get hasMoreMessages => _hasMoreMessages;
+  String? get lastError => _lastError;
 
   Set<String> get runningTaskIds => Set.unmodifiable(_running);
   bool isRunning(String taskId) => _running.contains(taskId);
 
+  // ── 生命周期 ──────────────────────────────────────────────────────────
+
+  /// 登录后调用，从服务端拉一次 tasks + 第一页 inbox，并启动 60s ticker。
   Future<void> bootstrap() async {
-    // 给所有没有 nextRunAt 的任务计算一次（旧任务向前兼容）
-    for (final t in dingTasksBox.values) {
-      t.nextRunAt ??= t.computeNextFireTime();
-      await t.save();
-    }
-    // 启动后立即跑一次"追赶"，让久违打开 App 的用户能看到当日消息
-    _tick(catchUp: true);
+    if (_bootstrapped) return;
+    _bootstrapped = true;
+    await refreshAll(catchUp: true);
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 60), (_) => _tick());
+  }
+
+  /// 用户登出：停 ticker 并清空。
+  void reset() {
+    _ticker?.cancel();
+    _ticker = null;
+    _tasks.clear();
+    _messages.clear();
+    _nextCursor = 0;
+    _hasMoreMessages = true;
+    _running.clear();
+    _bootstrapped = false;
+    _lastError = null;
     notifyListeners();
   }
+
+  /// 重新拉服务端数据 + 可选立刻补跑。
+  Future<void> refreshAll({bool catchUp = false}) async {
+    await Future.wait([
+      _refreshTasks(),
+      _refreshFirstPage(),
+    ]);
+    if (catchUp) {
+      await _tick(catchUp: true);
+    }
+  }
+
+  /// 由 HomeScreen lifecycle / 手动刷新触发。
+  void resumeFromBackground() {
+    Future.microtask(() => refreshAll(catchUp: true));
+  }
+
+  Future<void> _refreshTasks() async {
+    try {
+      final list = await _service.listTasks();
+      _tasks
+        ..clear()
+        ..addAll(list);
+      _lastError = null;
+      notifyListeners();
+    } catch (e) {
+      _lastError = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> _refreshFirstPage() async {
+    if (_loadingMessages) return;
+    _loadingMessages = true;
+    notifyListeners();
+    try {
+      final r = await _service.listNotifications();
+      _messages
+        ..clear()
+        ..addAll(r.items);
+      _nextCursor = r.nextCursor;
+      _hasMoreMessages = r.nextCursor > 0;
+      _lastError = null;
+    } catch (e) {
+      _lastError = e.toString();
+    } finally {
+      _loadingMessages = false;
+      notifyListeners();
+    }
+  }
+
+  /// 列表下拉到底加载更多。
+  Future<void> loadMoreMessages() async {
+    if (_loadingMessages || !_hasMoreMessages) return;
+    _loadingMessages = true;
+    notifyListeners();
+    try {
+      final r = await _service.listNotifications(cursor: _nextCursor);
+      _messages.addAll(r.items);
+      _nextCursor = r.nextCursor;
+      _hasMoreMessages = r.nextCursor > 0;
+    } catch (e) {
+      _lastError = e.toString();
+    } finally {
+      _loadingMessages = false;
+      notifyListeners();
+    }
+  }
+
+  // ── Tasks CRUD（服务端为真源） ───────────────────────────────────────
 
   Future<DingTask> createTask({
     required String title,
@@ -60,15 +149,14 @@ class DingState extends ChangeNotifier {
     String personaId = 'default',
     bool enabled = true,
   }) async {
-    final t = DingTask(
+    final t = await _service.createTask(
       title: title,
       prompt: prompt,
       schedule: schedule,
       personaId: personaId,
       enabled: enabled,
     );
-    t.nextRunAt = t.computeNextFireTime();
-    await dingTasksBox.put(t.id, t);
+    _tasks.add(t);
     notifyListeners();
     return t;
   }
@@ -81,88 +169,84 @@ class DingState extends ChangeNotifier {
     String? personaId,
     bool? enabled,
   }) async {
-    if (title != null) t.title = title;
-    if (prompt != null) t.prompt = prompt;
-    if (personaId != null) t.personaId = personaId;
-    if (schedule != null) t.schedule = schedule;
-    if (enabled != null) t.enabled = enabled;
-    t.nextRunAt = t.computeNextFireTime();
-    await t.save();
+    final updated = await _service.updateTask(
+      t.id,
+      title: title,
+      prompt: prompt,
+      schedule: schedule,
+      personaId: personaId,
+      enabled: enabled,
+    );
+    final i = _tasks.indexWhere((x) => x.id == t.id);
+    if (i >= 0) _tasks[i] = updated;
     notifyListeners();
   }
 
   Future<void> setEnabled(DingTask t, bool enabled) async {
-    t.enabled = enabled;
-    t.nextRunAt = enabled ? t.computeNextFireTime() : null;
-    await t.save();
-    notifyListeners();
+    await updateTask(t, enabled: enabled);
   }
 
   Future<void> deleteTask(DingTask t) async {
-    await t.delete();
+    await _service.deleteTask(t.id);
+    _tasks.removeWhere((x) => x.id == t.id);
     notifyListeners();
   }
 
-  /// 立即手动执行某个任务（不影响 nextRunAt）。
-  Future<DingMessage> runNow(DingTask t) async {
+  Future<DingMessage?> runNow(DingTask t) async {
     return _execute(t, manual: true);
   }
 
+  // ── Messages ─────────────────────────────────────────────────────────
+
   Future<void> markRead(DingMessage m, {bool read = true}) async {
     if (m.read == read) return;
+    if (read) {
+      await _service.markRead(m.id);
+    }
     m.read = read;
-    await m.save();
     notifyListeners();
   }
 
   Future<void> markAllRead() async {
-    var changed = false;
-    for (final m in dingMessagesBox.values) {
-      if (!m.read) {
-        m.read = true;
-        await m.save();
-        changed = true;
-      }
+    if (_messages.every((m) => m.read)) return;
+    await _service.markAllRead();
+    for (final m in _messages) {
+      m.read = true;
     }
-    if (changed) notifyListeners();
+    notifyListeners();
   }
 
   Future<void> deleteMessage(DingMessage m) async {
-    await m.delete();
+    await _service.deleteNotification(m.id);
+    _messages.removeWhere((x) => x.id == m.id);
     notifyListeners();
   }
 
   Future<void> clearAllMessages() async {
-    await dingMessagesBox.clear();
+    for (final m in List<DingMessage>.from(_messages)) {
+      await _service.deleteNotification(m.id);
+    }
+    _messages.clear();
     notifyListeners();
   }
 
-  /// 由外部（HomeScreen lifecycle / 手动刷新按钮）触发的"追赶"。
-  void resumeFromBackground() => _tick(catchUp: true);
-
-  // ── 调度核心 ─────────────────────────────────────────────────────────
+  // ── 调度核心 ──────────────────────────────────────────────────────────
 
   Future<void> _tick({bool catchUp = false}) async {
     if (_ticking) return;
     _ticking = true;
     try {
       final now = DateTime.now();
-      for (final t in tasks) {
+      for (final t in List<DingTask>.from(_tasks)) {
         if (!t.enabled) continue;
         if (_running.contains(t.id)) continue;
         final next = t.nextRunAt;
-        if (next == null) {
-          t.nextRunAt = t.computeNextFireTime(from: now);
-          await t.save();
-          continue;
-        }
+        if (next == null) continue;
         if (next.isAfter(now)) continue;
         if (!catchUp) {
-          // 普通 tick：到点严格满足才跑
           if (now.difference(next).inMinutes > 5) {
-            // 错过 > 5 分钟视为 stale，下次窗口再跑
-            t.nextRunAt = t.computeNextFireTime(from: now);
-            await t.save();
+            // 错过 > 5 分钟视为 stale，让服务端的 next_run_at 在下次 reportRun 后自动滚动；
+            // 客户端这里跳过，避免雪崩。
             continue;
           }
         }
@@ -174,34 +258,58 @@ class DingState extends ChangeNotifier {
     }
   }
 
-  Future<DingMessage> _execute(DingTask t, {bool manual = false}) async {
+  Future<DingMessage?> _execute(DingTask t, {bool manual = false}) async {
     _running.add(t.id);
     notifyListeners();
-    DingMessage msg;
+
+    final startedAt = DateTime.now();
+    String content = '';
+    String error = '';
+    String status = 'success';
     try {
       final result = await _chat.executeOneShot(
         prompt: t.prompt,
         personaId: t.personaId,
         withTools: true,
       );
-      msg = DingMessage(
-        taskId: t.id,
-        taskTitle: t.title,
-        content: result.content.isEmpty ? '（模型返回为空）' : result.content,
-      );
+      content = result.content;
+      if (content.isEmpty) {
+        content = '（模型返回为空）';
+      }
     } catch (e) {
-      msg = DingMessage(
-        taskId: t.id,
-        taskTitle: t.title,
-        content: '执行失败：$e',
-        error: e.toString(),
-      );
+      status = 'failed';
+      error = e.toString();
+      content = '执行失败：$e';
     }
-    await dingMessagesBox.put(msg.id, msg);
 
-    t.lastRunAt = DateTime.now();
-    t.nextRunAt = t.computeNextFireTime(from: t.lastRunAt);
-    await t.save();
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+
+    DingMessage? msg;
+    try {
+      final r = await _service.reportRun(
+        t.id,
+        status: status,
+        title: t.title + (status == 'failed' ? '（失败）' : ''),
+        content: status == 'success' ? content : '',
+        error: status == 'failed' ? error : '',
+        durationMs: durationMs,
+        startedAt: startedAt,
+      );
+      msg = r.notification;
+      if (msg != null) {
+        _messages.insert(0, msg);
+      }
+    } catch (e) {
+      _lastError = '上传执行结果失败：$e';
+    }
+
+    // 服务端会更新 last_run_at / next_run_at；本地刷一次 task
+    try {
+      final fresh = await _service.listTasks();
+      _tasks
+        ..clear()
+        ..addAll(fresh);
+    } catch (_) {}
 
     _running.remove(t.id);
     notifyListeners();

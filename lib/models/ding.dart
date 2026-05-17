@@ -1,15 +1,27 @@
-import 'package:hive/hive.dart';
-import 'package:uuid/uuid.dart';
+/// DING 数据模型 — 服务端是唯一真源，本地仅作内存缓存。
+library;
 
-const _uuid = Uuid();
-
-/// DING 定时任务定义。
+/// DingTask：定时任务定义。
 ///
-/// 调度规则用字符串编码，简单、易持久化、易扩展：
-/// - "daily:HH:mm"          — 每天 HH:mm 跑一次
-/// - "weekly:N:HH:mm"        — 每周第 N 天 (1=周一 ... 7=周日)
-/// - "interval:M"            — 每 M 分钟跑一次（M >= 5）
-class DingTask extends HiveObject {
+/// schedule 字符串约定（与 backend `internal/ding/schedule.go` 完全一致）：
+/// - "daily:HH:mm"          每天 HH:mm 跑一次
+/// - "weekly:N:HH:mm"        每周第 N 天 (1=周一 ... 7=周日)
+/// - "interval:M"            每 M 分钟跑一次（M >= 5）
+class DingTask {
+  DingTask({
+    required this.id,
+    required this.title,
+    required this.prompt,
+    required this.personaId,
+    required this.schedule,
+    required this.enabled,
+    required this.createdAt,
+    this.lastRunAt,
+    this.nextRunAt,
+    this.costCreditsPerRun = 5,
+  });
+
+  /// 服务端 uuid（`ding_tasks.uuid`），与之前的本地 id 保持同名以兼容 UI 代码。
   String id;
   String title;
   String prompt;
@@ -19,154 +31,86 @@ class DingTask extends HiveObject {
   DateTime createdAt;
   DateTime? lastRunAt;
   DateTime? nextRunAt;
+  int costCreditsPerRun;
 
-  DingTask({
-    String? id,
-    required this.title,
-    required this.prompt,
-    this.personaId = 'default',
-    required this.schedule,
-    this.enabled = true,
-    DateTime? createdAt,
-    this.lastRunAt,
-    this.nextRunAt,
-  })  : id = id ?? _uuid.v4(),
-        createdAt = createdAt ?? DateTime.now();
-
-  /// 友好展示文案，例如 "每天 09:30"。
   String describeSchedule() => DingScheduleCodec.describe(schedule);
 
-  /// 计算下一次触发时间。基准时间 [from] 默认是当前时间。
+  factory DingTask.fromJson(Map<String, dynamic> j) {
+    DateTime? msToTime(Object? v) {
+      if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+      return null;
+    }
+
+    return DingTask(
+      id: j['uuid'] as String,
+      title: j['title'] as String,
+      prompt: j['prompt'] as String,
+      personaId: (j['persona_id'] as String?) ?? 'default',
+      schedule: j['schedule'] as String,
+      enabled: (j['enabled'] as bool?) ?? true,
+      createdAt:
+          DateTime.fromMillisecondsSinceEpoch((j['created_at'] as num).toInt()),
+      lastRunAt: msToTime(j['last_run_at']),
+      nextRunAt: msToTime(j['next_run_at']),
+      costCreditsPerRun:
+          (j['cost_credits_per_run'] as num?)?.toInt() ?? 5,
+    );
+  }
+
+  /// 本地预测下次触发时间，用于在 server 还没返回 next_run_at 之前给 UI 展示。
   DateTime? computeNextFireTime({DateTime? from}) {
     return DingScheduleCodec.nextFireTime(schedule, from: from ?? DateTime.now());
   }
 }
 
-class DingTaskAdapter extends TypeAdapter<DingTask> {
-  @override
-  final int typeId = 10;
-
-  @override
-  DingTask read(BinaryReader reader) {
-    final n = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < n; i++) reader.readByte(): reader.read(),
-    };
-    return DingTask(
-      id: fields[0] as String,
-      title: fields[1] as String,
-      prompt: fields[2] as String,
-      personaId: fields[3] as String? ?? 'default',
-      schedule: fields[4] as String,
-      enabled: fields[5] as bool? ?? true,
-      createdAt: fields[6] as DateTime,
-      lastRunAt: fields[7] as DateTime?,
-      nextRunAt: fields[8] as DateTime?,
-    );
-  }
-
-  @override
-  void write(BinaryWriter writer, DingTask obj) {
-    writer
-      ..writeByte(9)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.title)
-      ..writeByte(2)
-      ..write(obj.prompt)
-      ..writeByte(3)
-      ..write(obj.personaId)
-      ..writeByte(4)
-      ..write(obj.schedule)
-      ..writeByte(5)
-      ..write(obj.enabled)
-      ..writeByte(6)
-      ..write(obj.createdAt)
-      ..writeByte(7)
-      ..write(obj.lastRunAt)
-      ..writeByte(8)
-      ..write(obj.nextRunAt);
-  }
-}
-
-/// DING 消息：定时任务执行后产出的"邮件"。
-class DingMessage extends HiveObject {
-  String id;
-  String taskId;
-  String taskTitle;
-  String content; // markdown
-  String? error;
-  DateTime createdAt;
-  bool read;
-
+/// DingMessage：通知收件箱里的一条"邮件"。对应 backend `notifications` 表。
+class DingMessage {
   DingMessage({
-    String? id,
+    required this.id,
     required this.taskId,
     required this.taskTitle,
     required this.content,
     this.error,
-    DateTime? createdAt,
+    required this.createdAt,
     this.read = false,
-  })  : id = id ?? _uuid.v4(),
-        createdAt = createdAt ?? DateTime.now();
+  });
+
+  /// 服务端 uuid。
+  final String id;
+  final String taskId;
+  final String taskTitle;
+  final String content;
+  final String? error;
+  final DateTime createdAt;
+  bool read;
 
   bool get hasError => error != null && error!.isNotEmpty;
-}
 
-class DingMessageAdapter extends TypeAdapter<DingMessage> {
-  @override
-  final int typeId = 11;
-
-  @override
-  DingMessage read(BinaryReader reader) {
-    final n = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < n; i++) reader.readByte(): reader.read(),
-    };
+  factory DingMessage.fromJson(Map<String, dynamic> j) {
+    final body = (j['payload'] as String?) ?? '';
+    final brief = (j['body_brief'] as String?) ?? '';
+    final isError = (j['title'] as String? ?? '').contains('（失败）');
     return DingMessage(
-      id: fields[0] as String,
-      taskId: fields[1] as String,
-      taskTitle: fields[2] as String,
-      content: fields[3] as String,
-      error: fields[4] as String?,
-      createdAt: fields[5] as DateTime,
-      read: fields[6] as bool? ?? false,
+      id: j['uuid'] as String,
+      taskId: (j['ref_id'] as String?) ?? '',
+      taskTitle: (j['title'] as String?) ?? '',
+      content: body.isNotEmpty ? body : brief,
+      error: isError ? body : null,
+      createdAt:
+          DateTime.fromMillisecondsSinceEpoch((j['created_at'] as num).toInt()),
+      read: (j['read'] as bool?) ?? false,
     );
   }
-
-  @override
-  void write(BinaryWriter writer, DingMessage obj) {
-    writer
-      ..writeByte(7)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.taskId)
-      ..writeByte(2)
-      ..write(obj.taskTitle)
-      ..writeByte(3)
-      ..write(obj.content)
-      ..writeByte(4)
-      ..write(obj.error)
-      ..writeByte(5)
-      ..write(obj.createdAt)
-      ..writeByte(6)
-      ..write(obj.read);
-  }
 }
 
-/// 调度字符串的解析、描述与下次触发时间计算。
+/// schedule 字符串的解析、描述与下次触发时间计算（与 backend 对齐）。
 class DingScheduleCodec {
-  /// 编码 "daily:HH:mm"。
   static String daily(int hour, int minute) =>
       'daily:${_two(hour)}:${_two(minute)}';
 
-  /// 编码 "weekly:N:HH:mm"，N=1..7（1=周一）。
   static String weekly(int weekday, int hour, int minute) =>
       'weekly:$weekday:${_two(hour)}:${_two(minute)}';
 
-  /// 编码 "interval:M" 分钟。
   static String interval(int minutes) => 'interval:$minutes';
 
   static String describe(String schedule) {
@@ -193,8 +137,6 @@ class DingScheduleCodec {
     }
   }
 
-  /// 计算 [schedule] 在 [from] 之后的下一次触发时间。
-  /// 严格大于 [from] —— "现在" 不视为 "下次"。
   static DateTime? nextFireTime(String schedule, {required DateTime from}) {
     final parts = schedule.split(':');
     if (parts.isEmpty) return null;
@@ -212,7 +154,6 @@ class DingScheduleCodec {
         final h = int.tryParse(parts[2]) ?? 0;
         final m = int.tryParse(parts[3]) ?? 0;
         var t = DateTime(from.year, from.month, from.day, h, m);
-        // Dart: 1=Mon ... 7=Sun
         var diff = (wd - t.weekday) % 7;
         if (diff < 0) diff += 7;
         t = t.add(Duration(days: diff));
