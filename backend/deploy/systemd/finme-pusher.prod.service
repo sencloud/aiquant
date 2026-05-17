@@ -1,0 +1,17 @@
+[Unit]
+Description=Finme push worker
+After=network-online.target finme-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/server
+ExecStart=/server/bin/finme-server pusher --config /server/config/config.toml
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/server/logs/pusher.log
+StandardError=append:/server/logs/pusher.log
+
+[Install]
+WantedBy=multi-user.target

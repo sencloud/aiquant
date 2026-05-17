@@ -1,0 +1,17 @@
+[Unit]
+Description=Finme scheduler (reconcile / cron jobs)
+After=network-online.target finme-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/server
+ExecStart=/server/bin/finme-server scheduler --config /server/config/config.toml
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/server/logs/scheduler.log
+StandardError=append:/server/logs/scheduler.log
+
+[Install]
+WantedBy=multi-user.target
