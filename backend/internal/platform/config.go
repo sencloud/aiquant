@@ -19,12 +19,16 @@ type Config struct {
 	Env      string `toml:"env"`
 	LogLevel string `toml:"log_level"`
 
-	Server     ServerConfig     `toml:"server"`
-	DB         DBConfig         `toml:"db"`
-	Security   SecurityConfig   `toml:"security"`
-	Apple      AppleConfig      `toml:"apple"`
-	SMS        SMSConfig        `toml:"sms"`
-	RateLimit  RateLimitConfig  `toml:"ratelimit"`
+	Server    ServerConfig    `toml:"server"`
+	DB        DBConfig        `toml:"db"`
+	Security  SecurityConfig  `toml:"security"`
+	Apple     AppleConfig     `toml:"apple"`
+	AppleIAP  AppleIAPConfig  `toml:"apple_iap"`
+	APNs      APNsConfig      `toml:"apns"`
+	FCM       FCMConfig       `toml:"fcm"`
+	LLM       LLMConfig       `toml:"llm"`
+	SMS       SMSConfig       `toml:"sms"`
+	RateLimit RateLimitConfig `toml:"ratelimit"`
 }
 
 type ServerConfig struct {
@@ -65,6 +69,69 @@ type AppleConfig struct {
 	BundleID string `toml:"bundle_id"`
 	JWKSURL  string `toml:"jwks_url"`
 }
+
+// AppleIAPConfig 用于 App Store Server API 验签 IAP 收据。
+//
+// `private_key` 为 .p8 文件的 PEM 全文（推荐通过 FINME_APPLE_IAP__PRIVATE_KEY
+// 注入避免落 git）；`private_key_path` 为本地路径，二者任一即可。
+//
+// `environment` 控制 base url：
+//   - sandbox    → https://api.storekit-sandbox.itunes.apple.com
+//   - production → https://api.storekit.itunes.apple.com
+//   - auto       → 先 production，404 自动 fallback sandbox（TestFlight/Sandbox 共存）
+type AppleIAPConfig struct {
+	BundleID       string `toml:"bundle_id"`
+	IssuerID       string `toml:"issuer_id"`
+	KeyID          string `toml:"key_id"`
+	PrivateKey     string `toml:"private_key"`
+	PrivateKeyPath string `toml:"private_key_path"`
+	Environment    string `toml:"environment"`
+}
+
+func (c AppleIAPConfig) Configured() bool {
+	return c.IssuerID != "" && c.KeyID != "" && (c.PrivateKey != "" || c.PrivateKeyPath != "")
+}
+
+// APNsConfig 用于 APNs HTTP/2 Provider API。
+//
+// `environment`：sandbox / production；development build 走 sandbox，TestFlight 与
+// App Store 走 production。
+type APNsConfig struct {
+	BundleID       string `toml:"bundle_id"`
+	TeamID         string `toml:"team_id"`
+	KeyID          string `toml:"key_id"`
+	PrivateKey     string `toml:"private_key"`
+	PrivateKeyPath string `toml:"private_key_path"`
+	Environment    string `toml:"environment"`
+}
+
+func (c APNsConfig) Configured() bool {
+	return c.TeamID != "" && c.KeyID != "" && (c.PrivateKey != "" || c.PrivateKeyPath != "")
+}
+
+// FCMConfig 用于 Firebase Cloud Messaging HTTP v1。
+type FCMConfig struct {
+	ProjectID              string `toml:"project_id"`
+	ServiceAccountJSON     string `toml:"service_account_json"`
+	ServiceAccountJSONPath string `toml:"service_account_json_path"`
+}
+
+func (c FCMConfig) Configured() bool {
+	return c.ProjectID != "" && (c.ServiceAccountJSON != "" || c.ServiceAccountJSONPath != "")
+}
+
+// LLMConfig 服务端 DING 任务执行用。
+type LLMConfig struct {
+	Provider     string `toml:"provider"` // 仅支持 deepseek
+	APIKey       string `toml:"api_key"`
+	BaseURL      string `toml:"base_url"`
+	ChatModel    string `toml:"chat_model"`
+	ReasonModel  string `toml:"reason_model"`
+	TimeoutSec   int    `toml:"timeout_sec"`
+	MaxToolLoops int    `toml:"max_tool_loops"`
+}
+
+func (c LLMConfig) Configured() bool { return c.APIKey != "" }
 
 type SMSConfig struct {
 	Provider        string `toml:"provider"`
@@ -126,6 +193,22 @@ func defaultConfig() *Config {
 		Apple: AppleConfig{
 			BundleID: "com.aiquant.app",
 			JWKSURL:  "https://appleid.apple.com/auth/keys",
+		},
+		AppleIAP: AppleIAPConfig{
+			BundleID:    "com.aiquant.app",
+			Environment: "auto",
+		},
+		APNs: APNsConfig{
+			BundleID:    "com.aiquant.app",
+			Environment: "production",
+		},
+		LLM: LLMConfig{
+			Provider:     "deepseek",
+			BaseURL:      "https://api.deepseek.com",
+			ChatModel:    "deepseek-chat",
+			ReasonModel:  "deepseek-reasoner",
+			TimeoutSec:   180,
+			MaxToolLoops: 6,
 		},
 		SMS: SMSConfig{Provider: "mock"},
 		RateLimit: RateLimitConfig{
@@ -196,6 +279,60 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_APPLE__BUNDLE_ID"); v != "" {
 		c.Apple.BundleID = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__BUNDLE_ID"); v != "" {
+		c.AppleIAP.BundleID = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__ISSUER_ID"); v != "" {
+		c.AppleIAP.IssuerID = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__KEY_ID"); v != "" {
+		c.AppleIAP.KeyID = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__PRIVATE_KEY"); v != "" {
+		c.AppleIAP.PrivateKey = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__PRIVATE_KEY_PATH"); v != "" {
+		c.AppleIAP.PrivateKeyPath = v
+	}
+	if v := os.Getenv("FINME_APPLE_IAP__ENVIRONMENT"); v != "" {
+		c.AppleIAP.Environment = v
+	}
+	if v := os.Getenv("FINME_APNS__TEAM_ID"); v != "" {
+		c.APNs.TeamID = v
+	}
+	if v := os.Getenv("FINME_APNS__KEY_ID"); v != "" {
+		c.APNs.KeyID = v
+	}
+	if v := os.Getenv("FINME_APNS__PRIVATE_KEY"); v != "" {
+		c.APNs.PrivateKey = v
+	}
+	if v := os.Getenv("FINME_APNS__PRIVATE_KEY_PATH"); v != "" {
+		c.APNs.PrivateKeyPath = v
+	}
+	if v := os.Getenv("FINME_APNS__ENVIRONMENT"); v != "" {
+		c.APNs.Environment = v
+	}
+	if v := os.Getenv("FINME_FCM__PROJECT_ID"); v != "" {
+		c.FCM.ProjectID = v
+	}
+	if v := os.Getenv("FINME_FCM__SERVICE_ACCOUNT_JSON"); v != "" {
+		c.FCM.ServiceAccountJSON = v
+	}
+	if v := os.Getenv("FINME_FCM__SERVICE_ACCOUNT_JSON_PATH"); v != "" {
+		c.FCM.ServiceAccountJSONPath = v
+	}
+	if v := os.Getenv("FINME_LLM__API_KEY"); v != "" {
+		c.LLM.APIKey = v
+	}
+	if v := os.Getenv("FINME_LLM__BASE_URL"); v != "" {
+		c.LLM.BaseURL = v
+	}
+	if v := os.Getenv("FINME_LLM__CHAT_MODEL"); v != "" {
+		c.LLM.ChatModel = v
+	}
+	if v := os.Getenv("FINME_LLM__REASON_MODEL"); v != "" {
+		c.LLM.ReasonModel = v
 	}
 	if v := os.Getenv("FINME_SMS__PROVIDER"); v != "" {
 		c.SMS.Provider = v

@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../core/api/api_client.dart';
 import '../core/api/auth_models.dart';
 import '../services/auth_service.dart';
+import '../services/push_registration_service.dart';
 
 const _uuid = Uuid();
 
@@ -127,6 +128,7 @@ class AuthState extends ChangeNotifier {
   Future<void> logout() async {
     await _svc.logout();
     _user = null;
+    PushRegistrationService.instance.reset();
     notifyListeners();
   }
 
@@ -141,6 +143,7 @@ class AuthState extends ChangeNotifier {
   Future<void> _onForcedLogout() async {
     _user = null;
     await _api.storage.clearAll();
+    PushRegistrationService.instance.reset();
     notifyListeners();
   }
 
@@ -167,6 +170,10 @@ class AuthState extends ChangeNotifier {
     } catch (_) {
       // 设备登记是非关键路径，失败下次启动再试
     }
+    // 触发 APNs / FCM token 上送：iOS 调原生 channel；用户首次会弹通知权限。
+    // 失败不阻塞登录链路。
+    // ignore: unawaited_futures
+    PushRegistrationService.instance.registerIfPossible();
   }
 
   String? _platformName() {

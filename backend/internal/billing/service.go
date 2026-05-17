@@ -30,7 +30,10 @@ func NewService(st *store.Store, cfg *platform.Config) (*Service, error) {
 	if err := SeedDefault(context.Background(), skus); err != nil {
 		return nil, fmt.Errorf("seed default skus: %w", err)
 	}
-	verifier := buildIAPVerifier(cfg)
+	verifier, err := buildIAPVerifier(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		cfg:    cfg,
 		store:  st,
@@ -41,13 +44,31 @@ func NewService(st *store.Store, cfg *platform.Config) (*Service, error) {
 	}, nil
 }
 
-func buildIAPVerifier(cfg *platform.Config) IAPVerifier {
-	// 暂时一律用 Mock；当 Apple Key 接入后改这里。
-	if cfg.Env == "dev" {
-		return MockIAPVerifier{}
+// buildIAPVerifier 按 env 与凭证情况选实现：
+//   - dev 未配 .p8 → Mock（联调）；
+//   - prod 未配 .p8 → DisabledVerifier，所有 verify 调用直接拒绝，服务仍可起
+//     （避免上线 IAP 前其余功能不可用）；
+//   - 任意 env 配齐 → 真实 AppleIAPVerifier。
+func buildIAPVerifier(cfg *platform.Config) (IAPVerifier, error) {
+	if !cfg.AppleIAP.Configured() {
+		if cfg.Env == "dev" {
+			return MockIAPVerifier{}, nil
+		}
+		return DisabledIAPVerifier{}, nil
 	}
-	// prod 默认仍走 mock 占位，便于先上线骨架；上正式 IAP 时改为 AppleIAPVerifier{...}。
-	return MockIAPVerifier{}
+	pem := cfg.AppleIAP.PrivateKey
+	if pem == "" && cfg.AppleIAP.PrivateKeyPath != "" {
+		s, err := LoadAppleP8(cfg.AppleIAP.PrivateKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("billing: load apple iap p8: %w", err)
+		}
+		pem = s
+	}
+	bid := cfg.AppleIAP.BundleID
+	if bid == "" {
+		bid = cfg.Apple.BundleID
+	}
+	return NewAppleIAPVerifier(bid, cfg.AppleIAP.IssuerID, cfg.AppleIAP.KeyID, pem, cfg.AppleIAP.Environment)
 }
 
 // ListSKUs 返回前端展示的 SKU。

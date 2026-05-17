@@ -23,6 +23,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/push"
 	"github.com/sencloud/finme-backend/internal/scheduler"
@@ -138,10 +139,28 @@ func waitForSignal() {
 
 // runScheduler 启动 finme-server scheduler 子进程：
 // - 余额对账（每 5 分钟）
-// 后续：服务端 LLM DING 任务调度
-func runScheduler(_ *platform.Config, l zerolog.Logger, st *store.Store) {
+// - DING runner（每 30 秒抢占 due tasks → 扣费 → DeepSeek → 写通知）
+func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
+
+	if cfg.LLM.Configured() {
+		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+			cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+			time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+		if err != nil {
+			l.Error().Err(err).Msg("scheduler: deepseek init failed, ding runner disabled")
+		} else {
+			ledger := billing.NewLedgerRepo(st)
+			runner := ding.NewRunner(st, ds, ledger, &l, ding.RunnerConfig{
+				DefaultModel: cfg.LLM.ChatModel,
+			})
+			sch.Register(runner)
+			l.Info().Str("model", cfg.LLM.ChatModel).Msg("scheduler: ding runner enabled")
+		}
+	} else {
+		l.Warn().Msg("scheduler: llm.api_key not set, ding runner disabled")
+	}
 
 	ctx, cancel := signalCtx()
 	defer cancel()
@@ -152,12 +171,14 @@ func runScheduler(_ *platform.Config, l zerolog.Logger, st *store.Store) {
 
 // runPusher 启动 finme-server pusher 子进程：
 // 轮询 notifications.push_status='pending' → 调 PushSender → 标 pushed/failed。
-// 当前 sender 为 Mock；接入 APNs/.p8 与 FCM service-account 后切到真实现。
-func runPusher(_ *platform.Config, l zerolog.Logger, st *store.Store) {
+// 凭证齐全则走真实 APNs/FCM；缺失则回落 Mock 让 dev 仍可联调。
+func runPusher(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	devSvc := devices.NewService(st)
+	apns := buildAPNs(cfg, &l)
+	fcm := buildFCM(cfg, &l)
 	w := push.NewWorker(st, devSvc, &l, push.WorkerConfig{
-		APNs:     push.MockPushSender{},
-		FCM:      push.MockPushSender{},
+		APNs:     apns,
+		FCM:      fcm,
 		Interval: 5 * time.Second,
 	})
 	ctx, cancel := signalCtx()
@@ -165,6 +186,57 @@ func runPusher(_ *platform.Config, l zerolog.Logger, st *store.Store) {
 	if err := w.Run(ctx); err != nil && err != context.Canceled {
 		l.Error().Err(err).Msg("pusher exited with error")
 	}
+}
+
+func buildAPNs(cfg *platform.Config, l *zerolog.Logger) push.PushSender {
+	if !cfg.APNs.Configured() {
+		l.Warn().Msg("apns not configured, fall back to mock")
+		return push.MockPushSender{}
+	}
+	pem := cfg.APNs.PrivateKey
+	if pem == "" && cfg.APNs.PrivateKeyPath != "" {
+		s, err := push.LoadP8(cfg.APNs.PrivateKeyPath)
+		if err != nil {
+			l.Error().Err(err).Msg("apns load p8 failed, fall back to mock")
+			return push.MockPushSender{}
+		}
+		pem = s
+	}
+	bid := cfg.APNs.BundleID
+	if bid == "" {
+		bid = cfg.Apple.BundleID
+	}
+	useSandbox := cfg.APNs.Environment == "sandbox"
+	s, err := push.NewAPNsSender(bid, cfg.APNs.TeamID, cfg.APNs.KeyID, pem, useSandbox)
+	if err != nil {
+		l.Error().Err(err).Msg("apns init failed, fall back to mock")
+		return push.MockPushSender{}
+	}
+	l.Info().Bool("sandbox", useSandbox).Msg("apns sender ready")
+	return s
+}
+
+func buildFCM(cfg *platform.Config, l *zerolog.Logger) push.PushSender {
+	if !cfg.FCM.Configured() {
+		l.Warn().Msg("fcm not configured, fall back to mock")
+		return push.MockPushSender{}
+	}
+	saJSON := cfg.FCM.ServiceAccountJSON
+	if saJSON == "" && cfg.FCM.ServiceAccountJSONPath != "" {
+		s, err := push.LoadServiceAccountJSON(cfg.FCM.ServiceAccountJSONPath)
+		if err != nil {
+			l.Error().Err(err).Msg("fcm load service account failed, fall back to mock")
+			return push.MockPushSender{}
+		}
+		saJSON = s
+	}
+	s, err := push.NewFCMSender(cfg.FCM.ProjectID, saJSON)
+	if err != nil {
+		l.Error().Err(err).Msg("fcm init failed, fall back to mock")
+		return push.MockPushSender{}
+	}
+	l.Info().Str("project", cfg.FCM.ProjectID).Msg("fcm sender ready")
+	return s
 }
 
 // signalCtx 返回一个 SIGINT/SIGTERM 取消的 context。
