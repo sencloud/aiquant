@@ -119,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               dense: true,
               leading: const Icon(Icons.info_outline, color: AppColors.amber),
-              title: Text('喜宽 AIQuant',
+              title: Text('喜宽',
                   style: TextStyle(color: AppColors.textPrimary)),
               subtitle: Text('AI 量化助手',
                   style: TextStyle(

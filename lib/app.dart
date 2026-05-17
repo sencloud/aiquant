@@ -18,7 +18,7 @@ class FinceptApp extends StatelessWidget {
         // pick up the new colours on this rebuild.
         final theme = AppTheme.build(mode);
         return MaterialApp(
-          title: 'AIQuant',
+          title: '喜宽',
           debugShowCheckedModeBanner: false,
           theme: theme,
           home: const AuthGate(),

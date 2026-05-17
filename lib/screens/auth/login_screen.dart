@@ -67,7 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 96,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
-                  color: AppColors.amber,
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.amber.withValues(alpha: 0.45),
@@ -76,15 +75,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.bolt, color: Colors.black, size: 56),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(
+                  'assets/branding/app_icon.png',
+                  width: 96,
+                  height: 96,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                ),
               ),
               const SizedBox(height: 22),
-              const Text('AIQuant',
+              const Text('喜宽',
                   style: TextStyle(
                       color: AppColors.amber,
-                      fontSize: 28,
+                      fontSize: 30,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1)),
+                      letterSpacing: 6)),
               const SizedBox(height: 8),
               Text('AI 量化研究助理 · A 股 / ETF / 期货',
                   style: TextStyle(
