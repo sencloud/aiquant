@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../core/api/api_client.dart' show buildNoProxyAdapter;
+
 class NewsItem {
   NewsItem({
     required this.title,
@@ -71,6 +73,7 @@ class NewsService {
   NewsService({Dio? dio}) : _dio = dio ?? Dio() {
     _dio.options.connectTimeout = const Duration(seconds: 12);
     _dio.options.receiveTimeout = const Duration(seconds: 20);
+    _dio.httpClientAdapter = buildNoProxyAdapter();
   }
   final Dio _dio;
 

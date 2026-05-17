@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart' as http_io;
 
 import '../core/config/app_config.dart';
 import '../models/chat.dart';
@@ -127,7 +129,10 @@ class DeepSeekService {
     };
 
     final uri = Uri.parse('${BuiltInSecrets.deepseekBaseUrl}/v1/chat/completions');
-    final client = http.Client();
+    // 强制直连，绕过设备上残留的系统代理（与 ApiClient/news/tushare 一致）
+    final client = http_io.IOClient(
+      HttpClient()..findProxy = (uri) => 'DIRECT',
+    );
     final req = http.Request('POST', uri)
       ..headers['Authorization'] = 'Bearer ${cfg.deepseekApiKey}'
       ..headers['Content-Type'] = 'application/json'
