@@ -52,9 +52,6 @@ func NewAppleVerifier(bundleID, jwksURL string) *AppleVerifier {
 
 // AppleClaims 是我们关心的字段子集。
 type AppleClaims struct {
-	Sub           string `json:"sub"`             // 稳定用户 id
-	Aud           any    `json:"aud,omitempty"`   // 字符串或数组，用 any 兜
-	Iss           string `json:"iss,omitempty"`
 	Email         string `json:"email,omitempty"`
 	EmailVerified any    `json:"email_verified,omitempty"`
 	jwt.RegisteredClaims
@@ -88,25 +85,20 @@ func (v *AppleVerifier) Verify(ctx context.Context, idToken string) (*AppleClaim
 	if !ok || !t.Valid {
 		return nil, errors.New("invalid token")
 	}
-	// aud 检查
-	if !appleAudOK(c.Aud, v.bundleID) {
+	// aud 检查：Apple 常规为 bundle id；jwt.ClaimStrings 可同时兼容字符串/数组。
+	if !appleAudOK(c.Audience, v.bundleID) {
 		return nil, errors.New("aud mismatch")
 	}
-	if c.Sub == "" {
+	if c.Subject == "" {
 		return nil, errors.New("missing sub")
 	}
 	return c, nil
 }
 
-func appleAudOK(aud any, want string) bool {
-	switch a := aud.(type) {
-	case string:
-		return a == want
-	case []any:
-		for _, v := range a {
-			if s, ok := v.(string); ok && s == want {
-				return true
-			}
+func appleAudOK(aud jwt.ClaimStrings, want string) bool {
+	for _, v := range aud {
+		if v == want {
+			return true
 		}
 	}
 	return false
