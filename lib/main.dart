@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'core/api/api_client.dart' show installNoProxyHttpOverrides;
 import 'core/config/app_config.dart';
 import 'core/storage/hive_setup.dart';
 import 'services/tushare_service.dart';
@@ -15,6 +16,10 @@ import 'state/settings_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 必须在任何插件 / 第三方库新建 HttpClient 之前安装：
+  // 全局让所有 dart:io HttpClient.findProxy = DIRECT，避免设备上残留的
+  // ProxyMan / Surge / Shadowrocket / VPN 监听端口劫持出站请求。
+  installNoProxyHttpOverrides();
   await loadEnv();
   await Hive.initFlutter();
   await registerHiveAdapters();
