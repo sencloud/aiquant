@@ -4,6 +4,7 @@
 *.db-shm
 *.db-wal
 config/config.toml
+config/config.prod.toml
 .env
 .env.local
 .idea/

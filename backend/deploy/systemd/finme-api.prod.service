@@ -1,0 +1,18 @@
+[Unit]
+Description=Finme API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/server
+ExecStart=/server/bin/finme-server api --config /server/config/config.toml
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65536
+StandardOutput=append:/server/logs/api.log
+StandardError=append:/server/logs/api.log
+
+[Install]
+WantedBy=multi-user.target
