@@ -50,16 +50,23 @@ func NewRouter(d *Deps) http.Handler {
 		MaxAge:           300,
 	}))
 	r.Use(middleware.Timeout(d.Config.Server.WriteTimeout()))
+	r.Use(metricsMiddleware)
 
 	r.Get("/healthz", handleHealthz(d))
 	r.Get("/readyz", handleReadyz(d))
+	r.Get("/metrics", handleMetrics(d))
 
 	r.Route("/v1", func(r chi.Router) {
-		mountAuth(r, d)
-		mountBillingPublic(r, d)
-		// 受保护的路由：JWT 中间件
+		// 公开路由也审计（无 user_id），但仅 mutating
+		r.Group(func(r chi.Router) {
+			r.Use(auditMiddleware(d.Store))
+			mountAuth(r, d)
+			mountBillingPublic(r, d)
+		})
+		// 受保护的路由：JWT 中间件 → audit middleware（这样能拿到 user_id）
 		r.Group(func(r chi.Router) {
 			r.Use(JWTMiddleware(d.Auth))
+			r.Use(auditMiddleware(d.Store))
 			mountMe(r, d)
 			mountDevices(r, d)
 			mountBillingPrivate(r, d)
