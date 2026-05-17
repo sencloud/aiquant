@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全策略：
+  - 默认拒绝明文（cleartextTrafficPermitted=false），保证生产 backend 走 HTTPS。
+  - 仅对历史第三方接口 api.tushare.pro 放行 HTTP（该服务无 HTTPS）。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">api.tushare.pro</domain>
+    </domain-config>
+</network-security-config>
