@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'screens/home/home_screen.dart';
+import 'screens/auth/auth_gate.dart';
 import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
 
@@ -18,10 +18,10 @@ class FinceptApp extends StatelessWidget {
         // pick up the new colours on this rebuild.
         final theme = AppTheme.build(mode);
         return MaterialApp(
-          title: 'Fincept',
+          title: 'AIQuant',
           debugShowCheckedModeBanner: false,
           theme: theme,
-          home: const HomeScreen(),
+          home: const AuthGate(),
         );
       },
     );

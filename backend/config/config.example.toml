@@ -1,0 +1,49 @@
+# Finme Backend 配置示例
+# 启动前复制为 config.toml 并按需修改。生产环境改用环境变量覆盖（见 platform/config.go）。
+
+env = "dev"                    # dev / prod
+log_level = "info"             # debug / info / warn / error
+
+[server]
+listen = "127.0.0.1:8080"      # 生产由 Caddy 反代到本端口
+read_timeout_ms = 15000
+write_timeout_ms = 60000
+shutdown_timeout_ms = 15000
+trust_proxy_ips = ["127.0.0.1"]
+
+[db]
+path = "./data/finme.db"
+busy_timeout_ms = 5000
+cache_kb = 65536               # 64 MB page cache
+max_open_conns = 16            # 单写多读
+max_idle_conns = 4
+
+[security]
+# 32 字节 base64 — 至少替换其中 3 个，否则启动会拒绝
+jwt_secret = "REPLACE_ME_jwt_secret_b64_32bytes_xxxxxxxxxxxxxxxxxxxx"
+# HMAC 用于手机号索引（永不轮换，否则旧索引失效）
+phone_hmac_key = "REPLACE_ME_phone_hmac_key_b64_32bytes_xxxxxxxxxx"
+# AES-256-GCM 用于手机号密文（可轮换，旧密文带 keyId 兼容多版本——本期单 key）
+phone_aes_key = "REPLACE_ME_phone_aes_key_b64_32bytes_xxxxxxxxxxx"
+
+access_token_ttl_min = 15
+refresh_token_ttl_day = 30
+
+[apple]
+bundle_id = "com.aiquant.app"
+# Sign in with Apple 公钥 JWKS — 启动时拉取，每天刷新
+jwks_url = "https://appleid.apple.com/auth/keys"
+
+[sms]
+provider = "mock"              # mock / aliyun / tencent — mock 模式下验证码打印到日志
+sign_name = ""
+template_code = ""
+access_key_id = ""
+access_key_secret = ""
+
+[ratelimit]
+api_per_ip_rpm = 100
+api_per_user_rpm = 30
+sms_per_phone_per_min = 1
+sms_per_ip_per_hour = 5
+order_per_user_rpm = 5

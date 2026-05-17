@@ -1,0 +1,15 @@
+access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+
+dbs:
+  - path: /opt/finme/data/finme.db
+    replicas:
+      # 默认 R2/S3：建议跨可用区
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT}      # 例 https://<accountid>.r2.cloudflarestorage.com
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: finme/finme.db
+        region: auto
+        retention: 168h                            # 7 天
+        snapshot-interval: 1h                      # 每小时快照
+        sync-interval: 1s                          # WAL 实时复制
