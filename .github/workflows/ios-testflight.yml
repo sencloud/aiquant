@@ -32,6 +32,7 @@ jobs:
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          API_BASE_URL: https://api.singzquant.com
         run: |
           if [ -z "${TUSHARE_TOKEN}" ] || [ -z "${DEEPSEEK_API_KEY}" ]; then
             echo "::error::Missing GitHub Secret TUSHARE_TOKEN or DEEPSEEK_API_KEY"
@@ -42,6 +43,7 @@ jobs:
           TUSHARE_ENDPOINT=http://api.tushare.pro
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
           DEEPSEEK_BASE_URL=https://api.deepseek.com
+          API_BASE_URL=${API_BASE_URL}
           EOF
           echo ".env generated ($(wc -c < .env) bytes)"
           echo "::add-mask::${TUSHARE_TOKEN}"
@@ -111,6 +113,7 @@ jobs:
           flutter build ipa \
             --release \
             --build-number="${BN}" \
+            --dart-define=API_BASE_URL=https://api.singzquant.com \
             --export-options-plist=ios/ExportOptions.plist
 
       - name: Locate IPA

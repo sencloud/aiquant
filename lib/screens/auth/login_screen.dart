@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -45,6 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on ApiException catch (e) {
       setState(() => _error = '${e.code}\n${e.message}');
+    } on DioException catch (e) {
+      final uri = e.requestOptions.uri.toString();
+      setState(() => _error = '网络连接失败\n请求地址：$uri\n${e.error ?? e.message}');
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -93,8 +97,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       letterSpacing: 6)),
               const SizedBox(height: 8),
               Text('AI 量化研究助理 · A 股 / ETF / 期货',
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               const Spacer(flex: 3),
               if (_error != null) _errorBanner(_error!),
               if (_canShowApple)
@@ -104,8 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 18),
               Text(
                 '登录即表示同意《用户协议》与《隐私政策》',
-                style: TextStyle(
-                    color: AppColors.textTertiary, fontSize: 11),
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
               ),
               const SizedBox(height: 6),
               Text(
@@ -134,8 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline,
-              size: 16, color: AppColors.danger),
+          const Icon(Icons.error_outline, size: 16, color: AppColors.danger),
           const SizedBox(width: 8),
           Expanded(
             child: Text(msg,
@@ -164,8 +166,7 @@ class _AppleButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           textStyle: const TextStyle(
               fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.3),
         ),

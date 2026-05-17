@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,8 +12,7 @@ class BuiltInSecrets {
   static String _required(String key) {
     final v = dotenv.env[key];
     if (v == null || v.trim().isEmpty) {
-      throw StateError(
-          '.env 缺少必填项 "$key" — 请检查项目根目录的 .env 是否存在并配置完整。');
+      throw StateError('.env 缺少必填项 "$key" — 请检查项目根目录的 .env 是否存在并配置完整。');
     }
     return v.trim();
   }
@@ -36,10 +36,26 @@ class BuiltInSecrets {
   /// 申请地址：https://firms.modaps.eosdis.nasa.gov/api/area/
   static String get firmsMapKey => _optional('FIRMS_MAP_KEY', '');
 
-  /// Finme Backend API base URL（开发本机 / 生产 https）。
-  /// 缺失时使用本机默认值，便于开发期不强制配置。
-  static String get apiBaseUrl =>
-      _optional('API_BASE_URL', 'http://127.0.0.1:8080');
+  /// Finme Backend API base URL。
+  ///
+  /// 生产构建优先从 `--dart-define=API_BASE_URL=...` 读取，便于 CI 注入；
+  /// 本地开发再读取 `.env`。这里不再提供 127.0.0.1 兜底，避免 TestFlight
+  /// 缺配置时静默连到手机本机地址。
+  static String get apiBaseUrl {
+    const defined = String.fromEnvironment('API_BASE_URL');
+    final value =
+        defined.trim().isNotEmpty ? defined.trim() : _required('API_BASE_URL');
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+      throw StateError('API_BASE_URL 格式错误：$value');
+    }
+    final host = uri.host.toLowerCase();
+    if (kReleaseMode &&
+        (host == 'localhost' || host == '127.0.0.1' || host == '::1')) {
+      throw StateError('Release 包禁止使用本机 API_BASE_URL：$value');
+    }
+    return value.replaceFirst(RegExp(r'/+$'), '');
+  }
 
   /// 默认走深度模式（携带 reasoning），用户实际上看不到模型切换
   /// 入口——AI 助理顶部不再显示模型 badge。
