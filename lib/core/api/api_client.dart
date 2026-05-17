@@ -13,7 +13,7 @@ const _uuid = Uuid();
 
 /// 统一构造一个"绕过系统代理"的 Dio 适配器。
 ///
-/// 真机上常因用户安装过 ProxyMan / Surge / Shadowrocket 等，留下系统级
+/// 真机上常因用户安装过 ProxyMan / Surge / Shadowrocket / VPN，留下系统
 /// HTTP 代理设置（`127.0.0.1:<端口>`），代理工具关闭后端口已无人监听，
 /// 但 dart:io HttpClient 仍会读 CFNetwork 代理配置 → 所有请求挂到那条
 /// 死代理上，报 `Connection refused, address = 127.0.0.1, port = ...`。
@@ -23,6 +23,24 @@ HttpClientAdapter buildNoProxyAdapter() {
   return IOHttpClientAdapter(
     createHttpClient: () => HttpClient()..findProxy = (uri) => 'DIRECT',
   );
+}
+
+/// 全局拦截 dart:io HttpClient 的创建，让任何代码（包括我们没控制的
+/// 第三方包，例如 sign_in_with_apple、dotenv、shared_preferences 上报、
+/// dio 自身的内部 client 等）一律走直连，不再受系统代理影响。
+///
+/// 必须在 runApp() 之前调用，否则插件可能已经创建了带代理的 HttpClient。
+void installNoProxyHttpOverrides() {
+  HttpOverrides.global = _NoProxyHttpOverrides();
+}
+
+class _NoProxyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.findProxy = (uri) => 'DIRECT';
+    return client;
+  }
 }
 
 /// ApiClient 是 Flutter 端访问 Finme Backend 的唯一入口。
