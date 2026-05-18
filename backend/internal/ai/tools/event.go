@@ -178,7 +178,7 @@ func (t *searchChineseNewsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "search_chinese_news",
 		Description: "搜索国内中文财经/A 股/期货/农产品/政策最新新闻。" +
-			"聚合源：财联社电报（最实时） + 东方财富 7×24 快讯 + 新浪滚动财经。" +
+			"聚合源：财联社电报（最实时） + 东方财富 7×24 快讯。" +
 			"关键词支持空格 / 中文逗号分隔做或匹配（如「锂电 有色」表示锂电或有色）。" +
 			"返回标题/来源/发布时间/摘要/标签。" +
 			"国际/海外议题请改用 search_global_events。",
@@ -216,7 +216,7 @@ func (t *searchChineseNewsTool) Run(ctx context.Context, args json.RawMessage) (
 		"query":    q,
 		"count":    len(items),
 		"articles": eventsToJSON(items),
-		"sources":  []string{"cls_telegraph", "eastmoney_kuaixun", "sina_roll"},
+		"sources":  []string{"cls_telegraph", "eastmoney_kuaixun"},
 	}), nil
 }
 
