@@ -149,6 +149,16 @@ func (s *Service) VerifyIAP(ctx context.Context, userID int64, orderNo, jwsRecei
 
 	res, err := s.iap.Verify(ctx, jwsReceipt)
 	if err != nil {
+		// 关键诊断点：苹果验签 / 网络 / 解码失败的 cause 默认走 Debug 级别，
+		// prod (info) 看不到。这里强制 warn 输出，避免「客户报错没法复盘」。
+		platform.LoggerFrom(ctx).Warn().
+			Err(err).
+			Str("order_no", orderNo).
+			Int64("user_id", userID).
+			Str("verifier", s.iap.Name()).
+			Int("receipt_dots", strings.Count(jwsReceipt, ".")).
+			Int("receipt_len", len(jwsReceipt)).
+			Msg("iap receipt verify failed")
 		_ = s.orders.MarkFailed(ctx, order.ID)
 		return nil, 0, platform.ErrBadRequest("BILLING.IAP_INVALID",
 			"iap receipt verification failed", err)
@@ -157,11 +167,22 @@ func (s *Service) VerifyIAP(ctx context.Context, userID int64, orderNo, jwsRecei
 	// 反查 SKU 校验 product_id 一致
 	sku, err := s.skus.FindByAppleProductID(ctx, res.ProductID)
 	if err != nil || sku == nil {
+		platform.LoggerFrom(ctx).Warn().
+			Err(err).
+			Str("order_no", orderNo).
+			Str("apple_product_id", res.ProductID).
+			Msg("iap product_id not in our SKUs")
 		_ = s.orders.MarkFailed(ctx, order.ID)
 		return nil, 0, platform.ErrBadRequest("BILLING.PRODUCT_MISMATCH",
 			fmt.Sprintf("product_id %q not found in our SKUs", res.ProductID), nil)
 	}
 	if sku.Code != order.SKUCode {
+		platform.LoggerFrom(ctx).Warn().
+			Str("order_no", orderNo).
+			Str("order_sku", order.SKUCode).
+			Str("receipt_product_id", res.ProductID).
+			Str("receipt_sku", sku.Code).
+			Msg("iap product mismatch with order sku")
 		_ = s.orders.MarkFailed(ctx, order.ID)
 		return nil, 0, platform.ErrBadRequest("BILLING.PRODUCT_MISMATCH",
 			"receipt product_id does not match order sku", nil)

@@ -195,6 +195,11 @@ func (a *AppleIAPVerifier) Verify(ctx context.Context, receipt string) (*IAPResu
 }
 
 // fetchTransaction 调 App Store Server API；环境 auto 时先 production 后 sandbox。
+//
+// auto 触发 sandbox fallback 的两种情况：
+//   - errAppStoreNotFound：production 上找不到这笔 txID（最常见）
+//   - errAppStoreUnauthorized：production 上 401，通常是 key 是 Sandbox 专属
+//     （TestFlight 阶段的开发 key 未授权 prod 调用），生产上线时再换 prod key。
 func (a *AppleIAPVerifier) fetchTransaction(ctx context.Context, txID string) (string, string, error) {
 	switch a.envMode {
 	case "production":
@@ -206,14 +211,17 @@ func (a *AppleIAPVerifier) fetchTransaction(ctx context.Context, txID string) (s
 		if err == nil {
 			return signed, env, nil
 		}
-		if errors.Is(err, errAppStoreNotFound) {
+		if errors.Is(err, errAppStoreNotFound) || errors.Is(err, errAppStoreUnauthorized) {
 			return a.callAPI(ctx, "https://api.storekit-sandbox.itunes.apple.com", txID)
 		}
 		return "", "", err
 	}
 }
 
-var errAppStoreNotFound = errors.New("apple iap transaction not found in this environment")
+var (
+	errAppStoreNotFound     = errors.New("apple iap transaction not found in this environment")
+	errAppStoreUnauthorized = errors.New("apple iap key not authorized in this environment")
+)
 
 type asTransactionResp struct {
 	SignedTransactionInfo string `json:"signedTransactionInfo"`
@@ -236,6 +244,9 @@ func (a *AppleIAPVerifier) callAPI(ctx context.Context, base, txID string) (stri
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		return "", "", errAppStoreNotFound
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", "", errAppStoreUnauthorized
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("apple iap api status %d: %s", resp.StatusCode, string(body))
