@@ -46,6 +46,21 @@ func (s *statusRecorder) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
+// Flush 转发到底层 ResponseWriter。
+//
+// 嵌入的 http.ResponseWriter 接口里不含 Flush，因此 statusRecorder 的
+// 方法集不会自动带 Flush —— 这会让 SSE handler 的 w.(http.Flusher) 断言
+// 失败，触发 SSE.NO_FLUSHER。显式 forward 即可恢复 SSE。
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap 让 http.NewResponseController 能穿透到底层 *http.response，
+// 从而 SetWriteDeadline / Hijack 等能正确生效（Go 1.20+ 协议）。
+func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
 // handleMetrics 输出 prom textfmt（可被 Prometheus / Datadog 抓）。
 func handleMetrics(d *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
