@@ -29,7 +29,9 @@ func (c *Client) SearchAll(ctx context.Context, opt SearchOptions) ([]Event, err
 	}
 	chSet := map[string]bool{}
 	if len(opt.Channels) == 0 {
-		chSet = map[string]bool{"cls": true, "eastmoney": true, "sina": true}
+		// 默认只用 cls + eastmoney 两个国内可达的主源；sina 在阿里云出口
+		// 经常被 anti-bot 403，需要时由调用方显式传 channels=["sina"]。
+		chSet = map[string]bool{"cls": true, "eastmoney": true}
 	} else {
 		for _, ch := range opt.Channels {
 			chSet[strings.ToLower(strings.TrimSpace(ch))] = true
