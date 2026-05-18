@@ -18,12 +18,18 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/sencloud/finme-backend/internal/ai/chat"
+	"github.com/sencloud/finme-backend/internal/ai/news"
+	"github.com/sencloud/finme-backend/internal/ai/tool"
+	aitools "github.com/sencloud/finme-backend/internal/ai/tools"
+	"github.com/sencloud/finme-backend/internal/ai/tushare"
 	"github.com/sencloud/finme-backend/internal/api"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/llm"
+	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/push"
 	"github.com/sencloud/finme-backend/internal/scheduler"
@@ -93,17 +99,27 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	if err != nil {
 		l.Fatal().Err(err).Msg("init billing")
 	}
-	dingSvc := ding.NewService(st, cfg)
+	onboardSvc := onboarding.New(
+		st,
+		billing.NewLedgerRepo(st),
+		ding.NewTaskRepo(st),
+		ding.NewNotificationRepo(st),
+	)
+
+	chatSvc := buildChatService(cfg, &l, st, usersSvc)
+	dingSvc := ding.NewService(st, cfg, chatSvc, billing.NewLedgerRepo(st), &l)
 
 	deps := &api.Deps{
-		Config:  cfg,
-		Logger:  l,
-		Store:   st,
-		Auth:    authSvc,
-		Users:   usersSvc,
-		Devices: devicesSvc,
-		Billing: billingSvc,
-		Ding:    dingSvc,
+		Config:     cfg,
+		Logger:     l,
+		Store:      st,
+		Auth:       authSvc,
+		Users:      usersSvc,
+		Devices:    devicesSvc,
+		Billing:    billingSvc,
+		Ding:       dingSvc,
+		Onboarding: onboardSvc,
+		Chat:       chatSvc,
 	}
 	router := api.NewRouter(deps)
 
@@ -131,6 +147,50 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	l.Info().Msg("bye")
 }
 
+// buildChatService 构造 /v1/ai/chat 服务，依赖 LLM + Tushare + News + tools 注册表。
+//
+// 任一上游缺失（无 LLM key / Tushare token）会让 Chat.Configured() 返回 false；
+// HTTP handler 据此返回 AI.NOT_CONFIGURED。
+func buildChatService(cfg *platform.Config, l *zerolog.Logger, st *store.Store, usersSvc *users.Service) *chat.Service {
+	if !cfg.LLM.Configured() {
+		l.Warn().Msg("ai chat: llm not configured, /v1/ai/chat will be disabled")
+		return chat.New(chat.Deps{
+			Sessions: chat.NewSessionRepo(st),
+			Users:    usersSvc,
+			Cfg:      cfg.AI,
+		})
+	}
+	ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+		cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+		time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+	if err != nil {
+		l.Error().Err(err).Msg("ai chat: deepseek init failed")
+		return chat.New(chat.Deps{
+			Sessions: chat.NewSessionRepo(st),
+			Users:    usersSvc,
+			Cfg:      cfg.AI,
+		})
+	}
+	registry := buildToolRegistry(cfg, l)
+	return chat.New(chat.Deps{
+		Sessions: chat.NewSessionRepo(st),
+		Tools:    registry,
+		LLM:      ds,
+		Ledger:   billing.NewLedgerRepo(st),
+		Users:    usersSvc,
+		Cfg:      cfg.AI,
+	})
+}
+
+// buildToolRegistry 构造服务端 30 个 AI 工具的统一注册表。
+func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
+	tu := tushare.New(cfg.Tushare)
+	nw := news.New(cfg.News)
+	reg := aitools.BuildAll(aitools.Deps{Tushare: tu, News: nw})
+	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
+	return reg
+}
+
 func waitForSignal() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -139,27 +199,20 @@ func waitForSignal() {
 
 // runScheduler 启动 finme-server scheduler 子进程：
 // - 余额对账（每 5 分钟）
-// - DING runner（每 30 秒抢占 due tasks → 扣费 → DeepSeek → 写通知）
+// - DING runner（每 30 秒抢占 due tasks → 扣费 → chat.Service 工具 loop → 写通知）
 func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
 
-	if cfg.LLM.Configured() {
-		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
-			cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
-			time.Duration(cfg.LLM.TimeoutSec)*time.Second)
-		if err != nil {
-			l.Error().Err(err).Msg("scheduler: deepseek init failed, ding runner disabled")
-		} else {
-			ledger := billing.NewLedgerRepo(st)
-			runner := ding.NewRunner(st, ds, ledger, &l, ding.RunnerConfig{
-				DefaultModel: cfg.LLM.ChatModel,
-			})
-			sch.Register(runner)
-			l.Info().Str("model", cfg.LLM.ChatModel).Msg("scheduler: ding runner enabled")
-		}
+	usersSvc := users.NewService(st, cfg)
+	chatSvc := buildChatService(cfg, &l, st, usersSvc)
+	if !chatSvc.Configured() {
+		l.Warn().Msg("scheduler: chat service not configured, ding runner disabled")
 	} else {
-		l.Warn().Msg("scheduler: llm.api_key not set, ding runner disabled")
+		ledger := billing.NewLedgerRepo(st)
+		runner := ding.NewRunner(st, chatSvc, ledger, &l, ding.RunnerConfig{})
+		sch.Register(runner)
+		l.Info().Msg("scheduler: ding runner enabled (chat.Service + tools)")
 	}
 
 	ctx, cancel := signalCtx()

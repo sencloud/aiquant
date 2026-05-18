@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../core/api/api_client.dart';
 import '../models/ding.dart';
 
@@ -55,6 +57,26 @@ class DingService {
 
   Future<void> deleteTask(String uuid) async {
     await _client.dio.delete('/v1/ding/tasks/$uuid');
+  }
+
+  /// 服务端同步执行一次任务（唯一 LLM 工具 loop 路径）。
+  ///
+  /// 阻塞直到服务端完成一次完整对话 + 工具调用，返回新生成的 notification（若有）。
+  Future<({DingMessage? notification})> runNow(String taskUuid) async {
+    final r = await _client.dio.post<Map<String, dynamic>>(
+      '/v1/ding/tasks/$taskUuid/run-now',
+      options: Options(
+        sendTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 180),
+      ),
+    );
+    final body = r.data!;
+    DingMessage? msg;
+    if (body['notification'] is Map) {
+      msg = DingMessage.fromJson(
+          (body['notification'] as Map).cast<String, dynamic>());
+    }
+    return (notification: msg);
   }
 
   Future<({DingMessage? notification})> reportRun(

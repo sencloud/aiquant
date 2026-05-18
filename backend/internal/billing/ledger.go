@@ -71,6 +71,9 @@ type ApplyParams struct {
 	RefType string // order / ai_session / ding_run / 空
 	RefID   string // 业务 id；与 reason+ref_type 三元组幂等
 	Remark  string
+	// AllowNegative 仅退款 / 客服调账场景使用：用户已消费完喜点后申请退款，
+	// 账本必须如实反映"用户欠我们 N 喜点"，余额可以为负。下次充值优先抵扣。
+	AllowNegative bool
 }
 
 // LedgerRepo 提供账本 + 余额一致写入。
@@ -116,7 +119,7 @@ func (r *LedgerRepo) Apply(ctx context.Context, in ApplyParams) (*LedgerEntry, e
 			return fmt.Errorf("read balance: %w", err)
 		}
 		newBalance := balance + in.Delta
-		if newBalance < 0 {
+		if newBalance < 0 && !in.AllowNegative {
 			return ErrInsufficientBalance
 		}
 		now := time.Now().UnixMilli()

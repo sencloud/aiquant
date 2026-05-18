@@ -1,0 +1,33 @@
+# 安装位置：/etc/logrotate.d/finme
+# 作用：每日切割 finme-api / finme-pusher / finme-scheduler 三个 systemd 服务
+# 通过 StandardOutput=append 写入 /server/logs/*.log 的日志，保留 14 天 + gzip。
+#
+# 选 copytruncate 是因为 Go 进程不响应 SIGHUP 重新打开文件描述符；
+# copytruncate 会先复制再 > 截断，无须重启服务。
+# delaycompress 让昨天的日志保持明文一天，便于手动 grep。
+
+/server/logs/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    dateext
+    dateformat -%Y%m%d
+    su root root
+}
+
+/var/log/nginx/api.singzquant.com.*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    sharedscripts
+    postrotate
+        [ -s /run/nginx.pid ] && kill -USR1 `cat /run/nginx.pid`
+    endscript
+}

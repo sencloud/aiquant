@@ -18,6 +18,10 @@ import (
 //   - 受保护路由：其它接口
 func mountBillingPublic(r chi.Router, d *Deps) {
 	r.Get("/credits/skus", handleListSKUs(d))
+	// App Store Server Notifications V2 回调入口（无 JWT；通过 transactionId
+	// 反查 Apple 服务端做第二因子校验）。线上需要在 App Store Connect
+	// → App Information → App Store Server Notifications 填这条 URL。
+	r.Post("/credits/iap/notifications", handleAppleNotifications(d))
 }
 
 func mountBillingPrivate(r chi.Router, d *Deps) {
@@ -130,6 +134,49 @@ func handleVerifyIAP(d *Deps) http.HandlerFunc {
 		WriteJSON(w, http.StatusOK, map[string]any{
 			"order":   order,
 			"balance": balance,
+		})
+	}
+}
+
+type appleNotificationReq struct {
+	SignedPayload string `json:"signedPayload"`
+}
+
+func handleAppleNotifications(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in appleNotificationReq
+		if err := DecodeJSON(r, &in); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		if in.SignedPayload == "" {
+			WriteError(w, r, platform.ErrBadRequest(
+				"BILLING.NOTIF_MISSING", "signedPayload required", nil))
+			return
+		}
+		res, err := d.Billing.HandleAppleNotification(r.Context(), in.SignedPayload)
+		if err != nil {
+			// Apple 期望 200 + 简短响应；4xx 会让 Apple 重试 ≤72h
+			// 解析 / 业务问题（不是 server error）我们也回 200，但日志记错
+			platform.LoggerFrom(r.Context()).Warn().Err(err).
+				Str("type", res.NotificationType).
+				Msg("apple notification handle warn")
+			WriteJSON(w, http.StatusOK, map[string]any{
+				"received": true,
+				"action":   "error",
+			})
+			return
+		}
+		platform.LoggerFrom(r.Context()).Info().
+			Str("type", res.NotificationType).
+			Str("subtype", res.Subtype).
+			Str("txid", res.TransactionID).
+			Str("order_no", res.OrderNo).
+			Str("action", res.Action).
+			Msg("apple notification handled")
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"received": true,
+			"action":   res.Action,
 		})
 	}
 }

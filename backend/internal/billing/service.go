@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
@@ -208,6 +210,115 @@ func (s *Service) VerifyIAP(ctx context.Context, userID int64, orderNo, jwsRecei
 		_ = entry
 	}
 	return updated, bal, nil
+}
+
+// AppleNotificationResult 是 webhook 处理结果，用于 handler 层日志 / metrics。
+type AppleNotificationResult struct {
+	NotificationType string
+	Subtype          string
+	TransactionID    string
+	OrderNo          string
+	Action           string // refunded / ignored / unknown
+}
+
+// HandleAppleNotification 处理 App Store Server Notifications V2 回调。
+//
+// 关注的事件：
+//   - REFUND          ：用户申请并已成功退款（消耗型 / 非续期）
+//   - REVOKE          ：家庭共享授权被撤销 / 其它系统级撤销
+//   - REFUND_REVERSED ：退款被 Apple 取消（极少；理论上要回滚冲账）
+//
+// 验签链路（双因子）：
+//   1. signedPayload 是 JWS，解码 payload 拿 notificationType + signedTransactionInfo；
+//   2. signedTransactionInfo 再次 decode → transactionId；
+//   3. 用 transactionId 反查 App Store Server API（复用 IAPVerifier）—— 这一步
+//      天然要求 Apple 返回 200，伪造请求会被这一步过滤。
+//
+// 处理逻辑（强幂等）：
+//   - REFUND / REVOKE / REVOKE_FAMILY 等扣款类型：
+//       - orders 状态非 credited → 200 OK 幂等忽略；
+//       - orders 状态 credited → ledger.Apply(-credits, ReasonRefund) +
+//         MarkRefunded；流水唯一索引天然幂等。
+//   - 其它 notificationType（CONSUMPTION_REQUEST, DID_RENEW 等）：返回 200 + ignored。
+func (s *Service) HandleAppleNotification(ctx context.Context, signedPayload string) (*AppleNotificationResult, error) {
+	if strings.TrimSpace(signedPayload) == "" {
+		return nil, platform.ErrBadRequest("BILLING.NOTIF_EMPTY", "empty signedPayload", nil)
+	}
+
+	// 落原始报文到 receipts 表，便于事后审计
+	_, _ = s.orders.SaveRawReceipt(ctx, ChannelAppleIAP, signedPayload, false)
+
+	notif, err := decodeAppleNotificationPayload(signedPayload)
+	if err != nil {
+		return nil, platform.ErrBadRequest("BILLING.NOTIF_PARSE",
+			"parse signedPayload failed", err)
+	}
+	res := &AppleNotificationResult{
+		NotificationType: notif.NotificationType,
+		Subtype:          notif.Subtype,
+		Action:           "ignored",
+	}
+
+	// 解嵌套的 signedTransactionInfo
+	tx, err := decodeJWSPayload(notif.Data.SignedTransactionInfo)
+	if err != nil || tx.TransactionID == "" {
+		return res, platform.ErrBadRequest("BILLING.NOTIF_NO_TXID",
+			"signedTransactionInfo missing transactionId", err)
+	}
+	res.TransactionID = tx.TransactionID
+
+	switch notif.NotificationType {
+	case "REFUND", "REVOKE":
+		// 进入冲账流程
+		if err := s.refundByTransaction(ctx, tx.TransactionID, res); err != nil {
+			return res, err
+		}
+	default:
+		return res, nil
+	}
+	return res, nil
+}
+
+// refundByTransaction：找订单 → 反向冲账 → MarkRefunded。
+func (s *Service) refundByTransaction(ctx context.Context, txID string, out *AppleNotificationResult) error {
+	order, err := s.orders.FindByChannelOrderID(ctx, ChannelAppleIAP, txID)
+	if err != nil {
+		return platform.ErrInternal("BILLING.NOTIF_LOOKUP", err)
+	}
+	if order == nil {
+		out.Action = "unknown"
+		return nil
+	}
+	out.OrderNo = order.OrderNo
+	if order.Status == OrderRefunded {
+		out.Action = "refunded"
+		return nil
+	}
+	if order.Status != OrderCredited && order.Status != OrderPaid {
+		out.Action = "ignored"
+		return nil
+	}
+
+	_, err = s.ledger.Apply(ctx, ApplyParams{
+		UserID:        order.UserID,
+		Delta:         -order.Credits,
+		Reason:        ReasonRefund,
+		RefType:       "order",
+		RefID:         order.OrderNo,
+		Remark:        fmt.Sprintf("apple refund txid=%s", txID),
+		AllowNegative: true,
+	})
+	if err != nil && !errors.Is(err, ErrLedgerDuplicate) {
+		return platform.ErrInternal("BILLING.NOTIF_APPLY", err)
+	}
+	if _, err := s.store.DB.ExecContext(ctx, `
+		UPDATE orders SET status='refunded', refunded_at=?, updated_at=?
+		WHERE id=? AND status IN ('credited','paid')`,
+		time.Now().UnixMilli(), time.Now().UnixMilli(), order.ID); err != nil {
+		return platform.ErrInternal("BILLING.NOTIF_MARK_REFUND", err)
+	}
+	out.Action = "refunded"
+	return nil
 }
 
 // DevTopup 仅 env=dev 启用：直冲，不经过 IAP。

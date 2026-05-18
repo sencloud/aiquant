@@ -132,6 +132,13 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteAccount() async {
+    await _svc.deleteAccount();
+    _user = null;
+    PushRegistrationService.instance.reset();
+    notifyListeners();
+  }
+
   Future<void> _persistLogin(TokenPair t, UserPublic u) async {
     await _api.storage.saveTokens(t);
     await _api.storage.saveUser(u);

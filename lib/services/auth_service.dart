@@ -83,6 +83,11 @@ class AuthService {
     await _api.notifyLogout();
   }
 
+  Future<void> deleteAccount() async {
+    await _api.dio.delete('/v1/me');
+    await _api.notifyLogout();
+  }
+
   ({TokenPair tokens, UserPublic user}) _parseLoginResponse(Response r) {
     final body = r.data as Map<String, dynamic>;
     final tokens = TokenPair.fromJson(body['tokens'] as Map<String, dynamic>);

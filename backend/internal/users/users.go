@@ -201,6 +201,16 @@ func (s *Service) EnsureByApple(ctx context.Context, sub, nickname string) (*Use
 	return s.FindByID(ctx, id)
 }
 
+// CreditBalance 单独读余额（避免 chat 服务为了一个数字加载完整 User）。
+func (s *Service) CreditBalance(ctx context.Context, userID int64) (int64, error) {
+	var b int64
+	if err := s.st.DB.GetContext(ctx, &b,
+		"SELECT credit_balance FROM users WHERE id=?", userID); err != nil {
+		return 0, err
+	}
+	return b, nil
+}
+
 // UpdateNickname 修改昵称（最多 32 字符，已在 handler 层校验）。
 func (s *Service) UpdateNickname(ctx context.Context, userID int64, nick string) error {
 	now := time.Now().UnixMilli()
@@ -208,4 +218,53 @@ func (s *Service) UpdateNickname(ctx context.Context, userID int64, nick string)
 		"UPDATE users SET nickname=?, updated_at=? WHERE id=?",
 		sql.NullString{String: nick, Valid: nick != ""}, now, userID)
 	return err
+}
+
+// SoftDelete 注销账户：保留订单/账本（财务可追溯），但抹除可识别身份字段，
+// 撤销所有 refresh_token，删除设备/任务等纯运营数据。
+//
+// 设计选择：硬删 users 行会破坏 orders/credit_ledger 的外键引用（这两张表
+// 不能 ON DELETE CASCADE，否则与监管要求的"流水可追溯"冲突）。所以：
+//   - users.status='deleted'，把 phone_hmac/apple_sub/wechat_unionid 置 NULL
+//     （释放唯一索引，让该手机号/Apple sub 之后能注册新账号）
+//   - phone_enc 清零、nickname 置 NULL
+//   - 设备、refresh_tokens、ding_tasks 全删（CASCADE 已配置；此处显式 DELETE 兜底）
+//   - notifications 不删（用户可能截图作为凭证）但解绑 user 不到该流水
+func (s *Service) SoftDelete(ctx context.Context, userID int64) error {
+	now := time.Now().UnixMilli()
+	return s.st.Tx(ctx, func(tx *sqlx.Tx) error {
+		var u User
+		if err := tx.GetContext(ctx, &u, "SELECT * FROM users WHERE id=?", userID); err != nil {
+			return fmt.Errorf("load user: %w", err)
+		}
+		if u.Status == string(StatusDeleted) {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE users SET
+				status='deleted',
+				phone_hmac=NULL,
+				phone_enc=NULL,
+				apple_sub=NULL,
+				wechat_unionid=NULL,
+				nickname=NULL,
+				updated_at=?
+			WHERE id=?`, now, userID); err != nil {
+			return fmt.Errorf("anonymize user: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE refresh_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+			now, userID); err != nil {
+			return fmt.Errorf("revoke refresh: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM devices WHERE user_id=?", userID); err != nil {
+			return fmt.Errorf("delete devices: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM ding_tasks WHERE user_id=?", userID); err != nil {
+			return fmt.Errorf("delete ding tasks: %w", err)
+		}
+		return nil
+	})
 }

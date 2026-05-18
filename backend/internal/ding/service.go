@@ -2,35 +2,50 @@ package ding
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+
+	"github.com/sencloud/finme-backend/internal/ai/chat"
+	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
 )
 
 // Service 是 DING 模块对外的总入口。
 //
-// 当前阶段（W3 第一阶段）：
-//   - Tasks 全 CRUD：客户端把本地任务同步到服务端；
-//   - Runs：客户端在本地执行完后通过 ReportRun 上报；
-//   - Notifications：服务端读 / 标读，是 inbox 的唯一真源。
-//
-// W3 第二阶段：服务端 scheduler + LLM 执行 + APNs 推送。
+// 服务端为唯一执行路径：所有 LLM 工具 loop 都走 chat.Service，
+// 客户端只触发 run-now 或等待 scheduler 自动跑。
 type Service struct {
 	cfg *platform.Config
 
 	tasks  *TaskRepo
 	runs   *RunRepo
 	notifs *NotificationRepo
+
+	chat   *chat.Service
+	ledger *billing.LedgerRepo
+	logger *zerolog.Logger
 }
 
-func NewService(st *store.Store, cfg *platform.Config) *Service {
+func NewService(
+	st *store.Store,
+	cfg *platform.Config,
+	chatSvc *chat.Service,
+	ledger *billing.LedgerRepo,
+	logger *zerolog.Logger,
+) *Service {
 	return &Service{
 		cfg:    cfg,
 		tasks:  NewTaskRepo(st),
 		runs:   NewRunRepo(st),
 		notifs: NewNotificationRepo(st),
+		chat:   chatSvc,
+		ledger: ledger,
+		logger: logger,
 	}
 }
 
@@ -112,6 +127,175 @@ func (s *Service) DeleteTask(ctx context.Context, userID int64, uuid string) err
 		return platform.ErrInternal("DING.DELETE_TASK", err)
 	}
 	return nil
+}
+
+// ── Run Now（服务端唯一执行路径） ──────────────────────────────────────
+
+// RunNow 由客户端 POST /v1/ding/tasks/{uuid}/run-now 触发：
+//
+// 1. 查找 task；2. 用 task 的 cost_credits_per_run 扣费（幂等 ref_id）；
+// 3. 通过 chat.Service.RunCollect 跑一遍带 30 工具的 LLM loop；
+// 4. 把结果落库为 Run + Notification（push_status=pending）；
+// 5. 同步返回结果给客户端，便于立即在 inbox 渲染。
+//
+// 任何错误都会写一条失败 notification + status=failed 的 run，
+// 同时把 error 透传给上层 HTTP（统一通过 platform.ErrXxx 包装）。
+func (s *Service) RunNow(ctx context.Context, userID int64, taskUUID string) (*Run, *Notification, error) {
+	if s.chat == nil || !s.chat.Configured() {
+		return nil, nil, platform.ErrUnavailable("DING.AI_NOT_CONFIGURED",
+			errors.New("ai chat service not configured"))
+	}
+	t, err := s.tasks.FindByUUID(ctx, userID, taskUUID)
+	if err != nil {
+		return nil, nil, platform.ErrInternal("DING.TASK_LOOKUP", err)
+	}
+	if t == nil {
+		return nil, nil, platform.ErrNotFound("DING.TASK_NOT_FOUND", "task not found")
+	}
+
+	startedAt := time.Now()
+
+	if t.CostCreditsPerRun > 0 {
+		runRef := fmt.Sprintf("ding/%s/%d", t.UUID, startedAt.UnixMilli())
+		_, err := s.ledger.Apply(ctx, billing.ApplyParams{
+			UserID:  t.UserID,
+			Delta:   -t.CostCreditsPerRun,
+			Reason:  billing.ReasonConsumeDing,
+			RefType: "ding_run",
+			RefID:   runRef,
+			Remark:  "DING run-now cost",
+		})
+		if err != nil {
+			if errors.Is(err, billing.ErrInsufficientBalance) {
+				run, notif, ferr := s.recordSkippedNoCredit(ctx, t, startedAt)
+				if ferr != nil {
+					return nil, nil, platform.ErrInternal("DING.RECORD_SKIPPED", ferr)
+				}
+				return run, notif, nil
+			}
+			if !errors.Is(err, billing.ErrLedgerDuplicate) {
+				return nil, nil, platform.ErrInternal("DING.LEDGER", err)
+			}
+		}
+	}
+
+	res, cerr := s.chat.RunCollect(ctx, chat.ChatInput{
+		UserID:      t.UserID,
+		Persona:     t.PersonaID,
+		UserText:    t.Prompt,
+		ClientReqID: fmt.Sprintf("ding/%s/%d", t.UUID, startedAt.UnixMilli()),
+	})
+	if cerr != nil {
+		run, notif, _ := s.recordFailure(ctx, t, startedAt, cerr.Error())
+		return run, notif, platform.ErrInternal("DING.CHAT", cerr)
+	}
+	if res.ErrorCode != "" {
+		msg := fmt.Sprintf("%s: %s", res.ErrorCode, res.ErrorMessage)
+		run, notif, _ := s.recordFailure(ctx, t, startedAt, msg)
+		return run, notif, platform.ErrInternal("DING.CHAT_ERROR", errors.New(msg))
+	}
+	if strings.TrimSpace(res.FinalText) == "" {
+		run, notif, _ := s.recordFailure(ctx, t, startedAt, "AI 返回为空")
+		return run, notif, nil
+	}
+	return s.recordSuccess(ctx, t, startedAt, res.FinalText)
+}
+
+func (s *Service) recordSuccess(ctx context.Context, t *Task, startedAt time.Time, content string) (*Run, *Notification, error) {
+	title := strings.TrimSpace(t.Title)
+	if title == "" {
+		title = "DING 任务结果"
+	}
+	body := briefOf(content, 80)
+	notif, err := s.notifs.Create(ctx, CreateNotifInput{
+		UserID:    t.UserID,
+		Topic:     "ding",
+		RefType:   "ding_task",
+		RefID:     t.UUID,
+		Title:     title,
+		BodyBrief: body,
+		Payload:   content,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	run, err := s.runs.Insert(ctx, ReportRunInput{
+		TaskID:         t.ID,
+		Status:         RunStatusSuccess,
+		DurationMs:     time.Since(startedAt).Milliseconds(),
+		NotificationID: notif.ID,
+		StartedAt:      startedAt,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.tasks.MarkRan(ctx, t, time.Now()); err != nil {
+		return nil, nil, err
+	}
+	return run, notif, nil
+}
+
+func (s *Service) recordFailure(ctx context.Context, t *Task, startedAt time.Time, errMsg string) (*Run, *Notification, error) {
+	title := strings.TrimSpace(t.Title) + "（失败）"
+	body := briefOf(errMsg, 80)
+	notif, err := s.notifs.Create(ctx, CreateNotifInput{
+		UserID:    t.UserID,
+		Topic:     "ding",
+		RefType:   "ding_task",
+		RefID:     t.UUID,
+		Title:     title,
+		BodyBrief: body,
+		Payload:   errMsg,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	run, err := s.runs.Insert(ctx, ReportRunInput{
+		TaskID:         t.ID,
+		Status:         RunStatusFailed,
+		DurationMs:     time.Since(startedAt).Milliseconds(),
+		Error:          errMsg,
+		NotificationID: notif.ID,
+		StartedAt:      startedAt,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.tasks.MarkRan(ctx, t, time.Now()); err != nil {
+		return nil, nil, err
+	}
+	return run, notif, nil
+}
+
+func (s *Service) recordSkippedNoCredit(ctx context.Context, t *Task, startedAt time.Time) (*Run, *Notification, error) {
+	title := strings.TrimSpace(t.Title) + "（喜点不足，已跳过）"
+	body := "余额不足，本次任务未执行；请充值后重新触发。"
+	notif, err := s.notifs.Create(ctx, CreateNotifInput{
+		UserID:    t.UserID,
+		Topic:     "ding",
+		RefType:   "ding_task",
+		RefID:     t.UUID,
+		Title:     title,
+		BodyBrief: body,
+		Payload:   body,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	run, err := s.runs.Insert(ctx, ReportRunInput{
+		TaskID:         t.ID,
+		Status:         RunStatusSkippedNoCredit,
+		DurationMs:     time.Since(startedAt).Milliseconds(),
+		NotificationID: notif.ID,
+		StartedAt:      startedAt,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.tasks.MarkRan(ctx, t, time.Now()); err != nil {
+		return nil, nil, err
+	}
+	return run, notif, nil
 }
 
 // ── Runs + Notifications ──────────────────────────────────────────────

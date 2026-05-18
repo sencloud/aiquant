@@ -27,15 +27,6 @@ class BuiltInSecrets {
   static String get tushareEndpoint =>
       _optional('TUSHARE_ENDPOINT', 'http://api.tushare.pro');
 
-  static String get deepseekApiKey => _required('DEEPSEEK_API_KEY');
-  static String get deepseekBaseUrl =>
-      _optional('DEEPSEEK_BASE_URL', 'https://api.deepseek.com');
-
-  /// NASA FIRMS 卫星火点 API 的免费 MAP_KEY。空值表示未配置——
-  /// 对应 AI 工具会返回提示让用户去申请。
-  /// 申请地址：https://firms.modaps.eosdis.nasa.gov/api/area/
-  static String get firmsMapKey => _optional('FIRMS_MAP_KEY', '');
-
   /// Finme Backend API base URL。
   ///
   /// 生产构建优先从 `--dart-define=API_BASE_URL=...` 读取，便于 CI 注入；
@@ -57,12 +48,6 @@ class BuiltInSecrets {
     return value.replaceFirst(RegExp(r'/+$'), '');
   }
 
-  /// 默认走深度模式（携带 reasoning），用户实际上看不到模型切换
-  /// 入口——AI 助理顶部不再显示模型 badge。
-  static const String reasoningDeepseekModel = 'deepseek-reasoner';
-
-  /// tool calling 时强制走 chat（reasoner 不支持 tool_calls）
-  static const String chatDeepseekModel = 'deepseek-chat';
 }
 
 class AppConfig {
@@ -80,26 +65,21 @@ class AppConfig {
     _loaded = true;
   }
 
-  // ── Tushare ────────────────────────────────────────────────────────────
+  // ── Tushare（仅 portfolio 模块直连；AI 工具已迁后端） ──────────────────
   String get tushareToken => BuiltInSecrets.tushareToken;
   String get tushareEndpoint => BuiltInSecrets.tushareEndpoint;
   bool get hasTushareToken => true;
 
-  // ── DeepSeek ───────────────────────────────────────────────────────────
-  String get deepseekApiKey => BuiltInSecrets.deepseekApiKey;
-  bool get hasDeepseekKey => true;
-
-  /// 用户不再能通过 UI 切换模型；默认就是深度模式。
-  String get deepseekModel => BuiltInSecrets.reasoningDeepseekModel;
-  bool get deepMode => true;
-
-  // ── 卫星 / 全球事件 ────────────────────────────────────────────────────
-  /// NASA FIRMS MAP_KEY；未配置时事件流里的火点工具会返回空。
-  String get firmsMapKey => BuiltInSecrets.firmsMapKey;
-
   // ── Finme Backend ─────────────────────────────────────────────────────
   /// Finme Backend API base URL。
   String get apiBaseUrl => BuiltInSecrets.apiBaseUrl;
+
+  // ── 法律文档（部署在后端 Nginx /legal/*） ───────────────────────────────
+  /// 用户协议链接。
+  String get termsUrl => '${apiBaseUrl.replaceAll(RegExp(r"/+$"), "")}/legal/terms.html';
+
+  /// 隐私政策链接。
+  String get privacyUrl => '${apiBaseUrl.replaceAll(RegExp(r"/+$"), "")}/legal/privacy.html';
 
   // ── Theme ──────────────────────────────────────────────────────────────
   /// 当前 App 仅支持 light 模式（Dark 模式入口已被隐藏）。

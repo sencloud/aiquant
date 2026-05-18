@@ -17,6 +17,7 @@ func mountDing(r chi.Router, d *Deps) {
 		r.Patch("/{uuid}", handleUpdateTask(d))
 		r.Delete("/{uuid}", handleDeleteTask(d))
 		r.Post("/{uuid}/runs", handleReportRun(d))
+		r.Post("/{uuid}/run-now", handleRunNow(d))
 	})
 	r.Route("/notifications", func(r chi.Router) {
 		r.Get("/", handleListNotif(d))
@@ -112,6 +113,32 @@ func handleReportRun(d *Deps) http.HandlerFunc {
 			return
 		}
 		_, n, err := d.Ding.ReportRun(r.Context(), uc.UserID, in)
+		if err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		out := map[string]any{"ok": true}
+		if n != nil {
+			out["notification"] = n.ToDTO()
+		}
+		WriteJSON(w, http.StatusOK, out)
+	}
+}
+
+// handleRunNow：服务端唯一执行路径——客户端只触发，不再本地跑 LLM。
+//
+// 同步阻塞直到一次完整 tool calling loop 跑完（最长可能数十秒），
+// 适合用户手动点"立即执行"。批处理由 scheduler 进程接管。
+func handleRunNow(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uc := MustUser(r)
+		uuid := chi.URLParam(r, "uuid")
+		if uuid == "" {
+			WriteError(w, r, platform.ErrBadRequest("DING.TASK_UUID_REQUIRED",
+				"task_uuid required", nil))
+			return
+		}
+		_, n, err := d.Ding.RunNow(r.Context(), uc.UserID, uuid)
 		if err != nil {
 			WriteError(w, r, err)
 			return

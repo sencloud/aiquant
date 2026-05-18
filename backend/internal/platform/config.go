@@ -28,6 +28,9 @@ type Config struct {
 	FCM       FCMConfig       `toml:"fcm"`
 	LLM       LLMConfig       `toml:"llm"`
 	SMS       SMSConfig       `toml:"sms"`
+	Tushare   TushareConfig   `toml:"tushare"`
+	News      NewsConfig      `toml:"news"`
+	AI        AIConfig        `toml:"ai"`
 	RateLimit RateLimitConfig `toml:"ratelimit"`
 }
 
@@ -133,6 +136,41 @@ type LLMConfig struct {
 
 func (c LLMConfig) Configured() bool { return c.APIKey != "" }
 
+// TushareConfig 服务端持有 Tushare token，客户端不再直连。
+//
+// `token` 的安全等级：等同于密钥 — 一定要走 EnvironmentFile 注入或写入
+// /server/secrets/.tushare（chmod 600），不能进 git。
+type TushareConfig struct {
+	Token             string `toml:"token"`
+	BaseURL           string `toml:"base_url"`
+	TimeoutSec        int    `toml:"timeout_sec"`
+	BasicCacheTTLSec  int    `toml:"basic_cache_ttl_sec"`  // stock_basic 等大表内存缓存 TTL
+	HTTPMaxConcurrent int    `toml:"http_max_concurrent"`  // tushare 个人版有 QPM 限制
+}
+
+func (c TushareConfig) Configured() bool { return c.Token != "" }
+
+// NewsConfig 各类新闻 / 卫星 / 地缘事件数据源。
+//
+// FIRMS map_key 也是密钥级别，只走服务端持有；GDELT / Google News 都是公开
+// RSS / API 不需要 key。
+type NewsConfig struct {
+	GdeltBaseURL  string `toml:"gdelt_base_url"`
+	GoogleRSSBase string `toml:"google_rss_base"`
+	FirmsBaseURL  string `toml:"firms_base_url"`
+	FirmsMapKey   string `toml:"firms_map_key"`
+	TimeoutSec    int    `toml:"timeout_sec"`
+}
+
+// AIConfig 服务端 AI 助理 chat 接口的运行参数。
+type AIConfig struct {
+	MaxToolLoops    int   `toml:"max_tool_loops"`
+	MaxContextMsgs  int   `toml:"max_context_msgs"`
+	BaseChatCredits int64 `toml:"base_chat_credits"`     // 一次普通 chat 基础消耗
+	DeepBonusCredits int64 `toml:"deep_bonus_credits"`   // 深度模式额外
+	PerToolCredits  int64 `toml:"per_tool_credits"`      // 每个 tool call 增加
+}
+
 type SMSConfig struct {
 	Provider        string `toml:"provider"`
 	SignName        string `toml:"sign_name"`
@@ -211,6 +249,25 @@ func defaultConfig() *Config {
 			MaxToolLoops: 6,
 		},
 		SMS: SMSConfig{Provider: "mock"},
+		Tushare: TushareConfig{
+			BaseURL:           "http://api.tushare.pro",
+			TimeoutSec:        20,
+			BasicCacheTTLSec:  86400,
+			HTTPMaxConcurrent: 4,
+		},
+		News: NewsConfig{
+			GdeltBaseURL:  "https://api.gdeltproject.org/api/v2/doc/doc",
+			GoogleRSSBase: "https://news.google.com/rss/search",
+			FirmsBaseURL:  "https://firms.modaps.eosdis.nasa.gov/api/area/csv",
+			TimeoutSec:    20,
+		},
+		AI: AIConfig{
+			MaxToolLoops:     6,
+			MaxContextMsgs:   12,
+			BaseChatCredits:  1,
+			DeepBonusCredits: 5,
+			PerToolCredits:   1,
+		},
 		RateLimit: RateLimitConfig{
 			APIPerIPRPM:       100,
 			APIPerUserRPM:     30,
@@ -333,6 +390,15 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_LLM__REASON_MODEL"); v != "" {
 		c.LLM.ReasonModel = v
+	}
+	if v := os.Getenv("FINME_TUSHARE__TOKEN"); v != "" {
+		c.Tushare.Token = v
+	}
+	if v := os.Getenv("FINME_TUSHARE__BASE_URL"); v != "" {
+		c.Tushare.BaseURL = v
+	}
+	if v := os.Getenv("FINME_NEWS__FIRMS_MAP_KEY"); v != "" {
+		c.News.FirmsMapKey = v
 	}
 	if v := os.Getenv("FINME_SMS__PROVIDER"); v != "" {
 		c.SMS.Provider = v
