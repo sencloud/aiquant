@@ -47,6 +47,8 @@ type ReportRunInput struct {
 	StartedAt      time.Time
 }
 
+// Insert 幂等：同 (task_id, started_at) 已存在时直接返回原记录，避免弱网
+// 客户端重试时为同一次执行创建多条 run。依赖 0002 迁移建立的唯一索引。
 func (r *RunRepo) Insert(ctx context.Context, in ReportRunInput) (*Run, error) {
 	now := time.Now().UnixMilli()
 	var notifID sql.NullInt64
@@ -58,8 +60,8 @@ func (r *RunRepo) Insert(ctx context.Context, in ReportRunInput) (*Run, error) {
 		startedAt = now
 	}
 	res, err := r.st.DB.ExecContext(ctx, `
-		INSERT INTO ding_runs(task_id, status, notification_id, total_tokens, duration_ms,
-		                      error, started_at, finished_at)
+		INSERT OR IGNORE INTO ding_runs(task_id, status, notification_id, total_tokens, duration_ms,
+		                                error, started_at, finished_at)
 		VALUES(?,?,?,?,?,?,?,?)`,
 		in.TaskID, in.Status,
 		nilNotif(notifID),
@@ -70,6 +72,16 @@ func (r *RunRepo) Insert(ctx context.Context, in ReportRunInput) (*Run, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		// 命中幂等：同 (task_id, started_at) 的旧记录直接返回
+		var rec Run
+		if err := r.st.DB.GetContext(ctx, &rec,
+			"SELECT * FROM ding_runs WHERE task_id=? AND started_at=?",
+			in.TaskID, startedAt); err != nil {
+			return nil, err
+		}
+		return &rec, nil
 	}
 	id, _ := res.LastInsertId()
 	var rec Run

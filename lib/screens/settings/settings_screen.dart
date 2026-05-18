@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../../core/api/billing_models.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/legal_links.dart';
 
 /// "我的"页面 — 喜点余额、充值套餐、流水、账号管理。
 class SettingsScreen extends StatefulWidget {
@@ -116,7 +119,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _section('账号管理'),
               const SizedBox(height: 6),
               _LogoutTile(),
+              const SizedBox(height: 8),
+              _DeleteAccountTile(),
             ],
+            const SizedBox(height: 24),
+            _section('法律条款'),
+            const SizedBox(height: 6),
+            const LegalLinksRow(),
             const SizedBox(height: 24),
             _section('关于'),
             ListTile(
@@ -472,6 +481,160 @@ class _LogoutTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DeleteAccountTile extends StatelessWidget {
+  Future<void> _confirm(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _DeleteAccountDialog(),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await context.read<AuthState>().deleteAccount();
+      if (context.mounted) {
+        context.read<BillingState>().reset();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('账户已注销'),
+          duration: Duration(seconds: 2),
+        ));
+        Navigator.of(context).maybePop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('注销失败：$e'),
+          duration: const Duration(seconds: 3),
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bgRaised,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.borderDim),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        onTap: () => _confirm(context),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.no_accounts_outlined,
+                  color: AppColors.danger, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('注销账户',
+                        style: TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text('永久清除账号身份信息，此操作不可撤销',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  color: AppColors.textTertiary, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 注销二次确认：必须输入"确认注销"四字 + 5 秒倒计时按钮防误点。
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  static const _expected = '确认注销';
+  final _controller = TextEditingController();
+  int _countdown = 5;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        _countdown--;
+        if (_countdown <= 0) {
+          _countdown = 0;
+          t.cancel();
+        }
+      });
+    });
+    _controller.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSubmit = _countdown == 0 && _controller.text.trim() == _expected;
+    return AlertDialog(
+      title: const Text('注销账户'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+              '注销后将立即清除你的身份资料（昵称、Apple 标识、设备信息、定时任务）。\n\n'
+              '订单与喜点流水会按监管要求保留，但与你不再关联。\n\n'
+              '此操作不可撤销。请输入"$_expected"确认。',
+              style: TextStyle(fontSize: 13, height: 1.5)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            decoration: const InputDecoration(
+              isDense: true,
+              hintText: '在此输入：$_expected',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: canSubmit ? AppColors.danger : Colors.grey,
+          ),
+          onPressed: canSubmit ? () => Navigator.pop(context, true) : null,
+          child: Text(_countdown > 0 ? '请稍候 ${_countdown}s' : '确认注销'),
+        ),
+      ],
     );
   }
 }

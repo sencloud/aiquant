@@ -25,6 +25,7 @@ func mountAuth(r chi.Router, d *Deps) {
 func mountMe(r chi.Router, d *Deps) {
 	r.Get("/me", handleMe(d))
 	r.Patch("/me", handleUpdateMe(d))
+	r.Delete("/me", handleDeleteMe(d))
 }
 
 func mountDevices(r chi.Router, d *Deps) {
@@ -79,6 +80,12 @@ func handleSMSVerify(d *Deps) http.HandlerFunc {
 			WriteError(w, r, err)
 			return
 		}
+		if d.Onboarding != nil {
+			if oerr := d.Onboarding.OnboardIfNeeded(r.Context(), user); oerr != nil {
+				platform.LoggerFrom(r.Context()).Warn().Err(oerr).Msg("onboarding failed (non-fatal)")
+			}
+			user, _ = d.Users.FindByID(r.Context(), user.ID)
+		}
 		WriteJSON(w, http.StatusOK, map[string]any{
 			"tokens": pair,
 			"user":   user.ToPublic(),
@@ -113,6 +120,12 @@ func handleAppleLogin(d *Deps) http.HandlerFunc {
 		if err != nil {
 			WriteError(w, r, err)
 			return
+		}
+		if d.Onboarding != nil {
+			if oerr := d.Onboarding.OnboardIfNeeded(r.Context(), user); oerr != nil {
+				platform.LoggerFrom(r.Context()).Warn().Err(oerr).Msg("onboarding failed (non-fatal)")
+			}
+			user, _ = d.Users.FindByID(r.Context(), user.ID)
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{
 			"tokens": pair,
@@ -198,6 +211,19 @@ func handleUpdateMe(d *Deps) http.HandlerFunc {
 		}
 		user, _ := d.Users.FindByID(r.Context(), uc.UserID)
 		WriteJSON(w, http.StatusOK, user.ToPublic())
+	}
+}
+
+// 账户注销：抹除可识别身份字段、删设备 / DING / refresh_token，订单与
+// 喜点流水保留（监管追溯）。客户端拿到 200 即可清本地登录态。
+func handleDeleteMe(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uc := MustUser(r)
+		if err := d.Users.SoftDelete(r.Context(), uc.UserID); err != nil {
+			WriteError(w, r, platform.ErrInternal("USER.DELETE_FAILED", err))
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
 

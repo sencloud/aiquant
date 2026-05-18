@@ -4,23 +4,19 @@ import 'package:flutter/foundation.dart';
 
 import '../models/ding.dart';
 import '../services/ding_service.dart';
-import 'chat_state.dart';
 
-/// DingState — 服务端为唯一真源，客户端仅缓存与本地驱动调度。
+/// DingState — 服务端为唯一真源 + 唯一 LLM 执行路径。
 ///
-/// 调度策略（移动端没有真后台 cron）：
-/// - 前台时每 60s 扫一次 [_tasks] 中 enabled 的任务；
-/// - 启动 / 从后台回到前台时 catchUp = true，把 nextRunAt < now 的任务"补跑一次"；
-/// - 实际跑由 [ChatState.executeOneShot] 完成；结果通过 DingService.reportRun
-///   上传到服务端（生成 notification + 更新 last/next_run_at）。
+/// 客户端只做：
+///  - 拉取 / 缓存 tasks 与 notifications；
+///  - 前台 60s ticker 与"从后台回到前台"的 catchUp，把到期但因离线没跑的任务
+///    通过 [DingService.runNow] 触发服务端立即执行（POST /v1/ding/tasks/{uuid}/run-now）。
+///
+/// 客户端不再持有任何 LLM key、不再本地驱动 tool calling loop。
 class DingState extends ChangeNotifier {
-  DingState({
-    required ChatState chat,
-    DingService? service,
-  })  : _chat = chat,
-        _service = service ?? DingService();
+  DingState({DingService? service})
+      : _service = service ?? DingService();
 
-  final ChatState _chat;
   final DingService _service;
 
   Timer? _ticker;
@@ -49,7 +45,6 @@ class DingState extends ChangeNotifier {
 
   // ── 生命周期 ──────────────────────────────────────────────────────────
 
-  /// 登录后调用，从服务端拉一次 tasks + 第一页 inbox，并启动 60s ticker。
   Future<void> bootstrap() async {
     if (_bootstrapped) return;
     _bootstrapped = true;
@@ -58,7 +53,6 @@ class DingState extends ChangeNotifier {
     _ticker = Timer.periodic(const Duration(seconds: 60), (_) => _tick());
   }
 
-  /// 用户登出：停 ticker 并清空。
   void reset() {
     _ticker?.cancel();
     _ticker = null;
@@ -72,7 +66,6 @@ class DingState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 重新拉服务端数据 + 可选立刻补跑。
   Future<void> refreshAll({bool catchUp = false}) async {
     await Future.wait([
       _refreshTasks(),
@@ -83,7 +76,6 @@ class DingState extends ChangeNotifier {
     }
   }
 
-  /// 由 HomeScreen lifecycle / 手动刷新触发。
   void resumeFromBackground() {
     Future.microtask(() => refreshAll(catchUp: true));
   }
@@ -122,7 +114,6 @@ class DingState extends ChangeNotifier {
     }
   }
 
-  /// 列表下拉到底加载更多。
   Future<void> loadMoreMessages() async {
     if (_loadingMessages || !_hasMoreMessages) return;
     _loadingMessages = true;
@@ -193,7 +184,7 @@ class DingState extends ChangeNotifier {
   }
 
   Future<DingMessage?> runNow(DingTask t) async {
-    return _execute(t, manual: true);
+    return _execute(t);
   }
 
   // ── Messages ─────────────────────────────────────────────────────────
@@ -245,8 +236,7 @@ class DingState extends ChangeNotifier {
         if (next.isAfter(now)) continue;
         if (!catchUp) {
           if (now.difference(next).inMinutes > 5) {
-            // 错过 > 5 分钟视为 stale，让服务端的 next_run_at 在下次 reportRun 后自动滚动；
-            // 客户端这里跳过，避免雪崩。
+            // 错过 > 5 分钟：留给服务端 scheduler 跑，避免雪崩
             continue;
           }
         }
@@ -258,52 +248,21 @@ class DingState extends ChangeNotifier {
     }
   }
 
-  Future<DingMessage?> _execute(DingTask t, {bool manual = false}) async {
+  Future<DingMessage?> _execute(DingTask t) async {
     _running.add(t.id);
     notifyListeners();
 
-    final startedAt = DateTime.now();
-    String content = '';
-    String error = '';
-    String status = 'success';
-    try {
-      final result = await _chat.executeOneShot(
-        prompt: t.prompt,
-        personaId: t.personaId,
-        withTools: true,
-      );
-      content = result.content;
-      if (content.isEmpty) {
-        content = '（模型返回为空）';
-      }
-    } catch (e) {
-      status = 'failed';
-      error = e.toString();
-      content = '执行失败：$e';
-    }
-
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-
     DingMessage? msg;
     try {
-      final r = await _service.reportRun(
-        t.id,
-        status: status,
-        title: t.title + (status == 'failed' ? '（失败）' : ''),
-        content: status == 'success' ? content : '',
-        error: status == 'failed' ? error : '',
-        durationMs: durationMs,
-        startedAt: startedAt,
-      );
+      final r = await _service.runNow(t.id);
       msg = r.notification;
       if (msg != null) {
         _messages.insert(0, msg);
       }
     } catch (e) {
-      _lastError = '上传执行结果失败：$e';
+      _lastError = '执行失败：$e';
     }
 
-    // 服务端会更新 last_run_at / next_run_at；本地刷一次 task
     try {
       final fresh = await _service.listTasks();
       _tasks

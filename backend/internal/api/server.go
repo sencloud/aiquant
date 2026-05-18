@@ -12,10 +12,12 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/rs/zerolog"
 
+	"github.com/sencloud/finme-backend/internal/ai/chat"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
@@ -23,14 +25,16 @@ import (
 
 // Deps 是 HTTP 层用到的所有依赖。
 type Deps struct {
-	Config  *platform.Config
-	Logger  zerolog.Logger
-	Store   *store.Store
-	Auth    *auth.Service
-	Users   *users.Service
-	Devices *devices.Service
-	Billing *billing.Service
-	Ding    *ding.Service
+	Config     *platform.Config
+	Logger     zerolog.Logger
+	Store      *store.Store
+	Auth       *auth.Service
+	Users      *users.Service
+	Devices    *devices.Service
+	Billing    *billing.Service
+	Ding       *ding.Service
+	Onboarding *onboarding.Service
+	Chat       *chat.Service
 }
 
 // NewRouter 装配业务路由。
@@ -62,6 +66,7 @@ func NewRouter(d *Deps) http.Handler {
 			r.Use(auditMiddleware(d.Store))
 			mountAuth(r, d)
 			mountBillingPublic(r, d)
+			mountClientError(r, d)
 		})
 		// 受保护的路由：JWT 中间件 → audit middleware（这样能拿到 user_id）
 		r.Group(func(r chi.Router) {
@@ -71,6 +76,7 @@ func NewRouter(d *Deps) http.Handler {
 			mountDevices(r, d)
 			mountBillingPrivate(r, d)
 			mountDing(r, d)
+			mountAIChat(r, d)
 		})
 	})
 

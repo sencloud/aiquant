@@ -49,6 +49,9 @@ func ErrTooManyRequests(code, msg string) *APIError {
 func ErrInternal(code string, err error) *APIError {
 	return NewAPIError(http.StatusInternalServerError, code, "internal error", err)
 }
+func ErrUnavailable(code string, err error) *APIError {
+	return NewAPIError(http.StatusServiceUnavailable, code, "service unavailable", err)
+}
 
 // AsAPIError 把任意 error 归一成 APIError。
 func AsAPIError(err error) *APIError {

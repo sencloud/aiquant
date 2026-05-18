@@ -1,0 +1,22 @@
+[Unit]
+Description=Litestream replication for /server/data/finme.db
+After=network-online.target finme-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/server/secrets/litestream.env
+ExecStart=/usr/bin/litestream replicate -config /etc/litestream.yml
+Restart=always
+RestartSec=5
+
+# 退出前先 fsync，避免最后一段 WAL 未上传
+KillMode=mixed
+TimeoutStopSec=20
+
+StandardOutput=append:/server/logs/litestream.log
+StandardError=append:/server/logs/litestream.log
+
+[Install]
+WantedBy=multi-user.target

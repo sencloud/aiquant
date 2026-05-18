@@ -9,6 +9,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/api/auth_models.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/legal_links.dart';
 
 /// 登录页：仅 Apple Sign In（个人开发者完全免费、TestFlight 审核必须支持）。
 ///
@@ -106,10 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
               else
                 _PlatformUnavailable(),
               const SizedBox(height: 18),
-              Text(
-                '登录即表示同意《用户协议》与《隐私政策》',
-                style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
-              ),
+              const LegalLinksFootnote(),
               const SizedBox(height: 6),
               Text(
                 '我们仅获取 Apple 提供的稳定匿名标识，\n不会读取你的 iCloud 通讯录或位置。',

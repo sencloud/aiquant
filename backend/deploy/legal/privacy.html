@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>隐私政策 · 喜宽</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+         line-height: 1.7; color: #1f2937; max-width: 720px; margin: 0 auto;
+         padding: 20px 18px 60px; background: #fafafa; font-size: 15px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 16px; margin-top: 28px; }
+  h3 { font-size: 14px; margin-top: 18px; color: #374151; }
+  .meta { color: #6b7280; font-size: 12px; margin-bottom: 24px; }
+  p { margin: 8px 0; }
+  ul { padding-left: 22px; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .em { color: #b45309; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+</style>
+</head>
+<body>
+
+<h1>隐私政策</h1>
+<div class="meta">最近更新日期：2026 年 5 月 17 日 · 适用于 喜宽 App（com.aiquant.app）及 api.singzquant.com 后端服务</div>
+
+<p>本政策详细说明本应用如何收集、使用、存储与共享你的信息。我们承诺仅收集为提供服务所必需的最少信息。<span class="em">使用本应用即视为你已阅读并接受本政策。</span></p>
+
+<h2>一、我们收集的信息</h2>
+
+<h3>1. 账号信息</h3>
+<ul>
+  <li><strong>Apple 用户标识（sub）</strong>：通过 Sign in with Apple 获取，用于识别你的账号。这是 Apple 提供的稳定匿名 ID，与你的 Apple ID 邮箱不同。</li>
+  <li><strong>昵称</strong>（可选）：仅在你授权时获取，仅用于 App 内显示。</li>
+  <li><strong>邮箱</strong>：本应用<strong>不</strong>请求邮箱权限。即使你选择"隐藏邮箱"，我们也不会保存任何邮箱字段。</li>
+</ul>
+
+<h3>2. 设备信息</h3>
+<ul>
+  <li>客户端生成的随机设备标识（UUID v4）—— 本地存储在 Keychain，用于推送通知。</li>
+  <li>App 版本号、平台（ios / android）—— 用于服务端兼容性判断。</li>
+  <li>APNs / FCM 推送令牌 —— 仅用于发送 DING 任务的通知。</li>
+</ul>
+
+<h3>3. 你主动输入的内容</h3>
+<ul>
+  <li>AI 助理的提问内容、DING 任务的提示词。这些会发送给 DeepSeek 用于生成回答，并保存在你的账号下供历史回顾。</li>
+  <li>本地组合的交易记录、持仓、报告 —— 默认仅存于设备本地（Hive 存储）。</li>
+</ul>
+
+<h3>4. 自动收集的信息</h3>
+<ul>
+  <li>请求 IP、User-Agent、请求时间 —— 用于安全审计与限流，保留期不超过 30 天。</li>
+  <li>崩溃日志（如启用） —— 用于诊断问题，不含个人内容。</li>
+</ul>
+
+<p>本应用<strong>不</strong>会获取你的位置、相册、相机、麦克风、通讯录或日历。</p>
+
+<h2>二、信息如何使用</h2>
+<ul>
+  <li>提供 AI 助理、DING 任务、组合管理等核心功能；</li>
+  <li>处理喜点充值与退款（仅通过 Apple App Store 内购买）；</li>
+  <li>发送你已订阅的定时任务结果通知；</li>
+  <li>账号安全（异常登录拦截、风控）；</li>
+  <li>满足法律法规与行政机关的合规要求。</li>
+</ul>
+<p>我们<strong>不会</strong>将你的信息用于任何形式的广告投放、跨应用追踪或转售给第三方。</p>
+
+<h2>三、信息共享与第三方</h2>
+
+<table>
+  <tr><th>第三方</th><th>共享内容</th><th>用途</th><th>所在地</th></tr>
+  <tr>
+    <td>Apple</td>
+    <td>登录授权请求 · 内购买交易票据</td>
+    <td>身份认证 · 订单验证 · 推送投递</td>
+    <td>美国</td>
+  </tr>
+  <tr>
+    <td>DeepSeek</td>
+    <td>你提交给 AI 的提问与上下文</td>
+    <td>生成 AI 回答（按 DeepSeek 隐私政策处理）</td>
+    <td>中国大陆</td>
+  </tr>
+  <tr>
+    <td>Tushare</td>
+    <td>仅匿名行情查询参数（股票代码、时间窗口）</td>
+    <td>获取公开市场行情数据</td>
+    <td>中国大陆</td>
+  </tr>
+  <tr>
+    <td>GDELT / Google News / NASA FIRMS</td>
+    <td>仅查询关键字与时间范围</td>
+    <td>公开新闻、事件与卫星数据采集</td>
+    <td>美国 / 欧盟</td>
+  </tr>
+</table>
+
+<p>除上述明确列出的第三方外，我们不会向其他任何机构共享你的可识别信息。</p>
+
+<h2>四、信息存储与安全</h2>
+<ul>
+  <li><strong>位置</strong>：服务端数据库与日志托管于阿里云中国大陆地区（华东 2 上海）。</li>
+  <li><strong>加密</strong>：传输层使用 HTTPS / TLS 1.2+；服务端敏感字段使用 AES-256 加密；密码相关字段（如短信验证码）使用 Argon2id 哈希。</li>
+  <li><strong>访问控制</strong>：服务端密钥仅运维人员持有；JWT 双 token 机制限制接口访问。</li>
+  <li><strong>保留期</strong>：账户身份信息仅在账号有效期内保留；订单流水按金融监管要求保留 5 年；安全审计日志 30 天。</li>
+</ul>
+
+<h2>五、你的权利</h2>
+<ul>
+  <li><strong>查看</strong>：在「我的」页可查看你的喜点余额、流水、设备信息。</li>
+  <li><strong>修改</strong>：在 App 内可修改昵称。</li>
+  <li><strong>注销</strong>：在「我的 → 账号管理 → 注销账户」一键注销。注销后所有可识别身份字段立即清除；订单流水按上述保留期匿名化保留。</li>
+  <li><strong>撤回授权</strong>：你可以随时在系统设置中关闭推送权限或撤销 Sign in with Apple。</li>
+  <li><strong>申诉</strong>：如对本应用处理你信息的方式有疑虑，可通过 App Store 联系开发者，我们将在 15 个工作日内回复。</li>
+</ul>
+
+<h2>六、未成年人保护</h2>
+<p>本应用面向 17 岁以上用户。若我们发现意外收集了 14 岁以下未成年人的信息，将立即删除。</p>
+
+<h2>七、政策变更</h2>
+<p>本政策可能随服务调整而更新。重大变更（如新增第三方共享）会通过 App 内显著提示通知你。继续使用即视为接受新版本。</p>
+
+<h2>八、联系我们</h2>
+<p>如对本政策有任何疑问，可通过 App Store 评论页或开发者反馈渠道联系我们。</p>
+
+</body>
+</html>
