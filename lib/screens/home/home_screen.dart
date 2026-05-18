@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../ding/ding_screen.dart';
 import '../portfolio/portfolio_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  int _index = 0; // 0 = 助理, 1 = 组合, 2 = DING
+  int _index = 0; // 0 = 助理, 1 = 组合, 2 = DING, 3 = 我的
 
   @override
   void initState() {
@@ -40,7 +41,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    const pages = [AssistantScreen(), PortfolioScreen(), DingScreen()];
+    const pages = [
+      AssistantScreen(),
+      PortfolioScreen(),
+      DingScreen(),
+      SettingsScreen(),
+    ];
     final unread = context.watch<DingState>().unreadCount;
 
     return Scaffold(
@@ -78,6 +84,13 @@ class _HomeScreenState extends State<HomeScreen>
                   active: _index == 2,
                   badge: unread,
                   onTap: () => setState(() => _index = 2),
+                ),
+                _NavItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: '我的',
+                  active: _index == 3,
+                  onTap: () => setState(() => _index = 3),
                 ),
               ],
             ),

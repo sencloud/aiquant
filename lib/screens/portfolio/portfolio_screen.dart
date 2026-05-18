@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
-import '../settings/settings_screen.dart';
 import 'compare_screen.dart';
 import 'dialogs/create_portfolio_dialog.dart';
 import 'dialogs/instrument_picker_dialog.dart';
@@ -50,12 +49,6 @@ class PortfolioScreen extends StatelessWidget {
                   ? null
                   : () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const PortfolioCompareScreen())),
-            ),
-            IconButton(
-              tooltip: '我的',
-              icon: const Icon(Icons.person_outline, size: 18),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const SettingsScreen())),
             ),
           ],
           bottom: PreferredSize(

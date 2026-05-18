@@ -45,6 +45,9 @@ type Message struct {
 	Platform Platform
 	Title    string
 	Body     string
+	// Badge 是 iOS 桌面图标右上角红点数字。0 表示清零；
+	// < 0 表示该字段不写入 payload（极少用到，目前不开放给上层）。
+	Badge int
 	// 业务参数透传到 payload，客户端收到后路由到 inbox 详情。
 	Topic string
 	RefID string
@@ -129,7 +132,7 @@ func LoadP8(path string) (string, error) {
 	return string(b), nil
 }
 
-func (AppleAPNsSender) Name() string { return "apns" }
+func (*AppleAPNsSender) Name() string { return "apns" }
 
 func (s *AppleAPNsSender) Send(ctx context.Context, msg Message) (*Result, error) {
 	if msg.Token == "" {
@@ -186,15 +189,18 @@ func apnsReason(body []byte) string {
 }
 
 func apnsPayload(m Message) []byte {
-	out := map[string]any{
-		"aps": map[string]any{
-			"alert": map[string]string{
-				"title": m.Title,
-				"body":  m.Body,
-			},
-			"sound": "default",
+	aps := map[string]any{
+		"alert": map[string]string{
+			"title": m.Title,
+			"body":  m.Body,
 		},
+		"sound": "default",
 	}
+	// 显式写入 badge：>=0 都写（0 用于清零角标）。<0 表示不写。
+	if m.Badge >= 0 {
+		aps["badge"] = m.Badge
+	}
+	out := map[string]any{"aps": aps}
 	if m.Topic != "" {
 		out["topic"] = m.Topic
 	}
@@ -287,7 +293,7 @@ func LoadServiceAccountJSON(path string) (string, error) {
 	return string(b), nil
 }
 
-func (FCMSender) Name() string { return "fcm" }
+func (*FCMSender) Name() string { return "fcm" }
 
 func (s *FCMSender) Send(ctx context.Context, msg Message) (*Result, error) {
 	if msg.Token == "" {

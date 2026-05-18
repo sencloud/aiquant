@@ -7,6 +7,92 @@ import (
 	"sync"
 )
 
+// GlobalSearchOptions 是 SearchGlobal 的可选参数。
+type GlobalSearchOptions struct {
+	// Keyword：title/snippet 子串过滤；空 = 不过滤。
+	Keyword string
+	// Channel：华尔街见闻 channel，默认 global-channel。可选 forex-channel / oil-channel 等。
+	Channel string
+	// Limit：合并后返回上限。
+	Limit int
+	// IncludeArticles：是否同时拉深度文章（默认 true）。
+	IncludeArticles bool
+}
+
+// SearchGlobal 拉「国际事件 / 全球宏观 / 商品外汇 / 地缘」相关新闻。
+//
+// 数据源（全部国内可达）：
+//   - 华尔街见闻 lives  实时电报，覆盖全球宏观/外汇/原油/商品
+//   - 华尔街见闻 articles 深度文章
+//   - 财联社电报 cls    与国际宏观相关的子集（按关键字过滤）
+//
+// GDELT 在阿里云出口稳定 8s 超时，已不再使用。
+func (c *Client) SearchGlobal(ctx context.Context, opt GlobalSearchOptions) ([]Event, error) {
+	if opt.Limit <= 0 || opt.Limit > 100 {
+		opt.Limit = 30
+	}
+	if opt.Channel == "" {
+		opt.Channel = "global-channel"
+	}
+
+	type result struct {
+		events []Event
+		err    error
+		src    string
+	}
+	resCh := make(chan result, 3)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ev, err := c.FetchWallstreetcnLives(ctx, opt.Channel, 80)
+		resCh <- result{events: ev, err: err, src: "wscn_lives"}
+	}()
+	if opt.IncludeArticles {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ev, err := c.FetchWallstreetcnArticles(ctx, opt.Channel, 30)
+			resCh <- result{events: ev, err: err, src: "wscn_articles"}
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ev, err := c.FetchClsTelegraph(ctx, 50)
+		resCh <- result{events: ev, err: err, src: "cls"}
+	}()
+	go func() { wg.Wait(); close(resCh) }()
+
+	all := make([]Event, 0, 100)
+	var lastErr error
+	srcOK := 0
+	for r := range resCh {
+		if r.err != nil {
+			lastErr = r.err
+			continue
+		}
+		srcOK++
+		all = append(all, r.events...)
+	}
+	if srcOK == 0 && lastErr != nil {
+		return nil, lastErr
+	}
+
+	if kw := strings.TrimSpace(opt.Keyword); kw != "" {
+		all = filterByKeyword(all, kw)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].PublishedAt > all[j].PublishedAt
+	})
+	all = dedupByTitle(all)
+	if len(all) > opt.Limit {
+		all = all[:opt.Limit]
+	}
+	return all, nil
+}
+
 // SearchOptions 是 SearchAll 的可选参数。
 type SearchOptions struct {
 	// Keyword 用于在 title/snippet 中做大小写不敏感的子串过滤。

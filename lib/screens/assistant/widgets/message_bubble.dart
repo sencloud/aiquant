@@ -39,24 +39,13 @@ class MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment:
             isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        // 时间顺序：推理 → 工具调用 → 正文。AI 通常先「调用工具拿数据」，再
+        // 「基于数据写正文」，UI 顺序按真实时序展示更直观。
         children: [
           if (hasReasoning)
             ReasoningBlock(
               text: message.reasoning!,
               streaming: message.streaming && !hasContent,
-            ),
-          if (hasContent)
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.86,
-              ),
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: const BorderRadius.all(Radius.circular(8)),
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: _content(context, fg),
             ),
           if (hasToolCalls)
             ConstrainedBox(
@@ -66,6 +55,22 @@ class MessageBubble extends StatelessWidget {
               child: ToolCallList(
                 calls: message.toolCalls!,
                 findResult: _findToolResult,
+              ),
+            ),
+          if (hasContent)
+            Padding(
+              padding: EdgeInsets.only(top: hasToolCalls ? 6 : 0),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.86,
+                ),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: _content(context, fg),
               ),
             ),
           if (message.streaming &&

@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
@@ -16,46 +14,16 @@ import (
 
 // registerEvent 注册新闻 / 事件 / 卫星类工具。
 //
-// 国内中文新闻 / 期货 / 农产品 走 cnnews（财联社+东财+新浪），
-// 海外议题 / 航运 / 地缘冲突 走 news（GDELT），卫星火点走 NASA FIRMS。
+// 国内中文 + 国际宏观 全部走 cnnews（财联社 / 东财快讯 / 华尔街见闻）；
+// GDELT 在阿里云出口稳定 8s 超时，已不再使用，对应工具改用华尔街见闻 +
+// 财联社的中文国际频道。卫星火点仍走 NASA FIRMS（公网无替代源）。
 func registerEvent(r *tool.Registry, c *news.Client, cn *cnnews.Client) {
-	r.MustRegister(&searchGlobalEventsTool{c: c})
+	r.MustRegister(&searchGlobalEventsTool{cn: cn})
 	r.MustRegister(&searchChineseNewsTool{cn: cn})
 	r.MustRegister(&getIndustryNewsTool{cn: cn})
-	r.MustRegister(&searchShippingEventsTool{c: c})
-	r.MustRegister(&searchGeopoliticsEventsTool{c: c})
+	r.MustRegister(&searchShippingEventsTool{cn: cn})
+	r.MustRegister(&searchGeopoliticsEventsTool{cn: cn})
 	r.MustRegister(&getFireHotspotsTool{c: c})
-}
-
-// parseLookbackHours 把 "6h"/"3d"/"2w" 转成小时数；无效则用 fallback。
-var lookbackRE = regexp.MustCompile(`(?i)^(\d+)\s*([hdw])$`)
-
-func parseLookbackHours(s string, fallbackHours int) int {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return fallbackHours
-	}
-	m := lookbackRE.FindStringSubmatch(s)
-	if m == nil {
-		return fallbackHours
-	}
-	n, _ := strconv.Atoi(m[1])
-	switch strings.ToLower(m[2]) {
-	case "h":
-		return n
-	case "d":
-		return n * 24
-	case "w":
-		return n * 24 * 7
-	}
-	return fallbackHours
-}
-
-func formatLookback(hours int) string {
-	if hours >= 24 {
-		return fmt.Sprintf("%dd", hours/24)
-	}
-	return fmt.Sprintf("%dh", hours)
 }
 
 func eventsToJSON(items []news.Event) []map[string]any {
@@ -98,36 +66,23 @@ func eventsToJSON(items []news.Event) []map[string]any {
 	return out
 }
 
-func avgTone(items []news.Event) (float64, bool) {
-	sum, n := 0.0, 0
-	for _, ev := range items {
-		if ev.Source != "gdelt" {
-			continue
-		}
-		sum += ev.Score
-		n++
-	}
-	if n == 0 {
-		return 0, false
-	}
-	return sum / float64(n), true
-}
-
 // ── 19. search_global_events ───────────────────────────────────────────
 
-type searchGlobalEventsTool struct{ c *news.Client }
+type searchGlobalEventsTool struct{ cn *cnnews.Client }
 
 func (t *searchGlobalEventsTool) Spec() tool.Spec {
 	return tool.Spec{
-		Name:        "search_global_events",
-		Description: "在 GDELT 全球新闻数据库（100+ 国家、65 种语言）按关键词搜索国际事件、地缘政治、宏观新闻、大宗商品。返回标题/来源/时间/基调（tone）。",
+		Name: "search_global_events",
+		Description: "搜索国际宏观 / 地缘 / 全球商品 / 外汇相关新闻（中文）。" +
+			"数据源：华尔街见闻实时电报 + 深度文章 + 财联社电报中的国际议题。" +
+			"按关键字 OR 过滤（多个用空格 / 逗号分隔）。" +
+			"返回标题/来源/时间/摘要/标签。" +
+			"国内 A 股板块/政策请用 search_chinese_news；行业期货农产品请用 get_industry_news。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
-				"query":    {Type: "string", Description: "关键词（中英文均可）"},
-				"lookback": {Type: "string", Description: "回看时长，如 6h/24h/3d/7d/2w（默认 24h）"},
-				"country":  {Type: "string", Description: "限定来源国家（ISO-2，如 CN/US）"},
-				"lang":     {Type: "string", Description: "限定来源语言（chinese/english 等）"},
-				"limit":    {Type: "integer", Description: "前 N 条（默认 12，最大 50）"},
+				"query":   {Type: "string", Description: "关键词（多个用空格 / 逗号分隔做 OR 匹配）"},
+				"channel": {Type: "string", Description: "华尔街见闻 channel，默认 global-channel；可选 forex-channel/oil-channel/commodities-channel"},
+				"limit":   {Type: "integer", Description: "前 N 条（默认 15，最大 50）"},
 			},
 			Required: []string{"query"},
 		},
@@ -136,11 +91,9 @@ func (t *searchGlobalEventsTool) Spec() tool.Spec {
 
 func (t *searchGlobalEventsTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		Query    string `json:"query"`
-		Lookback string `json:"lookback,omitempty"`
-		Country  string `json:"country,omitempty"`
-		Lang     string `json:"lang,omitempty"`
-		Limit    int    `json:"limit,omitempty"`
+		Query   string `json:"query"`
+		Channel string `json:"channel,omitempty"`
+		Limit   int    `json:"limit,omitempty"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
@@ -149,25 +102,22 @@ func (t *searchGlobalEventsTool) Run(ctx context.Context, args json.RawMessage) 
 	if q == "" {
 		return tool.EncodeJSON(map[string]any{"error": "query 必填"}), nil
 	}
-	hours := parseLookbackHours(in.Lookback, 24)
-	limit := clampInt(in.Limit, 1, 50, 12)
-	items, err := t.c.SearchGDELT(ctx, q, hours, limit, news.GDELTOptions{
-		Country:    in.Country,
-		SourceLang: in.Lang,
+	limit := clampInt(in.Limit, 1, 50, 15)
+	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+		Keyword:         q,
+		Channel:         in.Channel,
+		Limit:           limit,
+		IncludeArticles: true,
 	})
 	if err != nil {
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
-	out := map[string]any{
+	return tool.EncodeJSON(map[string]any{
 		"query":    q,
-		"lookback": formatLookback(hours),
 		"count":    len(items),
 		"articles": eventsToJSON(items),
-	}
-	if t, ok := avgTone(items); ok {
-		out["avg_tone"] = round(t, 3)
-	}
-	return tool.EncodeJSON(out), nil
+		"sources":  []string{"wallstreetcn_lives", "wallstreetcn_article", "cls_telegraph"},
+	}), nil
 }
 
 // ── 20. search_chinese_news ────────────────────────────────────────────
@@ -312,51 +262,48 @@ func (t *getIndustryNewsTool) Run(ctx context.Context, args json.RawMessage) (st
 
 // ── 21. search_shipping_events ─────────────────────────────────────────
 
-type searchShippingEventsTool struct{ c *news.Client }
+type searchShippingEventsTool struct{ cn *cnnews.Client }
 
 func (t *searchShippingEventsTool) Spec() tool.Spec {
 	return tool.Spec{
-		Name:        "search_shipping_events",
-		Description: "搜索全球航运 / 港口 / 海事 / 海运中断相关事件（红海、苏伊士、巴拿马、马六甲、台湾海峡等）。",
+		Name: "search_shipping_events",
+		Description: "搜索全球航运 / 港口 / 海事 / 海运中断相关事件（红海、苏伊士、巴拿马、马六甲、台湾海峡等）。" +
+			"数据源走华尔街见闻 + 财联社电报。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
-				"lookback":      {Type: "string", Description: "默认 7d，最长 4w"},
 				"limit":         {Type: "integer", Description: "默认 15，最大 50"},
-				"extra_keyword": {Type: "string", Description: "额外限定词（red sea / hormuz 等）"},
+				"extra_keyword": {Type: "string", Description: "额外限定词（红海 / 霍尔木兹 / 巴拿马 / 苏伊士 等）"},
 			},
 		},
 	}
 }
 
-const shippingBaseQuery = `(shipping OR port OR maritime OR vessel OR strait OR canal OR "sea route")`
+const shippingZhKeywords = "航运 港口 海运 货船 油轮 集装箱 红海 苏伊士 巴拿马 马六甲 海峡 台湾海峡 霍尔木兹"
 
 func (t *searchShippingEventsTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		Lookback     string `json:"lookback,omitempty"`
 		Limit        int    `json:"limit,omitempty"`
 		ExtraKeyword string `json:"extra_keyword,omitempty"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
 	}
-	hours := parseLookbackHours(in.Lookback, 7*24)
-	if hours > 4*7*24 {
-		hours = 4 * 7 * 24
-	}
 	limit := clampInt(in.Limit, 1, 50, 15)
-	extra := strings.TrimSpace(in.ExtraKeyword)
-	query := shippingBaseQuery
-	if extra != "" {
-		query = fmt.Sprintf("%s AND (%s)", shippingBaseQuery, extra)
+	kw := shippingZhKeywords
+	if extra := strings.TrimSpace(in.ExtraKeyword); extra != "" {
+		kw = kw + " " + extra
 	}
-	items, err := t.c.SearchGDELT(ctx, query, hours, limit)
+	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+		Keyword:         kw,
+		Limit:           limit,
+		IncludeArticles: true,
+	})
 	if err != nil {
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	return tool.EncodeJSON(map[string]any{
 		"theme":    "global_shipping",
-		"query":    query,
-		"lookback": formatLookback(hours),
+		"keywords": kw,
 		"count":    len(items),
 		"articles": eventsToJSON(items),
 	}), nil
@@ -364,48 +311,48 @@ func (t *searchShippingEventsTool) Run(ctx context.Context, args json.RawMessage
 
 // ── 22. search_geopolitics_events ──────────────────────────────────────
 
-type searchGeopoliticsEventsTool struct{ c *news.Client }
+type searchGeopoliticsEventsTool struct{ cn *cnnews.Client }
 
 func (t *searchGeopoliticsEventsTool) Spec() tool.Spec {
 	return tool.Spec{
-		Name:        "search_geopolitics_events",
-		Description: "搜索全球地缘政治 / 武装冲突 / 制裁 / 外交摩擦事件，便于分析军工、能源、避险板块。",
+		Name: "search_geopolitics_events",
+		Description: "搜索全球地缘政治 / 武装冲突 / 制裁 / 外交摩擦事件，便于分析军工、能源、避险板块。" +
+			"数据源走华尔街见闻 + 财联社电报。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
-				"lookback": {Type: "string", Description: "默认 3d"},
-				"region":   {Type: "string", Description: "可选地理限定（middle east / taiwan strait / ukraine 等）"},
-				"limit":    {Type: "integer", Description: "默认 15，最大 50"},
+				"region": {Type: "string", Description: "可选地理限定（中东 / 俄乌 / 台海 / 朝鲜半岛 等）"},
+				"limit":  {Type: "integer", Description: "默认 15，最大 50"},
 			},
 		},
 	}
 }
 
-const geoBaseQuery = `(conflict OR sanction OR military OR war OR treaty OR summit OR diplomatic)`
+const geoZhKeywords = "地缘 制裁 冲突 战争 停火 关税 加征关税 联合国 北约 武装 军演 外交"
 
 func (t *searchGeopoliticsEventsTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
-		Lookback string `json:"lookback,omitempty"`
-		Region   string `json:"region,omitempty"`
-		Limit    int    `json:"limit,omitempty"`
+		Region string `json:"region,omitempty"`
+		Limit  int    `json:"limit,omitempty"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil {
 		return "", err
 	}
-	hours := parseLookbackHours(in.Lookback, 3*24)
 	limit := clampInt(in.Limit, 1, 50, 15)
-	region := strings.TrimSpace(in.Region)
-	query := geoBaseQuery
-	if region != "" {
-		query = fmt.Sprintf(`%s AND ("%s")`, geoBaseQuery, region)
+	kw := geoZhKeywords
+	if region := strings.TrimSpace(in.Region); region != "" {
+		kw = kw + " " + region
 	}
-	items, err := t.c.SearchGDELT(ctx, query, hours, limit)
+	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+		Keyword:         kw,
+		Limit:           limit,
+		IncludeArticles: true,
+	})
 	if err != nil {
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	return tool.EncodeJSON(map[string]any{
 		"theme":    "geopolitics",
-		"query":    query,
-		"lookback": formatLookback(hours),
+		"keywords": kw,
 		"count":    len(items),
 		"articles": eventsToJSON(items),
 	}), nil

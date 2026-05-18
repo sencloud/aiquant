@@ -26,23 +26,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!_bootstrapped) {
       _bootstrapped = true;
       final billing = context.read<BillingState>();
-      // 进页面拉一次：余额 + SKU
-      Future.microtask(() => billing.refreshAll());
+      // 进页面拉余额 + SKU + 重投未到账订单。
+      Future.microtask(() async {
+        await billing.refreshAll();
+        final recovered = await billing.restoreUnverifiedPurchases();
+        if (recovered > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('已自动补到账 $recovered 笔历史充值'),
+            duration: const Duration(seconds: 3),
+          ));
+        }
+      });
     }
   }
 
   Future<void> _onPackageTap(BillingState b, CreditSku sku) async {
     final ok = await b.purchase(sku);
     if (!mounted) return;
-    final msg = ok
-        ? '充值成功 +${sku.totalCredits} 喜点'
-        : (b.lastError ?? '');
-    if (msg.isNotEmpty) {
+    if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(msg),
+        content: Text('充值成功 +${sku.totalCredits} 喜点'),
         duration: const Duration(seconds: 2),
       ));
+      return;
     }
+    final err = b.lastError;
+    if (err == null || err.isEmpty) {
+      // 用户主动取消（lastError 已被清空）。
+      return;
+    }
+    // verify 失败：明确告诉用户已记录待重试，避免「钱扣了喜点没到账」的恐慌。
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('充值未到账'),
+        content: Text(
+          '$err\n\n如果苹果已扣款，喜点稍后会自动到账。'
+          '你也可以下拉本页或重启 App 触发自动补单。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('知道了'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final n = await b.restoreUnverifiedPurchases();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(n > 0 ? '已补到账 $n 笔' : '暂无未到账记录'),
+              ));
+            },
+            child: const Text('立即重试'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -64,6 +64,32 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _scrollToBottom();
   }
 
+  /// 「喜点不足 / 扣费失败」弹窗：提示余额，并可一键跳到充值页。
+  void _showChargeDialog(ChargeIssue issue) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('喜点不足'),
+        content: Text(issue.message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('稍后再说'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const SettingsScreen(),
+              ));
+            },
+            child: const Text('立即充值'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 把当前对话最近一条用户提问 / 输入框正在输入的内容作为预填，弹出
   /// DING 任务编辑器供用户设置定时执行。
   void _addToDing(BuildContext context, ChatState chat) {
@@ -102,6 +128,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
     if (chat.streaming) _scrollToBottom(animate: false);
 
+    final issue = chat.chargeIssue;
+    if (issue != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final c = context.read<ChatState>();
+        if (c.chargeIssue == null) return;
+        c.consumeChargeIssue();
+        _showChargeDialog(issue);
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -126,14 +163,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
             tooltip: '加入 DING（定时执行）',
             icon: const Icon(Icons.add_alarm, size: 18),
             onPressed: () => _addToDing(context, chat),
-          ),
-          IconButton(
-            tooltip: '我的',
-            icon: const Icon(Icons.person_outline, size: 18),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const SettingsScreen()));
-            },
           ),
         ],
       ),
