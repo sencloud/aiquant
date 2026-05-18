@@ -11,7 +11,7 @@ import '../services/ai_chat_service.dart';
 ///
 /// 与服务端契约：
 /// - 唯一 LLM / 工具执行路径：`POST /v1/ai/chat` SSE。
-/// - 客户端不再持有 DeepSeek key、Tushare token、FIRMS key；不再本地派发工具。
+/// - 客户端不再持有任何第三方 API key / token；工具调用全部由服务端派发。
 /// - 会话上下文以服务端 ai_chat_sessions 为准；本地仅缓存 UI 渲染所需的消息列表。
 ///
 /// 客户端 ChatSession 与服务端 session 的映射：

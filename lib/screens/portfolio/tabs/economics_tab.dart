@@ -443,7 +443,7 @@ class _EconomicsTabState extends State<EconomicsTab> {
             if (_valuations.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('暂无数据或 Tushare 接口受限。',
+                child: Text('暂无数据，可能是数据接口暂时不可用。',
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11)),
               )

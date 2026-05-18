@@ -175,7 +175,7 @@ class DingTaskList extends StatelessWidget {
     await st.runNow(t);
     if (!context.mounted) return;
     messenger.showSnackBar(
-      SnackBar(content: Text('已生成新消息，可在收件箱查看：${t.title}')),
+      SnackBar(content: Text('已完成：${t.title}，可在收件箱查看')),
     );
   }
 
@@ -184,7 +184,7 @@ class DingTaskList extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除任务'),
-        content: Text('确定删除 "${t.title}" 吗？'),
+        content: Text('确定要删除「${t.title}」吗？'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -223,8 +223,8 @@ class _Empty extends StatelessWidget {
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
-              '点击右下角"新建任务"，让 AI 在每天固定时间为你跑一次行情总结、'
-              '资金面追踪、或自定义研究任务。',
+              '点右下角「新建任务」，让 AI 每天固定时间帮你跑一次行情总结、'
+              '资金动向或你想关注的话题。',
               textAlign: TextAlign.center,
               style: TextStyle(
                   color: AppColors.textTertiary, fontSize: 11, height: 1.6),

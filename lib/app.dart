@@ -5,8 +5,8 @@ import 'screens/auth/auth_gate.dart';
 import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
 
-class FinceptApp extends StatelessWidget {
-  const FinceptApp({super.key});
+class XikuanApp extends StatelessWidget {
+  const XikuanApp({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -295,7 +295,7 @@ class _EnvelopeTileState extends State<_EnvelopeTile>
         .replaceAll(RegExp(r'[`*_>\-]'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return stripped.isEmpty ? '（无内容）' : stripped;
+    return stripped.isEmpty ? '（暂无内容）' : stripped;
   }
 }
 
@@ -311,14 +311,14 @@ class _Empty extends StatelessWidget {
             Icon(Icons.mark_email_read_outlined,
                 size: 56, color: AppColors.textTertiary),
             const SizedBox(height: 12),
-            Text('暂无 DING 消息',
+            Text('收件箱还是空的',
                 style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
-              '到「任务」标签页新建一个定时任务，\n或在助理对话内点 +DING，把消息会议化推送过来。',
+              '在「任务」里新建一个定时任务，\n或在助理对话内点右上角的闹钟图标，让 AI 按时给你发结果。',
               textAlign: TextAlign.center,
               style: TextStyle(
                   color: AppColors.textTertiary, fontSize: 11, height: 1.6),

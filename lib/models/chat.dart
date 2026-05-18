@@ -154,7 +154,7 @@ class ChatSession extends HiveObject {
   /// Persona id（绑定 lib/models/persona.dart 内置库）
   String personaId;
 
-  /// 是否启用工具调用（开启时 service 层会强制使用 deepseek-chat）
+  /// 是否启用工具调用（具体模型由服务端决定）
   bool toolsEnabled;
 
   ChatSession({
@@ -162,7 +162,7 @@ class ChatSession extends HiveObject {
     this.title = '新对话',
     DateTime? createdAt,
     DateTime? updatedAt,
-    this.model = 'deepseek-chat',
+    this.model = '',
     this.deepMode = false,
     List<ChatMessage>? messages,
     this.personaId = 'default',

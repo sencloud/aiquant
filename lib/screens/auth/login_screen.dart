@@ -46,12 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _error = '登录失败：${e.message}');
       }
     } on ApiException catch (e) {
-      setState(() => _error = '${e.code}\n${e.message}');
-    } on DioException catch (e) {
-      final uri = e.requestOptions.uri.toString();
-      setState(() => _error = '网络连接失败\n请求地址：$uri\n${e.error ?? e.message}');
+      setState(() => _error = '登录失败\n${e.message}');
+    } on DioException catch (_) {
+      setState(() => _error = '网络连接失败，请检查网络后再试。');
     } catch (e) {
-      setState(() => _error = '$e');
+      setState(() => _error = '登录失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -97,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.w900,
                       letterSpacing: 6)),
               const SizedBox(height: 8),
-              Text('AI 量化研究助理 · A 股 / ETF / 期货',
+              Text('AI 投资助手 · 聊行情、管组合、做日报',
                   style:
                       TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               const Spacer(flex: 3),
@@ -110,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const LegalLinksFootnote(),
               const SizedBox(height: 6),
               Text(
-                '我们仅获取 Apple 提供的稳定匿名标识，\n不会读取你的 iCloud 通讯录或位置。',
+                '我们仅获取 Apple 提供的匿名标识，\n不会读取你的通讯录、相册或位置信息。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: AppColors.textTertiary, fontSize: 11, height: 1.6),
@@ -176,7 +175,7 @@ class _AppleButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                     strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.apple, size: 22),
-        label: Text(busy ? '登录中…' : '通过 Apple 账号登录'),
+        label: Text(busy ? '登录中…' : '使用 Apple 账号登录'),
       ),
     );
   }
@@ -194,7 +193,7 @@ class _PlatformUnavailable extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        '当前平台不支持 Apple Sign In，请在 iOS 设备上登录。',
+        '当前设备暂不支持 Apple 登录，请使用 iPhone 或 iPad 打开。',
         style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
       ),
     );

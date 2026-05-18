@@ -109,7 +109,7 @@ class PortfolioScreen extends StatelessWidget {
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Text(
-                '创建一个组合，然后通过 Tushare 加入 A 股、期货、ETF 或指数。',
+                '新建一个组合，再把你关注的股票、ETF、期货或指数加进来。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12, height: 1.5),
@@ -149,7 +149,7 @@ class PortfolioScreen extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('删除组合'),
-        content: Text('确定要删除 “${p.name}” 吗？所有持仓和交易记录都会移除。'),
+        content: Text('确定要删除「${p.name}」吗？这会一并清掉它的持仓和交易记录。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

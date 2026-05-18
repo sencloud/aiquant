@@ -5,7 +5,7 @@ export 'transaction.dart';
 
 const _uuid = Uuid();
 
-/// Mirrors `fincept::portfolio::Portfolio` (Qt) but slimmed for mobile.
+/// 投资组合 — 一份命名好的资产清单（持仓 + 交易记录由其他对象承担）。
 class Portfolio extends HiveObject {
   String id;
   String name;
