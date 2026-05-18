@@ -246,8 +246,10 @@ LOOPS:
 			ToolCalls: roundToolCalls,
 		})
 
+		// 始终记录最后一轮的文本，供循环自然用尽时返回。
+		finalAssistant = roundFinalText
+
 		if len(roundToolCalls) == 0 {
-			finalAssistant = roundFinalText
 			break LOOPS
 		}
 
