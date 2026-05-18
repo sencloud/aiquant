@@ -133,6 +133,36 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 登出 / 切换账号时清空本地缓存的 chat 会话。
+  ///
+  /// 包含：
+  ///  - 取消正在进行的 SSE；
+  ///  - 清空 chatSessionsBox（hive）；
+  ///  - 清掉 prefsBox 里 `ai_chat_server_id:` 前缀的 server 映射；
+  ///  - 清掉内存中 _sessions / _serverIdMap / _activeId / 余额缓存。
+  Future<void> reset() async {
+    await _activeStream?.cancel();
+    _activeStream = null;
+    _streaming = false;
+
+    await chatSessionsBox.clear();
+
+    final keys = prefsBox.keys
+        .whereType<String>()
+        .where((k) => k.startsWith(_kServerIdPrefix))
+        .toList();
+    for (final k in keys) {
+      await prefsBox.delete(k);
+    }
+
+    _sessions = const [];
+    _serverIdMap.clear();
+    _activeId = null;
+    _totalToolCalls = 0;
+    _lastBalance = null;
+    notifyListeners();
+  }
+
   /// 发送一条用户消息并消费服务端 SSE 事件。
   Future<void> sendMessage(String text) async {
     final session = active ?? await newSession();
@@ -157,6 +187,9 @@ class ChatState extends ChangeNotifier {
     _totalToolCalls = 0;
     notifyListeners();
 
+    // Persona 的中文人设 prompt 由客户端提供（服务端不感知 persona 库）；
+    // chat.Service 会把它拼到默认 system 之后作为"额外指令"。
+    final persona = Personas.byId(session.personaId);
     final completer = Completer<void>();
     _activeStream = _svc
         .stream(
@@ -164,6 +197,7 @@ class ChatState extends ChangeNotifier {
       message: text.trim(),
       persona: session.personaId,
       deepMode: session.deepMode,
+      systemHint: persona.systemPrompt,
     )
         .listen((ev) async {
       switch (ev.kind) {

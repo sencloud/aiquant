@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -75,10 +76,16 @@ func handleClientError(d *Deps) http.HandlerFunc {
 	}
 }
 
+// trim 把字符串截到 max 字节以内，并保证截断点落在合法的 UTF-8 边界，
+// 避免中文/emoji 被切成半个码点导致 audit_log 出现 \ufffd 乱码。
 func trim(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= max {
 		return s
 	}
-	return s[:max]
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }

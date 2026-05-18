@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
+import '../../state/chat_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../home/home_screen.dart';
@@ -14,8 +15,9 @@ import 'login_screen.dart';
 /// - 未登录：LoginScreen。
 ///
 /// 在登录态切换时，统一驱动其它状态：
-/// - 登录后：BillingState.refreshAll() + DingState.bootstrap()
-/// - 登出后：BillingState.reset() + DingState.reset()
+/// - 登录后：ChatState.bootstrap() + BillingState.refreshAll() + DingState.bootstrap()
+/// - 登出后：ChatState.reset() + BillingState.reset() + DingState.reset()
+/// 这样切换账号时不会把上一个用户的 chat / inbox 留给下一个用户。
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -32,13 +34,20 @@ class _AuthGateState extends State<AuthGate> {
     final isAuthed = auth.isAuthenticated;
 
     if (_wasAuthed != isAuthed) {
+      final wasAuthed = _wasAuthed;
       _wasAuthed = isAuthed;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (isAuthed) {
+          // 登录前若已知是切换账号（之前是已登录态），先清掉本地 chat 缓存
+          if (wasAuthed == true) {
+            context.read<ChatState>().reset();
+          }
+          context.read<ChatState>().bootstrap();
           context.read<BillingState>().refreshAll();
           context.read<DingState>().bootstrap();
         } else {
+          context.read<ChatState>().reset();
           context.read<BillingState>().reset();
           context.read<DingState>().reset();
         }
