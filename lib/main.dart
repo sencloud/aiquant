@@ -59,7 +59,7 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => ChatState()),
         ChangeNotifierProvider(create: (_) => DingState()),
       ],
-      child: const FinceptApp(),
+      child: const XikuanApp(),
     ),
   );
 }

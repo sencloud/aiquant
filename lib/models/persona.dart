@@ -33,7 +33,7 @@ class Persona {
   /// 主题色（Picker / 头像背景）
   final Color color;
 
-  /// 注入到 OpenAI/DeepSeek 的 system message
+  /// 注入到大模型的 system message
   final String systemPrompt;
 
   /// 欢迎屏推荐提问（每个 Persona 风格不同）

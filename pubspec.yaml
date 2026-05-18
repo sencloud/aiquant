@@ -1,7 +1,7 @@
 name: fincept_app
-description: "FINCEPT 终端的移动 / Web 版：内置 DeepSeek AI 助理 + Tushare 驱动的投资组合。"
+description: "喜宽 — 一款轻量的 AI 投资助手，帮你聊行情、管组合、做日报。"
 publish_to: 'none'
-version: 0.1.0+123
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -36,14 +36,14 @@ dependencies:
   pdf: ^3.12.0
   printing: ^5.14.3
   csv: ^8.0.0
-  share_plus: ^13.1.0
+  share_plus: ^10.1.4
   file_picker: ^3.0.4
 
   # Backend SDK：双 token 安全存储 / SiwA / 设备信息 / 应用版本
   flutter_secure_storage: ^10.0.0
   sign_in_with_apple: ^6.1.4
-  device_info_plus: ^13.1.0
-  package_info_plus: ^10.1.0
+  device_info_plus: ^11.3.0
+  package_info_plus: ^8.1.0
   in_app_purchase: ^3.2.3
   url_launcher: ^6.3.1
 

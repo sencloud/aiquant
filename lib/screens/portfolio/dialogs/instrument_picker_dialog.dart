@@ -155,7 +155,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
         child: Row(
           children: [
             const Expanded(
-              child: Text('加入品种',
+              child: Text('添加品种',
                   style: TextStyle(
                       color: AppColors.amber,
                       fontSize: 14,
@@ -177,7 +177,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          _tabButton(_AssetTab.stock, 'A股'),
+          _tabButton(_AssetTab.stock, '股票'),
           _tabButton(_AssetTab.etf, 'ETF / 基金'),
           _tabButton(_AssetTab.future, '期货'),
           _tabButton(_AssetTab.indexInstrument, '指数'),
@@ -235,7 +235,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
             controller: _query,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: '按代码 / 名称 / 行业搜索…',
+              hintText: '搜索代码、名称或行业…',
               prefixIcon: Icon(Icons.search,
                   color: AppColors.textTertiary, size: 18),
               suffixIcon: _query.text.isEmpty
@@ -417,7 +417,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
     final list = _visible;
     if (list.isEmpty) {
       return Center(
-        child: Text('暂无匹配品种',
+        child: Text('没有找到匹配的品种',
             style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
       );
     }
@@ -509,7 +509,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
           ElevatedButton.icon(
             onPressed: _selected.isEmpty ? null : _confirm,
             icon: const Icon(Icons.add_task, size: 14),
-            label: const Text('加入组合'),
+            label: const Text('添加到组合'),
           ),
         ],
       ),
@@ -545,7 +545,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
     if (mounted) {
       navigator.pop();
       messenger.showSnackBar(
-        SnackBar(content: Text('已加入 ${qtyMap.length} 个品种到组合')),
+        SnackBar(content: Text('已添加 ${qtyMap.length} 个品种到组合')),
       );
     }
   }

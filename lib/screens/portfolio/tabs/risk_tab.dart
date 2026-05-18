@@ -18,7 +18,7 @@ class RiskTab extends StatelessWidget {
     final ps = context.watch<PortfolioState>();
     final s = ps.currentSummary;
     if (s == null || s.holdings.isEmpty) {
-      return const _Empty('加入品种后这里会展示风险敞口与建议。');
+      return const _Empty('添加品种后，这里会展示集中度与波动等风险提示。');
     }
     final fmt = NumberFormat('0.00');
     final total = s.totalMarketValue;
@@ -87,9 +87,9 @@ class RiskTab extends StatelessWidget {
                 const _T('风险提示'),
                 const SizedBox(height: 6),
                 Text(
-                  '· 单一品种或行业占比 > 30% 视为集中度偏高；\n'
-                  '· 当日波动 > 5% 通常意味着事件性冲击，建议关注；\n'
-                  '· 如需 VaR / CVaR / 压力测试，请使用 Fincept PC 终端。',
+                  '· 单一品种或行业占比超过 30%，集中度偏高，注意分散；\n'
+                  '· 当日波动超过 5%，多半是消息面冲击，建议关注；\n'
+                  '· 风控仅做粗略提示，具体决策请结合自身情况。',
                   style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,

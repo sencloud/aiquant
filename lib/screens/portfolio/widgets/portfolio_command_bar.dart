@@ -40,7 +40,7 @@ class PortfolioCommandBar extends StatelessWidget {
             onPressed: onCreate,
           ),
           IconButton(
-            tooltip: '加入品种',
+            tooltip: '添加品种',
             icon: const Icon(Icons.playlist_add,
                 color: AppColors.amber, size: 18),
             onPressed: onAddAsset,

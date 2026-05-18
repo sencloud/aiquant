@@ -1,11 +1,11 @@
 {
-    "name": "Fincept",
-    "short_name": "Fincept",
+    "name": "喜宽",
+    "short_name": "喜宽",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#D97706",
     "theme_color": "#D97706",
-    "description": "Fincept — DeepSeek 助理 + Tushare 投资组合",
+    "description": "喜宽 — AI 投资助手，帮你聊行情、管组合。",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

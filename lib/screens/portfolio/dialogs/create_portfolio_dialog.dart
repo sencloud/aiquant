@@ -37,7 +37,7 @@ class _CreatePortfolioDialogState extends State<CreatePortfolioDialog> {
               controller: _name,
               decoration: const InputDecoration(
                 labelText: '名称',
-                hintText: '例如：中国实盘持仓组合',
+                hintText: '比如：我的 A 股组合',
               ),
             ),
             const SizedBox(height: 12),

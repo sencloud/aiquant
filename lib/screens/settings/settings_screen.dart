@@ -32,7 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final recovered = await billing.restoreUnverifiedPurchases();
         if (recovered > 0 && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('已自动补到账 $recovered 笔历史充值'),
+            content: Text('已补充到账 $recovered 笔历史充值'),
             duration: const Duration(seconds: 3),
           ));
         }
@@ -59,15 +59,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('充值未到账'),
+        title: const Text('喜点尚未到账'),
         content: Text(
-          '$err\n\n如果苹果已扣款，喜点稍后会自动到账。'
-          '你也可以下拉本页或重启 App 触发自动补单。',
+          '$err\n\n如果苹果已经扣款，喜点稍后会自动到账。'
+          '你也可以下拉刷新这个页面，或重新打开 App 触发自动补单。',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('知道了'),
+            child: const Text('好的'),
           ),
           TextButton(
             onPressed: () async {
@@ -75,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final n = await b.restoreUnverifiedPurchases();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(n > 0 ? '已补到账 $n 笔' : '暂无未到账记录'),
+                content: Text(n > 0 ? '已补到账 $n 笔' : '暂无未到账的订单'),
               ));
             },
             child: const Text('立即重试'),
@@ -150,10 +150,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
             _section('喜点说明'),
             const SizedBox(height: 6),
-            _bulletText('• 喜点是 App 内的虚拟资产，用于解锁高级 AI 助理与深度行情分析。'),
-            _bulletText('• 每次深度模式（含推理过程）的 AI 回答消耗 5 喜点。'),
-            _bulletText('• 每次工具调用（拉取行情/对比/筛选）消耗 1 喜点。'),
-            _bulletText('• 喜点为虚拟商品，购买后不可退换、不可转让。'),
+            _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理的深度回答与行情分析。'),
+            _bulletText('• 每次深度回答（包含完整推理过程）扣 5 喜点。'),
+            _bulletText('• 每次行情查询（拉取数据、对比、筛选）扣 1 喜点。'),
+            _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
             if (user != null) ...[
               const SizedBox(height: 24),
               _section('账号管理'),
@@ -173,7 +173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: const Icon(Icons.info_outline, color: AppColors.amber),
               title: Text('喜宽',
                   style: TextStyle(color: AppColors.textPrimary)),
-              subtitle: Text('AI 量化助手',
+              subtitle: Text('AI 投资助手 · 让看盘和决策更轻松',
                   style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11)),
             ),
@@ -424,7 +424,7 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shortId = uuid.length > 8 ? uuid.substring(0, 8) : uuid;
-    final display = nickname.isEmpty ? 'Apple 账号用户' : nickname;
+    final display = nickname.isEmpty ? 'Apple 用户' : nickname;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -450,7 +450,7 @@ class _AccountTile extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text('UID · $shortId',
+                Text('账号 ID · $shortId',
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11)),
               ],
@@ -467,9 +467,9 @@ class _LogoutTile extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('退出登录？'),
+        title: const Text('确定退出登录吗？'),
         content:
-            const Text('退出后本机的会话将清除，下次启动需要重新通过 Apple 登录。'),
+            const Text('退出后本机的对话记录会被清除，下次打开需要再次用 Apple 账号登录。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -478,7 +478,7 @@ class _LogoutTile extends StatelessWidget {
             style:
                 ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('退出'),
+            child: const Text('退出登录'),
           ),
         ],
       ),
@@ -543,11 +543,11 @@ class _DeleteAccountTile extends StatelessWidget {
         ));
         Navigator.of(context).maybePop();
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('注销失败：$e'),
-          duration: const Duration(seconds: 3),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('注销失败，请稍后再试'),
+          duration: Duration(seconds: 3),
         ));
       }
     }
@@ -581,7 +581,7 @@ class _DeleteAccountTile extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
-                    Text('永久清除账号身份信息，此操作不可撤销',
+                    Text('永久清除账号信息，且无法恢复',
                         style: TextStyle(
                             color: AppColors.textTertiary, fontSize: 11)),
                   ],
@@ -647,9 +647,9 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-              '注销后将立即清除你的身份资料（昵称、Apple 标识、设备信息、定时任务）。\n\n'
-              '订单与喜点流水会按监管要求保留，但与你不再关联。\n\n'
-              '此操作不可撤销。请输入"$_expected"确认。',
+              '注销后会立刻清除你的身份资料（昵称、Apple 账号绑定、设备信息、定时任务）。\n\n'
+              '依据监管要求，订单与喜点流水会保留，但不再与你关联。\n\n'
+              '此操作无法撤销。请在下方输入「$_expected」确认。',
               style: TextStyle(fontSize: 13, height: 1.5)),
           const SizedBox(height: 12),
           TextField(
@@ -732,7 +732,7 @@ class _LedgerSheetState extends State<_LedgerSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : items.isEmpty
                       ? Center(
-                          child: Text('暂无流水',
+                          child: Text('还没有流水记录',
                               style: TextStyle(
                                   color: AppColors.textTertiary, fontSize: 12)))
                       : NotificationListener<ScrollNotification>(

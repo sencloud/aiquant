@@ -128,7 +128,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('确认数量与买入均价',
+                child: Text('填写数量与买入均价',
                     style: TextStyle(
                         color: AppColors.amber,
                         fontSize: 13,
@@ -223,7 +223,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
-                  Text('均价默认填充最新收盘价，可手动修改',
+                  Text('均价默认是最新收盘价，可自行修改',
                       style: TextStyle(
                           color: AppColors.textTertiary, fontSize: 11)),
                   const Spacer(),
@@ -235,7 +235,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
                   ElevatedButton.icon(
                     onPressed: _confirm,
                     icon: const Icon(Icons.add_task, size: 14),
-                    label: const Text('确认加入'),
+                    label: const Text('确认添加'),
                   ),
                 ],
               ),
@@ -251,7 +251,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
       case _PriceStatus.loading:
         return '加载中…';
       case _PriceStatus.failed:
-        return '未取到收盘价';
+        return '收盘价获取失败';
       case _PriceStatus.loaded:
       case null:
         return null;
@@ -296,7 +296,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
         continue;
       }
       if (ins.assetClass == '期货' && qty != qty.roundToDouble()) {
-        problems.add('${ins.name}：手数必须为整数');
+        problems.add('${ins.name}：手数请输入整数');
         continue;
       }
       out[ins.tsCode] = AssetLot(qty, price);
@@ -327,16 +327,16 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
   String _qtyHint(Instrument ins) {
     switch (ins.assetClass) {
       case '股票':
-        return 'A 股 ≥ 100 且为 100 整数倍';
+        return '至少 100 股，且按 100 的整数倍输入';
       case 'ETF':
       case 'LOF':
-        return '场内基金 ≥ 100 且为 100 整数倍';
+        return '至少 100 份，且按 100 的整数倍输入';
       case '期货':
         final mult = ChinaMarket.contractMultiplier(ins.tsCode, ins.assetClass);
         if (mult > 1) {
           return '1 手 = ${mult.toStringAsFixed(0)} 个标的单位';
         }
-        return '按手输入（整数）';
+        return '请按手数输入（整数）';
       default:
         return '';
     }

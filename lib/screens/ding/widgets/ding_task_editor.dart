@@ -64,8 +64,8 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
     _prompt = TextEditingController(
         text: ex?.prompt ??
             widget.initialPrompt ??
-            '基于今天 A 股 / ETF / 期货市场，给我一份结构化的行情总结：'
-                '主要指数表现、领涨/领跌行业、北向资金/两融、大事件以及对后市的关注点。');
+            '帮我整理一份今日 A 股 / ETF / 期货市场的行情总结：'
+                '主要指数表现、领涨与领跌行业、北向资金与两融变化、值得关注的事件，以及对后市的几点看法。');
     _personaId = ex?.personaId ?? widget.initialPersonaId ?? Personas.defaultId;
     _enabled = ex?.enabled ?? true;
 
@@ -130,7 +130,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
     final prompt = _prompt.text.trim();
     if (title.isEmpty || prompt.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('任务标题与执行 Prompt 都不能为空'),
+        content: Text('请填写任务名称和任务内容'),
       ));
       return;
     }
@@ -175,7 +175,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(isEdit ? '编辑 DING 任务' : '新建 DING 任务',
+                    child: Text(isEdit ? '编辑定时任务' : '新建定时任务',
                         style: const TextStyle(
                             color: AppColors.amber,
                             fontSize: 14,
@@ -192,8 +192,8 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
               TextField(
                 controller: _title,
                 decoration: const InputDecoration(
-                  labelText: '任务标题',
-                  hintText: '如：今日行情总结 / 北向资金日报 …',
+                  labelText: '任务名称',
+                  hintText: '比如：今日行情总结 / 北向资金日报',
                   isDense: true,
                 ),
               ),
@@ -203,7 +203,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
                 minLines: 4,
                 maxLines: 8,
                 decoration: const InputDecoration(
-                  labelText: '执行 Prompt（每次任务发送给 AI 的指令）',
+                  labelText: '任务内容（每次发给 AI 的问题）',
                   isDense: true,
                 ),
               ),
@@ -212,7 +212,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
               const SizedBox(height: 6),
               _personaPicker(),
               const SizedBox(height: 16),
-              _label('调度规则'),
+              _label('执行频率'),
               const SizedBox(height: 6),
               _freqPicker(),
               const SizedBox(height: 8),
@@ -226,7 +226,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
                     onChanged: (v) => setState(() => _enabled = v),
                   ),
                   const SizedBox(width: 6),
-                  Text(_enabled ? '已启用，到点自动执行' : '已暂停（不自动执行）',
+                  Text(_enabled ? '已开启，到点自动执行' : '已暂停，不会自动执行',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 12)),
                 ],
@@ -243,7 +243,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
                   ElevatedButton.icon(
                     icon: Icon(isEdit ? Icons.save : Icons.add_alarm,
                         size: 14),
-                    label: Text(isEdit ? '保存' : '创建任务'),
+                    label: Text(isEdit ? '保存' : '创建'),
                     onPressed: _save,
                   ),
                 ],
@@ -370,7 +370,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
       case _Freq.interval:
         return Row(
           children: [
-            Text('每 ',
+            Text('每隔 ',
                 style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
             DropdownButton<int>(
@@ -389,7 +389,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
               },
             ),
             const SizedBox(width: 8),
-            Text('运行一次',
+            Text('执行一次',
                 style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12)),
           ],

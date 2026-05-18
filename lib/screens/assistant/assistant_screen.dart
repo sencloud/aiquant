@@ -69,12 +69,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('喜点不足'),
+        title: const Text('喜点不够啦'),
         content: Text(issue.message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('稍后再说'),
+            child: const Text('再想想'),
           ),
           TextButton(
             onPressed: () {
@@ -83,7 +83,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 builder: (_) => const SettingsScreen(),
               ));
             },
-            child: const Text('立即充值'),
+            child: const Text('去充值'),
           ),
         ],
       ),
@@ -155,7 +155,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: '新对话',
+            tooltip: '新建对话',
             icon: const Icon(Icons.add_comment_outlined, size: 18),
             onPressed: () => chat.newSession(),
           ),
@@ -218,7 +218,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         children: [
           const Spacer(),
           Text(
-            'Hi，今天从哪里开始？',
+            '嗨，今天想聊点什么？',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 24,
@@ -303,7 +303,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       maxLines: 6,
                       style: const TextStyle(fontSize: 13),
                       decoration: const InputDecoration(
-                        hintText: '发消息或问点 A 股 / ETF / 期货…',
+                        hintText: '想问点什么？股票、ETF、期货都可以…',
                         isDense: true,
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -420,7 +420,7 @@ class _CreditAdBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '做任务、买喜点、解锁深度 AI 与高级行情',
+                      '充值喜点，畅享深度分析与更多 AI 能力',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11),
                     ),
