@@ -246,7 +246,7 @@ func defaultConfig() *Config {
 			ChatModel:    "deepseek-chat",
 			ReasonModel:  "deepseek-reasoner",
 			TimeoutSec:   180,
-			MaxToolLoops: 6,
+			MaxToolLoops: 60,
 		},
 		SMS: SMSConfig{Provider: "mock"},
 		Tushare: TushareConfig{
@@ -262,8 +262,11 @@ func defaultConfig() *Config {
 			TimeoutSec:    20,
 		},
 		AI: AIConfig{
-			MaxToolLoops:     6,
-			MaxContextMsgs:   12,
+			// 工具循环轮次：LLM 每轮可能并发调多个 tool，60 轮足够支撑
+			// 跨多个行业/标的的链式查询，又不会因为模型陷入循环烧太多喜点。
+			MaxToolLoops: 60,
+			// 历史上下文条数：覆盖 30+ 轮多工具对话仍然能保留前文要点。
+			MaxContextMsgs:   60,
 			BaseChatCredits:  1,
 			DeepBonusCredits: 5,
 			PerToolCredits:   1,
