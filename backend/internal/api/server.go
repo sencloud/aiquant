@@ -53,30 +53,44 @@ func NewRouter(d *Deps) http.Handler {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-	r.Use(middleware.Timeout(d.Config.Server.WriteTimeout()))
 	r.Use(metricsMiddleware)
 
 	r.Get("/healthz", handleHealthz(d))
 	r.Get("/readyz", handleReadyz(d))
 	r.Get("/metrics", handleMetrics(d))
 
+	// SSE 子路由：JWT + audit，但不挂 middleware.Timeout —— chi 的 timeout
+	// 用 http.TimeoutHandler 包了 ResponseWriter，会让 SSE handler 拿不到
+	// http.Flusher，且 60s 强制 cancel ctx 切断长流。
 	r.Route("/v1", func(r chi.Router) {
-		// 公开路由也审计（无 user_id），但仅 mutating
-		r.Group(func(r chi.Router) {
-			r.Use(auditMiddleware(d.Store))
-			mountAuth(r, d)
-			mountBillingPublic(r, d)
-			mountClientError(r, d)
-		})
-		// 受保护的路由：JWT 中间件 → audit middleware（这样能拿到 user_id）
 		r.Group(func(r chi.Router) {
 			r.Use(JWTMiddleware(d.Auth))
 			r.Use(auditMiddleware(d.Store))
-			mountMe(r, d)
-			mountDevices(r, d)
-			mountBillingPrivate(r, d)
-			mountDing(r, d)
 			mountAIChat(r, d)
+			mountDingLong(r, d)
+		})
+
+		// 其余路由统一加全局 60s 超时
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Timeout(d.Config.Server.WriteTimeout()))
+
+			// 客户端错误上报：不挂 audit middleware（handler 自身已经写一条
+			// action='client.error' 的 audit_log，避免重复）。
+			mountClientError(r, d)
+
+			r.Group(func(r chi.Router) {
+				r.Use(auditMiddleware(d.Store))
+				mountAuth(r, d)
+				mountBillingPublic(r, d)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(JWTMiddleware(d.Auth))
+				r.Use(auditMiddleware(d.Store))
+				mountMe(r, d)
+				mountDevices(r, d)
+				mountBillingPrivate(r, d)
+				mountDing(r, d)
+			})
 		})
 	})
 

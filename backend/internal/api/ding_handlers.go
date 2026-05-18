@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/sencloud/finme-backend/internal/platform"
 )
 
+// mountDing 挂载 DING 的常规 CRUD 路由（响应可在全局 timeout 内完成）。
+// 长耗时的 run-now 单独由 mountDingLong 挂在不带 timeout 的 group。
 func mountDing(r chi.Router, d *Deps) {
 	r.Route("/ding/tasks", func(r chi.Router) {
 		r.Get("/", handleListTasks(d))
@@ -17,7 +20,6 @@ func mountDing(r chi.Router, d *Deps) {
 		r.Patch("/{uuid}", handleUpdateTask(d))
 		r.Delete("/{uuid}", handleDeleteTask(d))
 		r.Post("/{uuid}/runs", handleReportRun(d))
-		r.Post("/{uuid}/run-now", handleRunNow(d))
 	})
 	r.Route("/notifications", func(r chi.Router) {
 		r.Get("/", handleListNotif(d))
@@ -27,6 +29,12 @@ func mountDing(r chi.Router, d *Deps) {
 		r.Post("/mark-all-read", handleMarkAllRead(d))
 		r.Delete("/{uuid}", handleDeleteNotif(d))
 	})
+}
+
+// mountDingLong 挂载 DING 中需要执行 LLM tool loop 的长耗时路由。
+// 调用方应在不挂 chi.Timeout 中间件的 router 上注册。
+func mountDingLong(r chi.Router, d *Deps) {
+	r.Post("/ding/tasks/{uuid}/run-now", handleRunNow(d))
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────
@@ -129,8 +137,15 @@ func handleReportRun(d *Deps) http.HandlerFunc {
 //
 // 同步阻塞直到一次完整 tool calling loop 跑完（最长可能数十秒），
 // 适合用户手动点"立即执行"。批处理由 scheduler 进程接管。
+//
+// 该路由由 mountDingLong 挂在不带 chi.Timeout 的 group；
+// 进入后再把 http.Server 层 WriteTimeout 关闭，由 LLM/工具调用自行限时。
 func handleRunNow(d *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
+		_ = rc.SetReadDeadline(time.Time{})
+
 		uc := MustUser(r)
 		uuid := chi.URLParam(r, "uuid")
 		if uuid == "" {
