@@ -68,8 +68,8 @@ func registerBaseTushare(r *tool.Registry, c *tushare.Client) {
 	r.MustRegister(&getQuoteTool{c: c})
 	r.MustRegister(&compareQuotesTool{c: c})
 	r.MustRegister(&listIndustryStocksTool{c: c})
-	r.MustRegister(&getMarketSnapshotTool{c: c})
 	r.MustRegister(&listEtfsByThemeTool{c: c})
+	// 注：get_market_snapshot 已迁移到 realtime.go，使用东方财富 push2 实时数据。
 }
 
 // ── 1. search_instrument ────────────────────────────────────────────────
@@ -176,10 +176,13 @@ func (t *searchInstrumentTool) Run(ctx context.Context, args json.RawMessage) (s
 }
 
 func matched(ins tushare.Instrument, qLow string) bool {
-	for _, f := range []string{ins.Name, ins.TsCode, ins.Symbol, ins.Industry} {
+	for _, f := range []string{ins.Name, ins.TsCode, ins.Symbol} {
 		if f != "" && strings.Contains(strings.ToLower(f), qLow) {
 			return true
 		}
+	}
+	if ins.Industry != "" && matchAnyIndustry(ins.Industry, qLow) {
+		return true
 	}
 	return false
 }
@@ -355,11 +358,11 @@ type listIndustryStocksTool struct{ c *tushare.Client }
 func (t *listIndustryStocksTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name:        "list_industry_stocks",
-		Description: "按行业关键字列出 A 股个股（如\"白酒\"、\"半导体\"、\"光伏\"等）。返回该行业内的股票代码与名称，便于后续 get_quote / compare_quotes。",
+		Description: "按行业关键字列出 A 股个股（支持\"有色金属/新能源/半导体/医药/钢铁/军工/金融\"等大类，会自动展开为细分子行业；也支持\"白酒/铜/光伏\"等细分名）。返回该行业内的股票 ts_code 与名称，便于后续 get_quote / compare_quotes。当关键字 0 命中时返回 distinct_industries 让上层选择。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
-				"industry_keyword": {Type: "string", Description: "行业关键字"},
-				"limit":            {Type: "integer", Description: "前 N 只（默认 20，最大 60）"},
+				"industry_keyword": {Type: "string", Description: "行业关键字（大类或细分均可）"},
+				"limit":            {Type: "integer", Description: "前 N 只（默认 30，最大 80）"},
 			},
 			Required: []string{"industry_keyword"},
 		},
@@ -378,15 +381,14 @@ func (t *listIndustryStocksTool) Run(ctx context.Context, args json.RawMessage) 
 	if kw == "" {
 		return tool.EncodeJSON(map[string]any{"error": "industry_keyword 必填"}), nil
 	}
-	limit := clampInt(in.Limit, 1, 60, 20)
+	limit := clampInt(in.Limit, 1, 80, 30)
 	stocks, _, _, _, err := sharedInstrumentCache.all(ctx, t.c)
 	if err != nil {
 		return "", err
 	}
-	kwLow := strings.ToLower(kw)
 	hits := []map[string]any{}
 	for _, s := range stocks {
-		if strings.Contains(strings.ToLower(s.Industry), kwLow) {
+		if matchAnyIndustry(s.Industry, kw) {
 			m := map[string]any{
 				"ts_code":  s.TsCode,
 				"name":     s.Name,
@@ -401,6 +403,28 @@ func (t *listIndustryStocksTool) Run(ctx context.Context, args json.RawMessage) 
 			}
 		}
 	}
+	if len(hits) == 0 {
+		seen := map[string]bool{}
+		indus := []string{}
+		for _, s := range stocks {
+			if s.Industry == "" || seen[s.Industry] {
+				continue
+			}
+			seen[s.Industry] = true
+			indus = append(indus, s.Industry)
+		}
+		sort.Strings(indus)
+		if len(indus) > 80 {
+			indus = indus[:80]
+		}
+		return tool.EncodeJSON(map[string]any{
+			"industry_keyword":    kw,
+			"count":               0,
+			"stocks":              []any{},
+			"hint":                "未匹配到该行业。请从 distinct_industries 中挑选实际存在的细分行业关键字重试，或换用 search_instrument 按子行业逐一查询。",
+			"distinct_industries": indus,
+		}), nil
+	}
 	return tool.EncodeJSON(map[string]any{
 		"industry_keyword": kw,
 		"count":            len(hits),
@@ -408,55 +432,7 @@ func (t *listIndustryStocksTool) Run(ctx context.Context, args json.RawMessage) 
 	}), nil
 }
 
-// ── 5. get_market_snapshot ─────────────────────────────────────────────
-
-type getMarketSnapshotTool struct{ c *tushare.Client }
-
-func (t *getMarketSnapshotTool) Spec() tool.Spec {
-	return tool.Spec{
-		Name:        "get_market_snapshot",
-		Description: "获取 A 股主要指数（沪深 300、上证 50、中证 500、科创 50、创业板指）的最新行情快照。",
-		Parameters: tool.ParameterSchema{
-			Properties: map[string]tool.ParameterProperty{},
-		},
-	}
-}
-
-var snapshotIdx = []struct{ Code, Name string }{
-	{"000300.SH", "沪深300"},
-	{"000016.SH", "上证50"},
-	{"000905.SH", "中证500"},
-	{"000688.SH", "科创50"},
-	{"399006.SZ", "创业板指"},
-}
-
-func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	end := time.Now()
-	start := end.AddDate(0, 0, -30)
-	results := []map[string]any{}
-	for _, ix := range snapshotIdx {
-		candles, err := t.c.IndexDaily(ctx, ix.Code, start, end)
-		if err != nil {
-			results = append(results, map[string]any{"name": ix.Name, "error": err.Error()})
-			continue
-		}
-		if len(candles) == 0 {
-			results = append(results, map[string]any{"name": ix.Name, "error": "无行情"})
-			continue
-		}
-		last := candles[len(candles)-1]
-		results = append(results, map[string]any{
-			"name":         ix.Name,
-			"code":         ix.Code,
-			"last_date":    formatDate(last.TradeDate),
-			"last_close":   last.Close,
-			"last_pct_chg": last.PctChg,
-		})
-	}
-	return tool.EncodeJSON(map[string]any{"indexes": results}), nil
-}
-
-// ── 6. list_etfs_by_theme ──────────────────────────────────────────────
+// ── 5. list_etfs_by_theme ──────────────────────────────────────────────
 
 type listEtfsByThemeTool struct{ c *tushare.Client }
 
@@ -592,4 +568,69 @@ func posOnly(v float64) any {
 		return nil
 	}
 	return v
+}
+
+// industryAliases 把常见大类映射到 Tushare stock_basic.industry 里实际存在的细分行业关键字。
+//
+// 背景：Tushare 的 industry 字段是细分（如"铜"、"铝"、"黄金"、"半导体"），
+// 模型经常用大类提问（"有色金属"、"新能源"），直接 substring 匹配会 0 命中。
+// 用这张表把大类展开成多个子串，做 OR 匹配。
+var industryAliases = map[string][]string{
+	"有色金属":   {"铜", "铝", "铅锌", "黄金", "稀土", "钼", "钨", "镍", "锂", "小金属", "金属新材", "工业金属"},
+	"有色":     {"铜", "铝", "铅锌", "黄金", "稀土", "钼", "钨", "镍", "锂", "小金属", "金属新材", "工业金属"},
+	"金属":     {"铜", "铝", "铅锌", "黄金", "稀土", "钼", "钨", "镍", "小金属", "金属新材"},
+	"新能源":    {"锂电池", "光伏", "风电", "新能源车", "储能", "锂", "电池"},
+	"新能源车":   {"汽车整车", "汽车零部件", "锂电池"},
+	"半导体":    {"半导体", "集成电路", "电子元件", "芯片"},
+	"芯片":     {"半导体", "集成电路", "芯片"},
+	"医药":     {"医药商业", "化学制药", "中药", "生物制品", "医疗器械", "医疗服务"},
+	"生物医药":   {"生物制品", "化学制药", "医药"},
+	"中药":     {"中药"},
+	"白酒":     {"白酒"},
+	"消费":     {"白酒", "食品饮料", "饮料制造", "服装家纺", "家用轻工", "化妆品"},
+	"食品饮料":   {"白酒", "食品饮料", "饮料制造", "调味发酵品"},
+	"钢铁":     {"普钢", "特钢", "钢铁"},
+	"煤炭":     {"煤炭开采", "焦炭加工", "动力煤"},
+	"石油":     {"石油开采", "石油加工", "油气"},
+	"军工":     {"航空装备", "航天装备", "兵器兵装", "军工电子", "船舶制造"},
+	"金融":     {"银行", "保险", "证券", "多元金融"},
+	"地产":     {"房地产开发", "园区开发", "房地产服务"},
+	"房地产":    {"房地产开发", "园区开发", "房地产服务"},
+	"光伏":     {"光伏", "光伏设备", "光伏材料"},
+	"风电":     {"风电设备", "风电"},
+	"汽车":     {"汽车整车", "汽车零部件", "汽车服务"},
+	"机器人":    {"机器人", "工业自动化"},
+	"AI":     {"软件开发", "互联网", "计算机应用", "电子元件"},
+	"人工智能":   {"软件开发", "互联网", "计算机应用"},
+}
+
+// expandIndustryKeywords 返回与 kw 匹配的子行业候选关键字（小写）。
+// 若 kw 命中别名表，返回别名集合；否则返回 kw 本身。
+func expandIndustryKeywords(kw string) []string {
+	kw = strings.TrimSpace(kw)
+	if kw == "" {
+		return nil
+	}
+	if subs, ok := industryAliases[kw]; ok {
+		out := make([]string, 0, len(subs))
+		for _, s := range subs {
+			out = append(out, strings.ToLower(s))
+		}
+		return out
+	}
+	return []string{strings.ToLower(kw)}
+}
+
+// matchAnyIndustry 检查 industry 字段是否匹配 kw 或其任意别名（子串包含）。
+func matchAnyIndustry(industry, kw string) bool {
+	if industry == "" {
+		return false
+	}
+	indLow := strings.ToLower(industry)
+	for _, k := range expandIndustryKeywords(kw) {
+		if k != "" && strings.Contains(indLow, k) {
+			return true
+		}
+	}
+	return false
 }

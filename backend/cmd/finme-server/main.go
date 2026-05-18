@@ -19,7 +19,9 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sencloud/finme-backend/internal/ai/chat"
+	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
+	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	aitools "github.com/sencloud/finme-backend/internal/ai/tools"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
@@ -182,11 +184,24 @@ func buildChatService(cfg *platform.Config, l *zerolog.Logger, st *store.Store, 
 	})
 }
 
-// buildToolRegistry 构造服务端 30 个 AI 工具的统一注册表。
+// buildToolRegistry 构造服务端 AI 工具的统一注册表。
+//
+// 数据源：
+//   - Tushare：A 股 / 期货历史日线、分钟、财报、行业资金、北向、两融
+//   - Realtime（东方财富 push2）：实时快照、涨跌幅榜、指数实时
+//   - CNNews（财联社+东财快讯+新浪滚动）：国内中文财经/期货/政策电报
+//   - News（GDELT+FIRMS）：海外议题、卫星火点
 func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
 	tu := tushare.New(cfg.Tushare)
 	nw := news.New(cfg.News)
-	reg := aitools.BuildAll(aitools.Deps{Tushare: tu, News: nw})
+	cn := cnnews.New(cfg.News.TimeoutSec)
+	rt := realtime.New(0)
+	reg := aitools.BuildAll(aitools.Deps{
+		Tushare:  tu,
+		News:     nw,
+		CNNews:   cn,
+		Realtime: rt,
+	})
 	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
 	return reg
 }

@@ -9,14 +9,19 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 )
 
-// registerEvent 注册 5 个事件工具。
-func registerEvent(r *tool.Registry, c *news.Client) {
+// registerEvent 注册新闻 / 事件 / 卫星类工具。
+//
+// 国内中文新闻 / 期货 / 农产品 走 cnnews（财联社+东财+新浪），
+// 海外议题 / 航运 / 地缘冲突 走 news（GDELT），卫星火点走 NASA FIRMS。
+func registerEvent(r *tool.Registry, c *news.Client, cn *cnnews.Client) {
 	r.MustRegister(&searchGlobalEventsTool{c: c})
-	r.MustRegister(&searchChineseNewsTool{c: c})
+	r.MustRegister(&searchChineseNewsTool{cn: cn})
+	r.MustRegister(&getIndustryNewsTool{cn: cn})
 	r.MustRegister(&searchShippingEventsTool{c: c})
 	r.MustRegister(&searchGeopoliticsEventsTool{c: c})
 	r.MustRegister(&getFireHotspotsTool{c: c})
@@ -167,16 +172,20 @@ func (t *searchGlobalEventsTool) Run(ctx context.Context, args json.RawMessage) 
 
 // ── 20. search_chinese_news ────────────────────────────────────────────
 
-type searchChineseNewsTool struct{ c *news.Client }
+type searchChineseNewsTool struct{ cn *cnnews.Client }
 
 func (t *searchChineseNewsTool) Spec() tool.Spec {
 	return tool.Spec{
-		Name:        "search_chinese_news",
-		Description: "搜索 Google News 中文环境下与关键词匹配的最新新闻（适合具体公司、A 股板块、政策、行业动态）。",
+		Name: "search_chinese_news",
+		Description: "搜索国内中文财经/A 股/期货/农产品/政策最新新闻。" +
+			"聚合源：财联社电报（最实时） + 东方财富 7×24 快讯 + 新浪滚动财经。" +
+			"关键词支持空格 / 中文逗号分隔做或匹配（如「锂电 有色」表示锂电或有色）。" +
+			"返回标题/来源/发布时间/摘要/标签。" +
+			"国际/海外议题请改用 search_global_events。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
-				"query": {Type: "string", Description: "中文关键词"},
-				"limit": {Type: "integer", Description: "前 N 条（默认 10，最大 25）"},
+				"query": {Type: "string", Description: "中文关键词；多个用空格 / 逗号分隔（OR 匹配）"},
+				"limit": {Type: "integer", Description: "前 N 条（默认 15，最大 50）"},
 			},
 			Required: []string{"query"},
 		},
@@ -195,8 +204,11 @@ func (t *searchChineseNewsTool) Run(ctx context.Context, args json.RawMessage) (
 	if q == "" {
 		return tool.EncodeJSON(map[string]any{"error": "query 必填"}), nil
 	}
-	limit := clampInt(in.Limit, 1, 25, 10)
-	items, err := t.c.SearchGoogleNews(ctx, q, "zh-CN", limit)
+	limit := clampInt(in.Limit, 1, 50, 15)
+	items, err := t.cn.SearchAll(ctx, cnnews.SearchOptions{
+		Keyword: q,
+		Limit:   limit,
+	})
 	if err != nil {
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
@@ -204,7 +216,98 @@ func (t *searchChineseNewsTool) Run(ctx context.Context, args json.RawMessage) (
 		"query":    q,
 		"count":    len(items),
 		"articles": eventsToJSON(items),
+		"sources":  []string{"cls_telegraph", "eastmoney_kuaixun", "sina_roll"},
 	}), nil
+}
+
+// ── 20.5 get_industry_news ─────────────────────────────────────────────
+//
+// 行业 / 期货 / 农产品 / 化工 / 能源 / 有色 / 半导体 / 军工 等大频道滚动。
+// 内部仍是上面三源聚合，但 query 用预设别名 → 关键字集，提升召回。
+
+type getIndustryNewsTool struct{ cn *cnnews.Client }
+
+func (t *getIndustryNewsTool) Spec() tool.Spec {
+	return tool.Spec{
+		Name: "get_industry_news",
+		Description: "按行业 / 主题大类获取最新国内新闻（财联社+东财+新浪聚合）。" +
+			"theme 支持：'futures' (期货) / 'agricultural' (农产品) / 'metals' (有色金属) / " +
+			"'energy' (能源/原油/煤炭) / 'chemical' (化工) / 'semiconductor' (半导体) / " +
+			"'military' (军工) / 'newenergy' (新能源车/锂电/光伏) / 'realestate' (房地产) / " +
+			"'macro' (宏观政策/央行/财政) 。" +
+			"也可以传 free_keyword 自定义关键字（OR 匹配）。",
+		Parameters: tool.ParameterSchema{
+			Properties: map[string]tool.ParameterProperty{
+				"theme":        {Type: "string", Description: "行业主题别名（见说明）；为空时仅按 free_keyword 过滤"},
+				"free_keyword": {Type: "string", Description: "可选自定义关键字"},
+				"limit":        {Type: "integer", Description: "前 N 条（默认 20，最大 60）"},
+			},
+		},
+	}
+}
+
+// industryThemeKeywords 把行业别名展开成「财联社/东财常用词」。
+//
+// 经验：财联社电报里期货 / 农产品的标题经常用「白糖」「豆粕」「棉花」这类品种名而
+// 不是「农产品」三个字，所以要用品种关键字做 OR 匹配。
+var industryThemeKeywords = map[string][]string{
+	"futures":       {"期货", "主力合约", "玻璃", "纯碱", "甲醇", "PTA", "螺纹", "焦煤", "焦炭", "铁矿"},
+	"agricultural":  {"白糖", "豆粕", "豆油", "棕榈油", "棉花", "玉米", "小麦", "生猪", "鸡蛋", "苹果", "红枣", "花生", "农产品", "粮食"},
+	"metals":        {"有色", "铜", "铝", "黄金", "白银", "锌", "铅", "镍", "锂", "稀土", "钨", "钼", "金属"},
+	"energy":        {"原油", "石油", "WTI", "布伦特", "OPEC", "煤炭", "动力煤", "天然气", "LNG", "能源"},
+	"chemical":      {"化工", "PVC", "纯碱", "甲醇", "乙烯", "丙烯", "PTA", "尿素", "PX"},
+	"semiconductor": {"半导体", "芯片", "晶圆", "光刻", "存储", "GPU", "封测", "EDA"},
+	"military":      {"军工", "国防", "航天", "导弹", "战机", "舰船", "兵器"},
+	"newenergy":     {"新能源", "锂电", "电池", "光伏", "风电", "储能", "新能源车", "比亚迪", "宁德时代"},
+	"realestate":    {"房地产", "楼市", "土拍", "地产", "保交楼", "房贷"},
+	"macro":         {"央行", "MLF", "LPR", "财政部", "国常会", "GDP", "PMI", "CPI", "PPI", "降准", "降息"},
+}
+
+func (t *getIndustryNewsTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		Theme       string `json:"theme,omitempty"`
+		FreeKeyword string `json:"free_keyword,omitempty"`
+		Limit       int    `json:"limit,omitempty"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", err
+	}
+	limit := clampInt(in.Limit, 1, 60, 20)
+	theme := strings.ToLower(strings.TrimSpace(in.Theme))
+	free := strings.TrimSpace(in.FreeKeyword)
+
+	parts := []string{}
+	if kws, ok := industryThemeKeywords[theme]; ok {
+		parts = append(parts, kws...)
+	} else if theme != "" {
+		parts = append(parts, theme)
+	}
+	if free != "" {
+		parts = append(parts, free)
+	}
+	if len(parts) == 0 {
+		return tool.EncodeJSON(map[string]any{
+			"error": "theme 与 free_keyword 至少填一个；可用 theme 见 spec",
+		}), nil
+	}
+
+	items, err := t.cn.SearchAll(ctx, cnnews.SearchOptions{
+		Keyword: strings.Join(parts, " "),
+		Limit:   limit,
+	})
+	if err != nil {
+		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
+	}
+	out := map[string]any{
+		"theme":    theme,
+		"keywords": parts,
+		"count":    len(items),
+		"articles": eventsToJSON(items),
+	}
+	if free != "" {
+		out["free_keyword"] = free
+	}
+	return tool.EncodeJSON(out), nil
 }
 
 // ── 21. search_shipping_events ─────────────────────────────────────────
