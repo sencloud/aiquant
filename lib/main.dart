@@ -54,7 +54,9 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => AuthState()..bootstrap()),
         ChangeNotifierProvider(create: (_) => BillingState()),
         ChangeNotifierProvider(create: (_) => PortfolioState()..bootstrap()),
-        ChangeNotifierProvider(create: (_) => ChatState()..bootstrap()),
+        // ChatState / DingState 的 bootstrap() 由 AuthGate 在登录态切换时驱动，
+        // 避免未登录就把上一个用户的本地缓存读出来。
+        ChangeNotifierProvider(create: (_) => ChatState()),
         ChangeNotifierProvider(create: (_) => DingState()),
       ],
       child: const FinceptApp(),
