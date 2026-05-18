@@ -46,6 +46,16 @@ class ChatState extends ChangeNotifier {
   int get totalTokens => _totalToolCalls;
   int? get lastBalance => _lastBalance;
 
+  /// 最近一次"喜点不足 / 扣费失败"提示。UI 监听后弹一次 dialog 跳充值，
+  /// 弹完调 [consumeChargeIssue] 清掉，避免来回弹。
+  ChargeIssue? _chargeIssue;
+  ChargeIssue? get chargeIssue => _chargeIssue;
+  void consumeChargeIssue() {
+    if (_chargeIssue == null) return;
+    _chargeIssue = null;
+    notifyListeners();
+  }
+
   ChatSession? get active =>
       _activeId == null ? null : _byId(_activeId!);
   List<ChatMessage> get messages => active?.messages ?? const [];
@@ -244,8 +254,18 @@ class ChatState extends ChangeNotifier {
           if (ev.balanceAfter != null) _lastBalance = ev.balanceAfter;
           break;
         case AiChatEventKind.error:
-          assistant.content +=
-              '${assistant.content.isEmpty ? '' : '\n\n'}⚠️ ${ev.errorCode}：${ev.errorMessage}';
+          final code = ev.errorCode ?? '';
+          if (code == 'AI.INSUFFICIENT_BALANCE' || code == 'AI.CHARGE') {
+            // 余额相关错误：UI 层负责弹「前往充值」对话框，正文不再叠加。
+            _chargeIssue = ChargeIssue(
+              code: code,
+              message: ev.errorMessage ?? '喜点不足，请先充值。',
+              balance: ev.balanceAfter,
+            );
+          } else {
+            assistant.content +=
+                '${assistant.content.isEmpty ? '' : '\n\n'}⚠️ ${ev.errorCode}：${ev.errorMessage}';
+          }
           break;
       }
       notifyListeners();
@@ -293,4 +313,18 @@ class ChatState extends ChangeNotifier {
     _activeStream?.cancel();
     super.dispose();
   }
+}
+
+/// ChatState 暴露给 UI 的「需要充值」事件载荷。
+class ChargeIssue {
+  ChargeIssue({required this.code, required this.message, this.balance});
+
+  /// 'AI.INSUFFICIENT_BALANCE' 或 'AI.CHARGE'.
+  final String code;
+
+  /// 来自后端的详细消息（含当前余额、预估开销）。
+  final String message;
+
+  /// 后端 SSE 事件里若提供就一并保留。
+  final int? balance;
 }

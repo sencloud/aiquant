@@ -164,9 +164,13 @@ class AiChatService {
           balanceAfter: (data['balance_after'] as num?)?.toInt(),
         );
       case 'error':
-        return AiChatEvent.error(
-          (data['code'] as String?) ?? 'UNKNOWN',
-          (data['message'] as String?) ?? '未知错误',
+        return AiChatEvent(
+          kind: AiChatEventKind.error,
+          errorCode: (data['code'] as String?) ?? 'UNKNOWN',
+          errorMessage: (data['message'] as String?) ?? '未知错误',
+          // INSUFFICIENT_BALANCE 时后端会同时下发 balance / estimate
+          balance: (data['balance'] as num?)?.toInt(),
+          balanceAfter: (data['balance'] as num?)?.toInt(),
         );
     }
     return null;

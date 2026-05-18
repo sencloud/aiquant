@@ -142,7 +142,7 @@ func LoadAppleP8(path string) (string, error) {
 	return string(b), nil
 }
 
-func (AppleIAPVerifier) Name() string { return "apple" }
+func (*AppleIAPVerifier) Name() string { return "apple" }
 
 // Verify 核心入口。
 func (a *AppleIAPVerifier) Verify(ctx context.Context, receipt string) (*IAPResult, error) {

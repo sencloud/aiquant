@@ -32,6 +32,17 @@ import UserNotifications
           self.requestAndRegister(result: result)
         case "getCachedToken":
           result(self.cachedToken)
+        case "setBadge":
+          // 期望调用方传 { "count": Int }；缺省按 0 处理。
+          let count = (call.arguments as? [String: Any])?["count"] as? Int ?? 0
+          DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+              UNUserNotificationCenter.current().setBadgeCount(count)
+            } else {
+              UIApplication.shared.applicationIconBadgeNumber = count
+            }
+            result(nil)
+          }
         default:
           result(FlutterMethodNotImplemented)
         }

@@ -136,6 +136,14 @@ func (w *Worker) handleOne(ctx context.Context, n pendingNotif) {
 		return
 	}
 
+	// 计算 badge = 该用户当前未读通知数（含本条 pending）。
+	// 失败 fallback 为 1，至少让用户看到有红点提示。
+	badge, err := w.unreadCountForUser(ctx, n.UserID)
+	if err != nil {
+		w.logger.Warn().Err(err).Int64("user", n.UserID).Msg("pusher: read unread_count failed")
+		badge = 1
+	}
+
 	allOK := true
 	for _, t := range tokens {
 		sender := w.pickSender(t.platform)
@@ -144,6 +152,7 @@ func (w *Worker) handleOne(ctx context.Context, n pendingNotif) {
 			Platform: Platform(t.platform),
 			Title:    n.Title,
 			Body:     n.BodyBrief,
+			Badge:    badge,
 			Topic:    n.Topic,
 			RefID:    n.RefID.String,
 		}
@@ -218,6 +227,13 @@ func (w *Worker) listTokens(ctx context.Context, userID int64) ([]tokenRow, erro
 		out = append(out, t)
 	}
 	return out, nil
+}
+
+func (w *Worker) unreadCountForUser(ctx context.Context, userID int64) (int, error) {
+	var n int
+	err := w.store.DB.GetContext(ctx, &n,
+		"SELECT COUNT(1) FROM notifications WHERE user_id=? AND read_at IS NULL", userID)
+	return n, err
 }
 
 func (w *Worker) pickSender(platform string) PushSender {

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_client.dart';
 import '../core/api/billing_models.dart';
+import '../core/storage/hive_setup.dart';
 import '../services/billing_service.dart';
 import '../services/iap_service.dart';
 
@@ -59,6 +61,12 @@ class BillingState extends ChangeNotifier {
   String? _lastError;
   String? get lastError => _lastError;
 
+  /// 当 IAP 已经从 StoreKit 拿到 receipt，但后端 verify 失败时，
+  /// receipt 会落 prefsBox 持久化。下次启动 / 进充值页时尝试自动重投。
+  static const String _kPendingReceiptPrefix = 'iap_pending_receipt:';
+  int _restoredCount = 0;
+  int get restoredCount => _restoredCount;
+
   final List<CreditLedgerItem> _ledger = [];
   List<CreditLedgerItem> get ledger => List.unmodifiable(_ledger);
   int _ledgerCursor = 0;
@@ -71,6 +79,8 @@ class BillingState extends ChangeNotifier {
 
   Future<void> refreshAll() async {
     await Future.wait([refreshBalance(), refreshSkus()]);
+    // 顺手补一次未到账订单。失败会保留在 prefsBox 等下次再投。
+    unawaited(restoreUnverifiedPurchases());
   }
 
   Future<void> refreshSkus() async {
@@ -169,6 +179,10 @@ class BillingState extends ChangeNotifier {
         return false;
       }
 
+      // 拿到 receipt 后立刻持久化：哪怕后续 verify 失败、网络断、应用被 kill，
+      // 下次进入充值页或者 App 启动时仍能重投，避免「钱扣了喜点没到账」。
+      await _persistPendingReceipt(order.orderNo, iap.jwsReceipt);
+
       try {
         final r = await _service.verifyIap(
           orderNo: order.orderNo,
@@ -178,11 +192,13 @@ class BillingState extends ChangeNotifier {
         _pendingOrder = r.order;
         _lastError = null;
         await apple?.confirm();
+        await _clearPendingReceipt(order.orderNo);
         notifyListeners();
         await refreshLedger(reset: true);
         return true;
       } catch (e) {
-        apple?.abort();
+        // verify 失败：保留 receipt 在 prefsBox，等待后续重投。
+        // 不调 apple.abort（避免提前 finishTransaction 让 Apple 不再重发回调）。
         rethrow;
       }
     } catch (e) {
@@ -192,6 +208,87 @@ class BillingState extends ChangeNotifier {
       _purchasingSku = null;
       notifyListeners();
     }
+  }
+
+  // ── 待补单（receipt 已拿到、后端 verify 未确认）持久化 ──────────────
+
+  Future<void> _persistPendingReceipt(String orderNo, String jws) async {
+    await prefsBox.put(_kPendingReceiptPrefix + orderNo, jsonEncode({
+      'order_no': orderNo,
+      'jws': jws,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    }));
+  }
+
+  Future<void> _clearPendingReceipt(String orderNo) async {
+    await prefsBox.delete(_kPendingReceiptPrefix + orderNo);
+  }
+
+  List<MapEntry<String, Map<String, dynamic>>> _listPendingReceipts() {
+    final out = <MapEntry<String, Map<String, dynamic>>>[];
+    for (final k in prefsBox.keys) {
+      if (k is! String || !k.startsWith(_kPendingReceiptPrefix)) continue;
+      final raw = prefsBox.get(k);
+      if (raw is! String) continue;
+      try {
+        final m = jsonDecode(raw) as Map<String, dynamic>;
+        out.add(MapEntry(k, m));
+      } catch (_) {
+        // 数据格式异常的单条，忽略并清理。
+        prefsBox.delete(k);
+      }
+    }
+    return out;
+  }
+
+  /// 重投本地待补订单（receipt 已拿到、后端 verify 未到账的）。
+  ///
+  /// 返回成功补到账的订单数。被调用方：
+  /// - App 启动后第一次刷新（`refreshAll` 链路）
+  /// - 用户进入充值页时手动触发
+  Future<int> restoreUnverifiedPurchases() async {
+    final pendings = _listPendingReceipts();
+    if (pendings.isEmpty) return 0;
+    int recovered = 0;
+    for (final e in pendings) {
+      final m = e.value;
+      final orderNo = m['order_no'] as String?;
+      final jws = m['jws'] as String?;
+      if (orderNo == null || jws == null || orderNo.isEmpty || jws.isEmpty) {
+        await prefsBox.delete(e.key);
+        continue;
+      }
+      try {
+        final r = await _service.verifyIap(orderNo: orderNo, jwsReceipt: jws);
+        _balance = r.balance;
+        _pendingOrder = r.order;
+        await prefsBox.delete(e.key);
+        recovered++;
+      } catch (err) {
+        final api = extractApiException(err);
+        // 已经入账过 / 订单作废 / 商品配置异常等终态：清理本地 receipt 不再重投。
+        if (api != null) {
+          const terminal = {
+            'BILLING.LEDGER_DUPLICATE',
+            'BILLING.PRODUCT_MISMATCH',
+            'BILLING.TXID_CONSUMED',
+            'BILLING.ORDER_NOT_FOUND',
+            'BILLING.ORDER_FINAL',
+          };
+          if (terminal.contains(api.code)) {
+            await prefsBox.delete(e.key);
+            continue;
+          }
+        }
+        // 其它错误（网络 / IAP 配置 / Apple 临时不可用）：保留 receipt 等下次重投。
+      }
+    }
+    if (recovered > 0) {
+      _restoredCount = recovered;
+      notifyListeners();
+      await refreshLedger(reset: true);
+    }
+    return recovered;
   }
 
   /// dev 模式直冲，跳过 IAP（仅 backend env=dev）。

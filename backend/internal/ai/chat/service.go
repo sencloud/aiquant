@@ -143,15 +143,30 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		_ = emit("error", map[string]any{"code": "AI.BALANCE_READ", "message": err.Error()})
 		return err
 	}
+	// 预扣费乐观估算 = base + deep + perTool * estTools。
+	// estTools 取一个能覆盖大部分对话的常见上限（默认 6），避免出现「跑完 N 个
+	// tool call 才报喜点不足」的体验问题。即使最终实际工具数少于 estTools，
+	// 真实扣费在 LOOPS 结束后按 totalToolCalls 计算，不会多扣。
+	const estimatedToolCalls = 6
+	estCost := cfg.BaseChatCredits
+	if in.DeepMode {
+		estCost += cfg.DeepBonusCredits
+	}
+	estCost += cfg.PerToolCredits * int64(estimatedToolCalls)
 	minCost := cfg.BaseChatCredits
 	if in.DeepMode {
 		minCost += cfg.DeepBonusCredits
 	}
-	if balance < minCost {
+	if balance < estCost {
 		_ = emit("error", map[string]any{
-			"code":    "AI.INSUFFICIENT_BALANCE",
-			"message": fmt.Sprintf("喜点不足（当前 %d，至少 %d）", balance, minCost),
-			"balance": balance,
+			"code": "AI.INSUFFICIENT_BALANCE",
+			"message": fmt.Sprintf(
+				"喜点不足，当前余额 %d，本次对话预估最多需要 %d（基础 %d + 工具 %d × %d）。请先充值再继续。",
+				balance, estCost, minCost,
+				cfg.PerToolCredits, estimatedToolCalls,
+			),
+			"balance":  balance,
+			"estimate": estCost,
 		})
 		return ErrInsufficientBalance
 	}

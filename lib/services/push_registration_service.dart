@@ -70,6 +70,18 @@ class PushRegistrationService {
     _lastUploadedToken = null;
   }
 
+  /// 设置 / 清零 iOS 桌面图标右上角红点角标。Android / Web 直接忽略。
+  ///
+  /// 时机：用户进入 DING 收件箱、调用 markAllRead 之后调一次 setBadge(0)。
+  Future<void> setBadge(int count) async {
+    if (kIsWeb || !Platform.isIOS) return;
+    try {
+      await _channel.invokeMethod<void>('setBadge', {'count': count});
+    } catch (e) {
+      debugPrint('set badge failed: $e');
+    }
+  }
+
   Future<void> _handleCall(MethodCall call) async {
     switch (call.method) {
       case 'onApnsToken':

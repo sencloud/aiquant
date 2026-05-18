@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/ding.dart';
 import '../services/ding_service.dart';
+import '../services/push_registration_service.dart';
 
 /// DingState — 服务端为唯一真源 + 唯一 LLM 执行路径。
 ///
@@ -74,6 +75,7 @@ class DingState extends ChangeNotifier {
     if (catchUp) {
       await _tick(catchUp: true);
     }
+    await _syncBadgeWithUnread();
   }
 
   void resumeFromBackground() {
@@ -196,6 +198,7 @@ class DingState extends ChangeNotifier {
     }
     m.read = read;
     notifyListeners();
+    await _syncBadgeWithUnread();
   }
 
   Future<void> markAllRead() async {
@@ -205,12 +208,20 @@ class DingState extends ChangeNotifier {
       m.read = true;
     }
     notifyListeners();
+    await _syncBadgeWithUnread();
+  }
+
+  /// 把当前未读数同步到 iOS 桌面图标的红点角标。
+  /// 调用时机：refresh / markRead / markAllRead / delete 等 unreadCount 可能变化处。
+  Future<void> _syncBadgeWithUnread() async {
+    await PushRegistrationService.instance.setBadge(unreadCount);
   }
 
   Future<void> deleteMessage(DingMessage m) async {
     await _service.deleteNotification(m.id);
     _messages.removeWhere((x) => x.id == m.id);
     notifyListeners();
+    await _syncBadgeWithUnread();
   }
 
   Future<void> clearAllMessages() async {
@@ -219,6 +230,7 @@ class DingState extends ChangeNotifier {
     }
     _messages.clear();
     notifyListeners();
+    await _syncBadgeWithUnread();
   }
 
   // ── 调度核心 ──────────────────────────────────────────────────────────
