@@ -98,7 +98,7 @@ func (r *SKURepo) Upsert(ctx context.Context, s SKU) error {
 //   - credit_60   ¥6   60 喜点
 //   - credit_500  ¥28  500 + 50 = 550 喜点
 //   - credit_1000 ¥58  1000 + 200 = 1200 喜点
-//   - credit_5000 ¥288 5000 + 1500 = 6500 喜点
+//   - credit_5000 ¥298 5000 + 1500 = 6500 喜点
 func SeedDefault(ctx context.Context, repo *SKURepo) error {
 	pkgs := []SKU{
 		{Code: "credit_60", AppleProductID: "com.aiquant.app.credit60",
@@ -108,7 +108,7 @@ func SeedDefault(ctx context.Context, repo *SKURepo) error {
 		{Code: "credit_1000", AppleProductID: "com.aiquant.app.credit1000",
 			BaseCredits: 1000, BonusCredits: 200, PriceCentsCNY: 5800, Active: 1, Sort: 3},
 		{Code: "credit_5000", AppleProductID: "com.aiquant.app.credit5000",
-			BaseCredits: 5000, BonusCredits: 1500, PriceCentsCNY: 28800, Active: 1, Sort: 4},
+			BaseCredits: 5000, BonusCredits: 1500, PriceCentsCNY: 29800, Active: 1, Sort: 4},
 	}
 	for _, p := range pkgs {
 		if err := repo.Upsert(ctx, p); err != nil {
