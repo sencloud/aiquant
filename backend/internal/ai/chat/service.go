@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sencloud/finme-backend/internal/ai/tool"
@@ -49,7 +50,12 @@ type ChatInput struct {
 	UserText    string
 	DeepMode    bool   // 启用 reasoner 模型 + 加价
 	SystemHint  string // 个性化 system prompt（可选）
-	ClientReqID string // 幂等键（暂未使用，预留）
+	ClientReqID string // 幂等键（与 reason+ref_type 三元组幂等扣费）
+	// BillingReason 决定 ledger entry 的 reason 列：
+	//   - 空（默认）→ billing.ReasonConsumeAI（来自 /v1/ai/chat 用户主动对话）
+	//   - billing.ReasonConsumeDing → DING runner / run-now 的统一扣费
+	// 其余取值会被拒绝。
+	BillingReason string
 }
 
 // ErrInsufficientBalance 暴露给上层用于 HTTP 401/402 风格响应。
@@ -280,12 +286,24 @@ LOOPS:
 		totalCredits += cfg.DeepBonusCredits
 	}
 	totalCredits += cfg.PerToolCredits * int64(totalToolCalls)
-	refID := strconv.FormatInt(sess.ID, 10) + "/" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	reason := billing.ReasonConsumeAI
+	refType := "ai_session"
+	if in.BillingReason == billing.ReasonConsumeDing {
+		reason = billing.ReasonConsumeDing
+		refType = "ding_run"
+	}
+	// 优先使用调用方传入的幂等键（DING 的 task uuid + startedAt）；
+	// 客户端 SSE 调用没传则用 session+nano 兜底（每条新消息一笔流水）。
+	refID := strings.TrimSpace(in.ClientReqID)
+	if refID == "" {
+		refID = strconv.FormatInt(sess.ID, 10) + "/" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
 	entry, lerr := s.d.Ledger.Apply(ctx, billing.ApplyParams{
 		UserID:  in.UserID,
 		Delta:   -totalCredits,
-		Reason:  billing.ReasonConsumeAI,
-		RefType: "ai_session",
+		Reason:  reason,
+		RefType: refType,
 		RefID:   refID,
 		Remark:  fmt.Sprintf("loops=%d tools=%d deep=%t", maxLoops, totalToolCalls, in.DeepMode),
 	})

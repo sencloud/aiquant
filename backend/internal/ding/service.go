@@ -19,6 +19,9 @@ import (
 //
 // 服务端为唯一执行路径：所有 LLM 工具 loop 都走 chat.Service，
 // 客户端只触发 run-now 或等待 scheduler 自动跑。
+//
+// DING 自身不再扣费 —— 扣费在 chat.Service.Run 内统一以 reason=consume_ding
+// 的方式完成（幂等键 = ClientReqID）。
 type Service struct {
 	cfg *platform.Config
 
@@ -27,15 +30,16 @@ type Service struct {
 	notifs *NotificationRepo
 
 	chat   *chat.Service
-	ledger *billing.LedgerRepo
 	logger *zerolog.Logger
 }
 
+// NewService 构造 DING service。ledgerRepo 暂未使用（DING 不直接扣费），
+// 但保留参数以便后续接入"任务级单次预算 / 月度配额"等扩展。
 func NewService(
 	st *store.Store,
 	cfg *platform.Config,
 	chatSvc *chat.Service,
-	ledger *billing.LedgerRepo,
+	_ *billing.LedgerRepo,
 	logger *zerolog.Logger,
 ) *Service {
 	return &Service{
@@ -44,7 +48,6 @@ func NewService(
 		runs:   NewRunRepo(st),
 		notifs: NewNotificationRepo(st),
 		chat:   chatSvc,
-		ledger: ledger,
 		logger: logger,
 	}
 }
@@ -133,10 +136,12 @@ func (s *Service) DeleteTask(ctx context.Context, userID int64, uuid string) err
 
 // RunNow 由客户端 POST /v1/ding/tasks/{uuid}/run-now 触发：
 //
-// 1. 查找 task；2. 用 task 的 cost_credits_per_run 扣费（幂等 ref_id）；
-// 3. 通过 chat.Service.RunCollect 跑一遍带 30 工具的 LLM loop；
-// 4. 把结果落库为 Run + Notification（push_status=pending）；
-// 5. 同步返回结果给客户端，便于立即在 inbox 渲染。
+// 1. 查找 task；
+// 2. 通过 chat.Service.RunCollect 跑一遍带 30 工具的 LLM loop；
+//    扣费由 chat.Service 以 reason=consume_ding + ref=ding_run/<uuid>/<ts>
+//    统一完成（幂等键）；DING 自身不再额外扣费，避免与 chat 双重扣。
+// 3. 把结果落库为 Run + Notification（push_status=pending）；
+// 4. 同步返回结果给客户端，便于立即在 inbox 渲染。
 //
 // 任何错误都会写一条失败 notification + status=failed 的 run，
 // 同时把 error 透传给上层 HTTP（统一通过 platform.ErrXxx 包装）。
@@ -155,39 +160,30 @@ func (s *Service) RunNow(ctx context.Context, userID int64, taskUUID string) (*R
 
 	startedAt := time.Now()
 
-	if t.CostCreditsPerRun > 0 {
-		runRef := fmt.Sprintf("ding/%s/%d", t.UUID, startedAt.UnixMilli())
-		_, err := s.ledger.Apply(ctx, billing.ApplyParams{
-			UserID:  t.UserID,
-			Delta:   -t.CostCreditsPerRun,
-			Reason:  billing.ReasonConsumeDing,
-			RefType: "ding_run",
-			RefID:   runRef,
-			Remark:  "DING run-now cost",
-		})
-		if err != nil {
-			if errors.Is(err, billing.ErrInsufficientBalance) {
-				run, notif, ferr := s.recordSkippedNoCredit(ctx, t, startedAt)
-				if ferr != nil {
-					return nil, nil, platform.ErrInternal("DING.RECORD_SKIPPED", ferr)
-				}
-				return run, notif, nil
-			}
-			if !errors.Is(err, billing.ErrLedgerDuplicate) {
-				return nil, nil, platform.ErrInternal("DING.LEDGER", err)
-			}
-		}
-	}
-
 	res, cerr := s.chat.RunCollect(ctx, chat.ChatInput{
-		UserID:      t.UserID,
-		Persona:     t.PersonaID,
-		UserText:    t.Prompt,
-		ClientReqID: fmt.Sprintf("ding/%s/%d", t.UUID, startedAt.UnixMilli()),
+		UserID:        t.UserID,
+		Persona:       t.PersonaID,
+		UserText:      t.Prompt,
+		ClientReqID:   fmt.Sprintf("ding/%s/%d", t.UUID, startedAt.UnixMilli()),
+		BillingReason: billing.ReasonConsumeDing,
 	})
 	if cerr != nil {
+		if errors.Is(cerr, chat.ErrInsufficientBalance) {
+			run, notif, ferr := s.recordSkippedNoCredit(ctx, t, startedAt)
+			if ferr != nil {
+				return nil, nil, platform.ErrInternal("DING.RECORD_SKIPPED", ferr)
+			}
+			return run, notif, nil
+		}
 		run, notif, _ := s.recordFailure(ctx, t, startedAt, cerr.Error())
 		return run, notif, platform.ErrInternal("DING.CHAT", cerr)
+	}
+	if res.ErrorCode == "AI.INSUFFICIENT_BALANCE" {
+		run, notif, ferr := s.recordSkippedNoCredit(ctx, t, startedAt)
+		if ferr != nil {
+			return nil, nil, platform.ErrInternal("DING.RECORD_SKIPPED", ferr)
+		}
+		return run, notif, nil
 	}
 	if res.ErrorCode != "" {
 		msg := fmt.Sprintf("%s: %s", res.ErrorCode, res.ErrorMessage)

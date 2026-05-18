@@ -158,9 +158,14 @@ func handleAppleNotifications(d *Deps) http.HandlerFunc {
 		if err != nil {
 			// Apple 期望 200 + 简短响应；4xx 会让 Apple 重试 ≤72h
 			// 解析 / 业务问题（不是 server error）我们也回 200，但日志记错
-			platform.LoggerFrom(r.Context()).Warn().Err(err).
-				Str("type", res.NotificationType).
-				Msg("apple notification handle warn")
+			ev := platform.LoggerFrom(r.Context()).Warn().Err(err)
+			if res != nil {
+				ev = ev.Str("type", res.NotificationType).
+					Str("subtype", res.Subtype).
+					Str("txid", res.TransactionID).
+					Str("order_no", res.OrderNo)
+			}
+			ev.Msg("apple notification handle warn")
 			WriteJSON(w, http.StatusOK, map[string]any{
 				"received": true,
 				"action":   "error",

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -73,6 +74,12 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			WriteError(w, r, platform.ErrInternal("SSE.NO_FLUSHER", errors.New("response writer is not a flusher")))
 			return
 		}
+		// 关闭 http.Server 层 WriteTimeout，避免 60s 强制断流；
+		// SSE 的退出由客户端断连或 chat.Run 内部 LLM/工具超时决定。
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
+		_ = rc.SetReadDeadline(time.Time{})
+
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache, no-transform")
 		w.Header().Set("Connection", "keep-alive")
