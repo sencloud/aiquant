@@ -150,10 +150,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
             _section('喜点说明'),
             const SizedBox(height: 6),
-            _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理的回答与行情分析。'),
-            _bulletText('• 每次 AI 回答消耗 1 喜点，开启深度推理额外消耗 5 喜点。'),
-            _bulletText('• 每次行情查询（拉数据、对比、筛选）额外消耗 1 喜点。'),
-            _bulletText('• 一次深度回答如果用到多项行情查询，喜点会相应叠加。'),
+            _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理与行情分析。'),
+            _bulletText('• 每次回答消耗 6 喜点，含行情查询则按次再加 1 喜点。'),
             _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
             if (user != null) ...[
               const SizedBox(height: 24),
