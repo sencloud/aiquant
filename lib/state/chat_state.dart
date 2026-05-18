@@ -206,7 +206,8 @@ class ChatState extends ChangeNotifier {
       serverSessionId: _serverIdMap[session.id],
       message: text.trim(),
       persona: session.personaId,
-      deepMode: session.deepMode,
+      // 产品策略：深度推理始终开启，不暴露给用户切换。
+      deepMode: true,
       systemHint: persona.systemPrompt,
     )
         .listen((ev) async {
