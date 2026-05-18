@@ -339,6 +339,14 @@ class BillingState extends ChangeNotifier {
     _ledger.clear();
     _ledgerCursor = 0;
     _ledgerHasMore = true;
+    _restoredCount = 0;
+    // 清掉本地待补 receipt：它们都属于上一个账号，到新账号下重投只会 403。
+    final stale = prefsBox.keys
+        .where((k) => k is String && k.startsWith(_kPendingReceiptPrefix))
+        .toList();
+    for (final k in stale) {
+      prefsBox.delete(k);
+    }
     notifyListeners();
   }
 
