@@ -333,10 +333,10 @@ class _ReportsTabState extends State<ReportsTab> {
           bytes: bytes,
           filename:
               '${s.portfolio.name}_组合报告_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf');
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF 导出失败：$e')),
+          const SnackBar(content: Text('PDF 导出失败，请稍后再试')),
         );
       }
     } finally {

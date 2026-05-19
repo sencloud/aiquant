@@ -425,7 +425,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_swError != null)
-              Text(_swError!,
+              Text('行业涨跌数据加载失败，请稍后再试',
                   style: TextStyle(
                       color: AppColors.textTertiary, fontSize: 11))
             else if (_swReturns.isEmpty)
@@ -455,7 +455,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_brinsonError != null)
-              Text(_brinsonError!,
+              Text('归因数据加载失败，请稍后再试',
                   style: TextStyle(
                       color: AppColors.textTertiary, fontSize: 11))
             else if (_brinson == null)

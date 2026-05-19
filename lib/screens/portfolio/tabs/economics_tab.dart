@@ -286,7 +286,7 @@ class _EconomicsTabState extends State<EconomicsTab> {
             else if (_macroError != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_macroError!,
+                child: Text('宏观数据加载失败，请稍后再试',
                     style:
                         TextStyle(color: AppColors.textTertiary, fontSize: 11)),
               )
