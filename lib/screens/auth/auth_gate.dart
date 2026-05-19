@@ -31,6 +31,11 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
+
+    // bootstrap 期间不要触发任何 chat/inbox 的 reset/bootstrap，
+    // 否则首次冷启动会把 Hive 里上次的会话清掉（#3）。
+    if (auth.bootstrapping) return const _SplashScreen();
+
     final isAuthed = auth.isAuthenticated;
 
     if (_wasAuthed != isAuthed) {
@@ -39,14 +44,18 @@ class _AuthGateState extends State<AuthGate> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (isAuthed) {
-          // 登录前若已知是切换账号（之前是已登录态），先清掉本地 chat 缓存
+          // 切换账号：登录前若之前已登录过，先清掉旧用户的本地缓存。
+          // wasAuthed == null 表示这是冷启动后第一次确认登录态，不要 reset。
           if (wasAuthed == true) {
             context.read<ChatState>().reset();
+            context.read<DingState>().reset();
           }
           context.read<ChatState>().bootstrap();
           context.read<BillingState>().refreshAll();
           context.read<DingState>().bootstrap();
-        } else {
+        } else if (wasAuthed == true) {
+          // 仅在从已登录显式跳到未登录（登出 / 强制下线）时才清空本地缓存，
+          // 避免冷启动 splash 阶段误把 Hive 清掉。
           context.read<ChatState>().reset();
           context.read<BillingState>().reset();
           context.read<DingState>().reset();
@@ -54,7 +63,6 @@ class _AuthGateState extends State<AuthGate> {
       });
     }
 
-    if (auth.bootstrapping) return const _SplashScreen();
     return isAuthed ? const HomeScreen() : const LoginScreen();
   }
 }

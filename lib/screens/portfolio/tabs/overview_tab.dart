@@ -3,11 +3,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../models/portfolio.dart';
 import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
 import '../widgets/positions_table.dart';
-import '../widgets/sector_donut.dart';
 
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key});
@@ -71,15 +69,11 @@ class _OverviewTabState extends State<OverviewTab> {
             loading: _loadingSeries,
             error: _seriesError,
             periodDays: _periodDays,
-            currency: summary?.portfolio.currency ?? 'CNY',
             onPeriodChanged: (d) {
               setState(() => _periodDays = d);
               _loadSeries();
             },
           ),
-          const SizedBox(height: 12),
-          if (summary != null && summary.holdings.isNotEmpty)
-            _SectorBreakdownCard(summary: summary),
           const SizedBox(height: 12),
           PositionsTable(holdings: summary?.holdings ?? const []),
         ],
@@ -144,13 +138,18 @@ class _WarnBanner extends StatelessWidget {
   }
 }
 
+/// 组合走势卡片。
+///
+/// 原版直接画"市值随时间"折线，对普通用户不直观（同样的 +1 万对 100 万和
+/// 10 万组合意义完全不同）。这里改成"累计收益率%"展示，并把周期收益、
+/// 期间最大涨幅 / 最大回撤、起止市值一并放到 header，让用户一眼看明白
+/// 这段时间到底赚了还是亏了、波动多大。
 class _PerformanceCard extends StatelessWidget {
   const _PerformanceCard({
     required this.series,
     required this.loading,
     required this.error,
     required this.periodDays,
-    required this.currency,
     required this.onPeriodChanged,
   });
 
@@ -158,7 +157,6 @@ class _PerformanceCard extends StatelessWidget {
   final bool loading;
   final String? error;
   final int periodDays;
-  final String currency;
   final ValueChanged<int> onPeriodChanged;
 
   static const _periods = [
@@ -190,7 +188,15 @@ class _PerformanceCard extends StatelessWidget {
                 ..._periods.map((p) => _periodChip(p[0] as int, p[1] as String)),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            Text(
+              '相对周期起点的累计收益率',
+              style: TextStyle(
+                  color: AppColors.textTertiary, fontSize: 10),
+            ),
+            const SizedBox(height: 10),
+            _summaryStrip(),
+            const SizedBox(height: 8),
             SizedBox(
               height: 220,
               child: _chartArea(),
@@ -226,6 +232,67 @@ class _PerformanceCard extends StatelessWidget {
     );
   }
 
+  /// 走势摘要条：累计收益、最大涨/回撤、起止市值。
+  Widget _summaryStrip() {
+    if (series == null || series!.length < 2) return const SizedBox.shrink();
+    final stats = _Stats.from(series!);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('周期累计收益',
+                  style: TextStyle(
+                      color: AppColors.textTertiary, fontSize: 10)),
+              const SizedBox(height: 2),
+              Text(
+                _pct(stats.totalReturnPct),
+                style: TextStyle(
+                  color: _signColor(stats.totalReturnPct),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _miniStat('最高',
+              _pct(stats.maxReturnPct), _signColor(stats.maxReturnPct)),
+        ),
+        Expanded(
+          child: _miniStat('最大回撤',
+              _pct(-stats.maxDrawdownPct), AppColors.danger),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniStat(String title, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: TextStyle(
+                color: AppColors.textTertiary, fontSize: 10)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            height: 1.0,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _chartArea() {
     if (loading) {
       return const Center(child: CircularProgressIndicator());
@@ -248,29 +315,75 @@ class _PerformanceCard extends StatelessWidget {
       );
     }
     final pts = series!;
+    final base = pts.first.value;
+    // 起点为 0% 的"累计收益率"序列；首点全 0，避免被 0/0 干扰。
+    final returns = base.abs() < 1e-9
+        ? List<double>.filled(pts.length, 0)
+        : [for (final e in pts) (e.value - base) / base * 100.0];
     final spots = [
-      for (int i = 0; i < pts.length; i++)
-        FlSpot(i.toDouble(), pts[i].value),
+      for (int i = 0; i < returns.length; i++)
+        FlSpot(i.toDouble(), returns[i]),
     ];
-    final minY = pts.map((e) => e.value).reduce((a, b) => a < b ? a : b);
-    final maxY = pts.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-    final pad = (maxY - minY).abs() * 0.05 + 1;
+
+    final lastIdx = returns.length - 1;
+    final lastY = returns[lastIdx];
+    final maxY = returns.reduce((a, b) => a > b ? a : b);
+    final minY = returns.reduce((a, b) => a < b ? a : b);
+    final span = (maxY - minY).abs();
+    final pad = (span < 1 ? 1 : span) * 0.18;
+    final isUp = lastY >= 0;
+    final lineColor = isUp ? AppColors.positive : AppColors.danger;
 
     return LineChart(
       LineChartData(
         minY: minY - pad,
         maxY: maxY + pad,
-        gridData: const FlGridData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval:
+              (span / 4).clamp(0.5, double.infinity).toDouble(),
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: AppColors.borderDim.withValues(alpha: 0.5),
+            strokeWidth: 0.6,
+            dashArray: const [3, 3],
+          ),
+        ),
         borderData: FlBorderData(show: false),
+        // 0% 基准线 — 让用户一眼看出"赚了还是亏了"。
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            HorizontalLine(
+              y: 0,
+              color: AppColors.textTertiary.withValues(alpha: 0.5),
+              strokeWidth: 0.8,
+              dashArray: const [4, 4],
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.bottomRight,
+                padding: const EdgeInsets.only(right: 4, bottom: 1),
+                style: TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                ),
+                labelResolver: (_) => '起点 0%',
+              ),
+            ),
+          ],
+        ),
         titlesData: FlTitlesData(
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 60,
-              getTitlesWidget: (v, _) => Text(
-                NumberFormat.compact().format(v),
-                style: TextStyle(
-                    fontSize: 9, color: AppColors.textTertiary),
+              reservedSize: 38,
+              getTitlesWidget: (v, _) => Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Text(
+                  '${v >= 0 ? '+' : ''}${v.toStringAsFixed(span < 2 ? 1 : 0)}%',
+                  style: TextStyle(
+                      fontSize: 9, color: AppColors.textTertiary),
+                ),
               ),
             ),
           ),
@@ -298,48 +411,106 @@ class _PerformanceCard extends StatelessWidget {
           topTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        lineTouchData: const LineTouchData(handleBuiltInTouches: true),
+        // 触摸气泡显示日期 + 累计收益 %。
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches: true,
+          touchTooltipData: LineTouchTooltipData(
+            tooltipRoundedRadius: 4,
+            tooltipPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            getTooltipColor: (_) =>
+                AppColors.bgRaised.withValues(alpha: 0.95),
+            getTooltipItems: (touched) {
+              return touched.map((spot) {
+                final idx = spot.x.toInt().clamp(0, pts.length - 1);
+                final date = DateFormat('yyyy-MM-dd').format(pts[idx].key);
+                final v = returns[idx];
+                return LineTooltipItem(
+                  '$date\n${_pct(v)}',
+                  TextStyle(
+                    color: _signColor(v),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             spots: spots,
-            color: AppColors.amber,
+            color: lineColor,
             isCurved: true,
-            barWidth: 1.6,
-            dotData: const FlDotData(show: false),
+            barWidth: 1.8,
+            // 末点用大点标出"现在的位置"。
+            dotData: FlDotData(
+              show: true,
+              checkToShowDot: (s, _) => s.x.toInt() == lastIdx,
+              getDotPainter: (s, _, __, ___) => FlDotCirclePainter(
+                radius: 3.5,
+                color: lineColor,
+                strokeWidth: 1.5,
+                strokeColor: AppColors.bgBase,
+              ),
+            ),
             belowBarData: BarAreaData(
               show: true,
-              color: AppColors.amber.withValues(alpha: 0.10),
+              color: lineColor.withValues(alpha: 0.10),
             ),
           ),
         ],
       ),
     );
   }
+
+  static String _pct(double v) {
+    final sign = v > 0 ? '+' : (v == 0 ? '' : '');
+    return '$sign${v.toStringAsFixed(2)}%';
+  }
+
+  static Color _signColor(double v) {
+    if (v > 0.001) return AppColors.positive;
+    if (v < -0.001) return AppColors.danger;
+    return AppColors.textSecondary;
+  }
 }
 
-class _SectorBreakdownCard extends StatelessWidget {
-  const _SectorBreakdownCard({required this.summary});
-  final PortfolioSummary summary;
+class _Stats {
+  _Stats({
+    required this.totalReturnPct,
+    required this.maxReturnPct,
+    required this.maxDrawdownPct,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('行业分布',
-                style: TextStyle(
-                    color: AppColors.amber,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6)),
-            const SizedBox(height: 8),
-            SectorDonut(weights: summary.sectorWeights),
-          ],
-        ),
-      ),
+  final double totalReturnPct;
+  final double maxReturnPct;
+  final double maxDrawdownPct;
+
+  factory _Stats.from(List<MapEntry<DateTime, double>> pts) {
+    final base = pts.first.value;
+    if (base.abs() < 1e-9) {
+      return _Stats(
+          totalReturnPct: 0, maxReturnPct: 0, maxDrawdownPct: 0);
+    }
+    final last = pts.last.value;
+    final total = (last - base) / base * 100.0;
+    double maxReturn = 0;
+    double maxDD = 0;
+    double peak = pts.first.value;
+    for (final e in pts) {
+      final r = (e.value - base) / base * 100.0;
+      if (r > maxReturn) maxReturn = r;
+      if (e.value > peak) peak = e.value;
+      if (peak > 0) {
+        final dd = (peak - e.value) / peak * 100.0;
+        if (dd > maxDD) maxDD = dd;
+      }
+    }
+    return _Stats(
+      totalReturnPct: total,
+      maxReturnPct: maxReturn,
+      maxDrawdownPct: maxDD,
     );
   }
 }

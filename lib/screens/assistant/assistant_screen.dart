@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/format/credit_fmt.dart';
 import '../../models/persona.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_theme.dart';
@@ -66,11 +67,18 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   /// 「喜点不足 / 扣费失败」弹窗：提示余额，并可一键跳到充值页。
   void _showChargeDialog(ChargeIssue issue) {
+    // 后端 message 里塞了原始整数（如「当前余额 8」），直接展示会跟前端
+    // ÷10 的显示口径不一致；这里只用 issue.balance 重新组装文案。
+    final balanceLabel =
+        issue.balance != null ? CreditFmt.balance(issue.balance!) : null;
+    final content = balanceLabel != null
+        ? '当前余额 $balanceLabel 喜点，已经不够本次对话啦。先去充点喜点再聊？'
+        : '喜点不够本次对话啦，先去充点喜点再聊？';
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('喜点不够啦'),
-        content: Text(issue.message),
+        content: Text(content),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
