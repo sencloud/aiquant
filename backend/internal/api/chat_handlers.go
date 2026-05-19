@@ -36,12 +36,13 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		Content string `json:"content"`
 	}
 	type reqBody struct {
-		SessionID  string    `json:"session_id,omitempty"`
-		Persona    string    `json:"persona,omitempty"`
-		DeepMode   bool      `json:"deep_mode,omitempty"`
-		SystemHint string    `json:"system_hint,omitempty"`
-		Message    string    `json:"message,omitempty"`
-		Messages   []chatMsg `json:"messages,omitempty"`
+		SessionID        string                 `json:"session_id,omitempty"`
+		Persona          string                 `json:"persona,omitempty"`
+		DeepMode         bool                   `json:"deep_mode,omitempty"`
+		SystemHint       string                 `json:"system_hint,omitempty"`
+		Message          string                 `json:"message,omitempty"`
+		Messages         []chatMsg              `json:"messages,omitempty"`
+		PortfolioContext *chat.PortfolioContext `json:"portfolio_context,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		uc := MustUser(r)
@@ -101,12 +102,13 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		}
 
 		_ = d.Chat.Run(r.Context(), chat.ChatInput{
-			UserID:      uc.UserID,
-			SessionUUID: body.SessionID,
-			Persona:     body.Persona,
-			UserText:    userText,
-			DeepMode:    body.DeepMode,
-			SystemHint:  body.SystemHint,
+			UserID:           uc.UserID,
+			SessionUUID:      body.SessionID,
+			Persona:          body.Persona,
+			UserText:         userText,
+			DeepMode:         body.DeepMode,
+			SystemHint:       body.SystemHint,
+			PortfolioContext: body.PortfolioContext,
 		}, emit)
 	}
 }

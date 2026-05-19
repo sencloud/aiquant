@@ -174,11 +174,26 @@ class ChatState extends ChangeNotifier {
   }
 
   /// 发送一条用户消息并消费服务端 SSE 事件。
-  Future<void> sendMessage(String text) async {
+  ///
+  /// [portfolioContext] 非空时本次请求附带"组合快照"：
+  /// 服务端会把它拼到 system prompt，让 LLM 理解"我的持仓 / 解套 / 止盈"等
+  /// 自然语言指代。客户端层面在用户主动 @组合 / 进入解套止盈/诊断报告
+  /// 入口时由调用方自行构造（来自 PortfolioSummary.toAiContext()）。
+  Future<void> sendMessage(
+    String text, {
+    Map<String, dynamic>? portfolioContext,
+  }) async {
     final session = active ?? await newSession();
     if (text.trim().isEmpty || _streaming) return;
 
-    final userMsg = ChatMessage(role: 'user', content: text.trim());
+    final hasPortfolio =
+        portfolioContext != null && portfolioContext.isNotEmpty;
+    final userMsg = ChatMessage(
+      role: 'user',
+      content: text.trim(),
+      portfolioAttached: hasPortfolio,
+      portfolioName: hasPortfolio ? portfolioContext['name'] as String? : null,
+    );
     session.messages.add(userMsg);
     if (session.title == '新对话' || session.title.isEmpty) {
       session.title = _summarizeForTitle(text);
@@ -209,6 +224,7 @@ class ChatState extends ChangeNotifier {
       // 产品策略：深度推理始终开启，不暴露给用户切换。
       deepMode: true,
       systemHint: persona.systemPrompt,
+      portfolioContext: portfolioContext,
     )
         .listen((ev) async {
       switch (ev.kind) {

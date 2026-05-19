@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../models/persona.dart';
 import '../../state/chat_state.dart';
+import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../ding/widgets/ding_task_editor.dart';
 import '../settings/settings_screen.dart';
@@ -11,8 +12,28 @@ import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 import 'widgets/session_drawer.dart';
 
+/// AssistantScreen 的入参。
+///
+/// 跨 Tab 跳转（组合 → 助理）时，可通过 `Navigator.push(MaterialPageRoute(
+///   settings: const RouteSettings(arguments: AssistantLaunch(...)), ...))`
+/// 携带初始 prompt + 是否自动附带组合，省一次手动点击。
+class AssistantLaunch {
+  const AssistantLaunch({
+    this.initialMessage,
+    this.attachPortfolio = false,
+    this.autoSend = false,
+  });
+
+  final String? initialMessage;
+  final bool attachPortfolio;
+  final bool autoSend;
+}
+
 class AssistantScreen extends StatefulWidget {
-  const AssistantScreen({super.key});
+  const AssistantScreen({super.key, this.launch});
+
+  /// 构造时显式传入的启动参数；优先级高于 ModalRoute.arguments。
+  final AssistantLaunch? launch;
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -25,12 +46,41 @@ class _AssistantScreenState extends State<AssistantScreen> {
   // 推理过程默认始终展示；不再提供顶部隐藏开关。
   static const bool _showReasoning = true;
 
+  /// 「@组合」开关：开启后下次 _send 会把 PortfolioState.currentSummary
+  /// 序列化进 SSE body 的 portfolio_context 字段。
+  bool _attachPortfolio = false;
+  bool _launchHandled = false;
+
   @override
   void dispose() {
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_launchHandled) return;
+    _launchHandled = true;
+    final launch = widget.launch ??
+        (ModalRoute.of(context)?.settings.arguments as AssistantLaunch?);
+    if (launch == null) return;
+    if (launch.attachPortfolio) _attachPortfolio = true;
+    if (launch.initialMessage != null && launch.initialMessage!.isNotEmpty) {
+      if (launch.autoSend) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _send(launch.initialMessage);
+        });
+      } else {
+        _input.text = launch.initialMessage!;
+        _input.selection = TextSelection.fromPosition(
+          TextPosition(offset: _input.text.length),
+        );
+      }
+    }
   }
 
   /// 滚动到底部。
@@ -61,7 +111,21 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _input.clear();
     // 发送即收起键盘 + 失焦，让聊天区视野最大化
     _focus.unfocus();
-    await context.read<ChatState>().sendMessage(text);
+    Map<String, dynamic>? ctxJson;
+    if (_attachPortfolio) {
+      final ps = context.read<PortfolioState>();
+      final summary = ps.currentSummary;
+      if (summary != null && summary.holdings.isNotEmpty) {
+        ctxJson = summary.toAiContext();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('当前组合没有持仓，已忽略组合附带')),
+        );
+      }
+    }
+    await context
+        .read<ChatState>()
+        .sendMessage(text, portfolioContext: ctxJson);
     _scrollToBottom();
   }
 
@@ -288,48 +352,131 @@ class _AssistantScreenState extends State<AssistantScreen> {
     return Container(
       color: AppColors.bgSurface,
       padding: EdgeInsets.fromLTRB(
-          14, 8, 14, 10 + MediaQuery.of(context).padding.bottom),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+          14, 6, 14, 10 + MediaQuery.of(context).padding.bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.bgRaised,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: AppColors.borderDim),
-              ),
-              padding: const EdgeInsets.fromLTRB(18, 4, 6, 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      focusNode: _focus,
-                      minLines: 1,
-                      maxLines: 6,
-                      style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(
-                        hintText: '想问点什么？股票、ETF、期货都可以…',
-                        isDense: true,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(vertical: 12, horizontal: 0),
-                      ),
-                      onSubmitted: (_) => _send(),
-                    ),
+          _portfolioChip(),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.bgRaised,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: AppColors.borderDim),
                   ),
-                  const SizedBox(width: 4),
-                  _sendButton(chat),
-                ],
+                  padding: const EdgeInsets.fromLTRB(18, 4, 6, 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _input,
+                          focusNode: _focus,
+                          minLines: 1,
+                          maxLines: 6,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: const InputDecoration(
+                            hintText: '想问点什么？股票、ETF、期货都可以…',
+                            isDense: true,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 0),
+                          ),
+                          onSubmitted: (_) => _send(),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _sendButton(chat),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  /// 「@组合」chip：默认关；开启后下次 _send 会把当前组合 summary 上送。
+  ///
+  /// 设计取舍：用 chip 而非 menu / dialog，单次请求级别开关；不持久化（用户
+  /// 切到其它页再回来默认关闭），避免误用上传持仓。
+  Widget _portfolioChip() {
+    return Consumer<PortfolioState>(
+      builder: (context, ps, _) {
+        final summary = ps.currentSummary;
+        final hasHoldings = summary != null && summary.holdings.isNotEmpty;
+        final label = !hasHoldings
+            ? '@组合（暂无持仓）'
+            : _attachPortfolio
+                ? '已附带：${summary.portfolio.name}（${summary.holdings.length} 只）'
+                : '@组合（${summary.portfolio.name}）';
+        const activeColor = AppColors.amber;
+        final inactiveBg = AppColors.bgRaised;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: !hasHoldings
+                  ? null
+                  : () => setState(() => _attachPortfolio = !_attachPortfolio),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _attachPortfolio
+                      ? activeColor.withValues(alpha: 0.18)
+                      : inactiveBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _attachPortfolio
+                        ? activeColor
+                        : AppColors.borderDim,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _attachPortfolio
+                          ? Icons.account_balance_wallet
+                          : Icons.account_balance_wallet_outlined,
+                      size: 14,
+                      color: _attachPortfolio
+                          ? activeColor
+                          : AppColors.textTertiary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _attachPortfolio
+                            ? activeColor
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                    if (_attachPortfolio) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.close, size: 12, color: activeColor),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

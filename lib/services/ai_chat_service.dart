@@ -30,6 +30,7 @@ class AiChatService {
     String? persona,
     bool deepMode = false,
     String? systemHint,
+    Map<String, dynamic>? portfolioContext,
   }) async* {
     final cfg = AppConfig.instance;
     final tokens = await ApiClient.instance.storage.loadTokens();
@@ -46,6 +47,8 @@ class AiChatService {
       if (deepMode) 'deep_mode': true,
       if (systemHint != null && systemHint.isNotEmpty)
         'system_hint': systemHint,
+      if (portfolioContext != null && portfolioContext.isNotEmpty)
+        'portfolio_context': portfolioContext,
       'message': message,
     };
 

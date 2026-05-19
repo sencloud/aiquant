@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sencloud/finme-backend/internal/ai/chat"
+	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
@@ -35,6 +36,7 @@ type Deps struct {
 	Ding       *ding.Service
 	Onboarding *onboarding.Service
 	Chat       *chat.Service
+	Qwen       *qwen.VisionClient
 }
 
 // NewRouter 装配业务路由。
@@ -90,6 +92,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountDevices(r, d)
 				mountBillingPrivate(r, d)
 				mountDing(r, d)
+				mountPortfolioParse(r, d)
 			})
 		})
 	})

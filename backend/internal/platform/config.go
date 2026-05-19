@@ -31,6 +31,7 @@ type Config struct {
 	Tushare   TushareConfig   `toml:"tushare"`
 	News      NewsConfig      `toml:"news"`
 	AI        AIConfig        `toml:"ai"`
+	Qwen      QwenConfig      `toml:"qwen"`
 	RateLimit RateLimitConfig `toml:"ratelimit"`
 }
 
@@ -162,6 +163,20 @@ type NewsConfig struct {
 	TimeoutSec    int    `toml:"timeout_sec"`
 }
 
+// QwenConfig 阿里百炼 DashScope（OpenAI 兼容模式）配置；
+// 当前仅用于多模态 vision 解析（券商持仓截图 → JSON）。
+//
+// API key 走 EnvironmentFile 注入：DASHSCOPE_API_KEY。
+// 文档：https://help.aliyun.com/zh/model-studio/use-qwen-by-calling-api
+type QwenConfig struct {
+	APIKey      string `toml:"api_key"`
+	BaseURL     string `toml:"base_url"`
+	VisionModel string `toml:"vision_model"`
+	TimeoutSec  int    `toml:"timeout_sec"`
+}
+
+func (c QwenConfig) Configured() bool { return c.APIKey != "" }
+
 // AIConfig 服务端 AI 助理 chat 接口的运行参数。
 type AIConfig struct {
 	MaxToolLoops    int   `toml:"max_tool_loops"`
@@ -260,6 +275,11 @@ func defaultConfig() *Config {
 			GoogleRSSBase: "https://news.google.com/rss/search",
 			FirmsBaseURL:  "https://firms.modaps.eosdis.nasa.gov/api/area/csv",
 			TimeoutSec:    20,
+		},
+		Qwen: QwenConfig{
+			BaseURL:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
+			VisionModel: "qwen-vl-max",
+			TimeoutSec:  60,
 		},
 		AI: AIConfig{
 			// 工具循环轮次：LLM 每轮可能并发调多个 tool，60 轮足够支撑
@@ -402,6 +422,18 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_NEWS__FIRMS_MAP_KEY"); v != "" {
 		c.News.FirmsMapKey = v
+	}
+	if v := os.Getenv("DASHSCOPE_API_KEY"); v != "" {
+		c.Qwen.APIKey = v
+	}
+	if v := os.Getenv("FINME_QWEN__API_KEY"); v != "" {
+		c.Qwen.APIKey = v
+	}
+	if v := os.Getenv("FINME_QWEN__BASE_URL"); v != "" {
+		c.Qwen.BaseURL = v
+	}
+	if v := os.Getenv("FINME_QWEN__VISION_MODEL"); v != "" {
+		c.Qwen.VisionModel = v
 	}
 	if v := os.Getenv("FINME_SMS__PROVIDER"); v != "" {
 		c.SMS.Provider = v

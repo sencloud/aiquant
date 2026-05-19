@@ -11,11 +11,15 @@ class PortfolioCommandBar extends StatelessWidget {
     required this.onCreate,
     this.onAddAsset,
     this.onDelete,
+    this.onImportScreenshot,
   });
 
   final VoidCallback onCreate;
   final VoidCallback? onAddAsset;
   final VoidCallback? onDelete;
+
+  /// 「截图导入」按钮回调；仅当 vision 配置可用时由父级传入。
+  final VoidCallback? onImportScreenshot;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +49,13 @@ class PortfolioCommandBar extends StatelessWidget {
                 color: AppColors.amber, size: 18),
             onPressed: onAddAsset,
           ),
+          if (onImportScreenshot != null)
+            IconButton(
+              tooltip: '券商截图导入',
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: AppColors.amber, size: 18),
+              onPressed: onImportScreenshot,
+            ),
           IconButton(
             tooltip: '删除组合',
             icon: const Icon(Icons.delete_outline,
