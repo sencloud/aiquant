@@ -56,6 +56,43 @@ type ChatInput struct {
 	//   - billing.ReasonConsumeDing → DING runner / run-now 的统一扣费
 	// 其余取值会被拒绝。
 	BillingReason string
+
+	// PortfolioContext 是客户端在用户主动「@组合」/ 进入"诊断报告/解套止盈"
+	// 等需要 AI 看持仓的入口时附带的当前组合快照。
+	// 为空表示本次对话不附带；非空时拼到 system prompt 的「附加上下文」段落。
+	PortfolioContext *PortfolioContext
+}
+
+// PortfolioContext 是 ChatInput 携带的"用户当前组合快照"。
+//
+// 字段尽量贴近客户端 PortfolioSummary 序列化结果，省得多一层映射。
+type PortfolioContext struct {
+	Name             string             `json:"name"`
+	Currency         string             `json:"currency,omitempty"`
+	AsOfMs           int64              `json:"as_of_ms,omitempty"`
+	TotalMarketValue float64            `json:"total_market_value"`
+	TotalCost        float64            `json:"total_cost"`
+	TotalPnL         float64            `json:"total_pnl"`
+	TotalPnLPct      float64            `json:"total_pnl_pct"`
+	DayPnL           float64            `json:"day_pnl,omitempty"`
+	DayPnLPct        float64            `json:"day_pnl_pct,omitempty"`
+	Holdings         []PortfolioHolding `json:"holdings"`
+}
+
+// PortfolioHolding 是单只标的快照。
+type PortfolioHolding struct {
+	TsCode       string  `json:"ts_code"`
+	Symbol       string  `json:"symbol,omitempty"`
+	Name         string  `json:"name"`
+	Industry     string  `json:"industry,omitempty"`
+	Quantity     float64 `json:"quantity"`
+	AvgCost      float64 `json:"avg_cost"`
+	CurrentPrice float64 `json:"current_price"`
+	MarketValue  float64 `json:"market_value"`
+	PnL          float64 `json:"pnl"`
+	PnLPct       float64 `json:"pnl_pct"`
+	Weight       float64 `json:"weight_pct"`
+	DayChangePct float64 `json:"day_change_pct,omitempty"`
 }
 
 // ErrInsufficientBalance 暴露给上层用于 HTTP 401/402 风格响应。
@@ -199,7 +236,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return err
 	}
 	llmMsgs := []llm.MessageWithTools{}
-	if sys := buildSystemPrompt(in.SystemHint); sys != "" {
+	if sys := buildSystemPrompt(in.SystemHint, in.PortfolioContext); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
 	for _, m := range historyMsgs {
@@ -364,13 +401,63 @@ func mapMessageToLLM(m Message) llm.MessageWithTools {
 	return out
 }
 
-// buildSystemPrompt 注入"我是中国 A 股助理"等基础人设。
-func buildSystemPrompt(extra string) string {
+// buildSystemPrompt 注入"我是中国 A 股助理"等基础人设；
+// 如有 portfolio context，再追加一段"用户当前组合快照"。
+func buildSystemPrompt(extra string, ctx *PortfolioContext) string {
 	base := "你是面向中国 A 股市场的智能投研助理。回答用户问题时优先调用提供的 tool 拉真实数据；" +
 		"涉及行情、估值、新闻、量化指标时不要凭空猜测。所有金额和指标都基于工具返回的实际数据，必要时主动调用 search_instrument 解析中文标的名称。" +
 		"输出语言：简体中文。"
 	if extra != "" {
-		return base + "\n\n额外指令：" + extra
+		base += "\n\n额外指令：" + extra
+	}
+	if ctx != nil && len(ctx.Holdings) > 0 {
+		base += "\n\n" + renderPortfolioBlock(ctx)
 	}
 	return base
+}
+
+// renderPortfolioBlock 把组合快照按可读 markdown 表格渲染，让 LLM 能识别。
+func renderPortfolioBlock(c *PortfolioContext) string {
+	var b strings.Builder
+	b.WriteString("【已附带用户当前组合快照（仅参考，不要把字段解释为下单建议来源）】\n")
+	if c.Name != "" {
+		b.WriteString("组合名：" + c.Name)
+		if c.Currency != "" {
+			b.WriteString("（" + c.Currency + "）")
+		}
+		b.WriteString("\n")
+	}
+	if c.AsOfMs > 0 {
+		b.WriteString(fmt.Sprintf("数据时间：%s\n",
+			time.UnixMilli(c.AsOfMs).Format("2006-01-02 15:04")))
+	}
+	b.WriteString(fmt.Sprintf(
+		"汇总：总市值 %.2f｜总成本 %.2f｜总盈亏 %.2f (%.2f%%)",
+		c.TotalMarketValue, c.TotalCost, c.TotalPnL, c.TotalPnLPct))
+	if c.DayPnL != 0 || c.DayPnLPct != 0 {
+		b.WriteString(fmt.Sprintf("｜当日盈亏 %.2f (%.2f%%)", c.DayPnL, c.DayPnLPct))
+	}
+	b.WriteString(fmt.Sprintf("｜共 %d 只标的\n\n", len(c.Holdings)))
+	b.WriteString("| 代码 | 名称 | 行业 | 数量 | 成本 | 现价 | 市值 | 权重% | 盈亏 | 盈亏% | 当日% |\n")
+	b.WriteString("|------|------|------|------|------|------|------|-------|------|-------|-------|\n")
+	for _, h := range c.Holdings {
+		b.WriteString(fmt.Sprintf(
+			"| %s | %s | %s | %s | %s | %s | %s | %.2f | %s | %.2f | %.2f |\n",
+			h.TsCode, h.Name, h.Industry,
+			fmtNum(h.Quantity), fmtNum(h.AvgCost), fmtNum(h.CurrentPrice),
+			fmtNum(h.MarketValue), h.Weight,
+			fmtNum(h.PnL), h.PnLPct, h.DayChangePct,
+		))
+	}
+	b.WriteString("\n回答时如果用户提到「我的持仓 / 解套 / 止盈 / 当前组合」，请直接基于此表分析；" +
+		"如需补行情/新闻/财报数据再调相应工具。")
+	return b.String()
+}
+
+// fmtNum 数字简短渲染：整数无小数，小数保留 2 位。
+func fmtNum(v float64) string {
+	if v == float64(int64(v)) {
+		return strconv.FormatInt(int64(v), 10)
+	}
+	return strconv.FormatFloat(v, 'f', 2, 64)
 }

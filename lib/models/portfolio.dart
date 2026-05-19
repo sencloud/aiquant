@@ -176,4 +176,50 @@ class PortfolioSummary {
       for (final e in sums.entries) e.key: e.value / totalMarketValue * 100.0,
     };
   }
+
+  /// 序列化为后端 ChatInput.PortfolioContext。
+  ///
+  /// 字段命名与 backend/internal/ai/chat/service.go 中的 `PortfolioContext`
+  /// 严格对齐，调用方可直接 `jsonEncode` 后塞进 SSE body。
+  Map<String, dynamic> toAiContext() {
+    final mv = totalMarketValue;
+    final cost = totalCostBasis;
+    final pnl = mv - cost;
+    final pnlPct = cost == 0 ? 0.0 : pnl / cost * 100.0;
+    final dayPnl = totalDayChange;
+    final dayPnlPct = totalDayChangePercent;
+    return {
+      'name': portfolio.name,
+      'currency': portfolio.currency,
+      'as_of_ms': lastUpdated.millisecondsSinceEpoch,
+      'total_market_value': _round2(mv),
+      'total_cost': _round2(cost),
+      'total_pnl': _round2(pnl),
+      'total_pnl_pct': _round2(pnlPct),
+      'day_pnl': _round2(dayPnl),
+      'day_pnl_pct': _round2(dayPnlPct),
+      'holdings': [
+        for (final h in holdings)
+          {
+            'ts_code': h.symbol,
+            'symbol': h.symbol,
+            'name': h.name,
+            'industry': h.sector,
+            'quantity': _round2(h.quantity),
+            'avg_cost': _round2(h.avgBuyPrice),
+            'current_price': _round2(h.currentPrice ?? h.avgBuyPrice),
+            'market_value': _round2(h.marketValue),
+            'pnl': _round2(h.unrealizedPnl),
+            'pnl_pct': _round2(h.unrealizedPnlPercent),
+            'weight_pct': mv == 0 ? 0.0 : _round2(h.marketValue / mv * 100.0),
+            'day_change_pct': _round2(h.dayChangePercent ?? 0),
+          },
+      ],
+    };
+  }
+}
+
+double _round2(double v) {
+  if (v.isNaN || v.isInfinite) return 0;
+  return (v * 100).roundToDouble() / 100;
 }

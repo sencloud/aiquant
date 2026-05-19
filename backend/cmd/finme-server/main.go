@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sencloud/finme-backend/internal/ai/chat"
+	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
@@ -111,6 +112,17 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
 	dingSvc := ding.NewService(st, cfg, chatSvc, billing.NewLedgerRepo(st), &l)
 
+	var qwenVision *qwen.VisionClient
+	if cfg.Qwen.Configured() {
+		qwenVision = qwen.NewVisionClient(cfg.Qwen)
+		l.Info().
+			Str("model", cfg.Qwen.VisionModel).
+			Str("base_url", cfg.Qwen.BaseURL).
+			Msg("qwen vision: enabled")
+	} else {
+		l.Warn().Msg("qwen vision: api key not set, /v1/portfolio/parse-screenshot disabled")
+	}
+
 	deps := &api.Deps{
 		Config:     cfg,
 		Logger:     l,
@@ -122,6 +134,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Ding:       dingSvc,
 		Onboarding: onboardSvc,
 		Chat:       chatSvc,
+		Qwen:       qwenVision,
 	}
 	router := api.NewRouter(deps)
 

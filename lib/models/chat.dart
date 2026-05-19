@@ -80,6 +80,12 @@ class ChatMessage extends HiveObject {
   /// role=tool 消息：对应工具名称
   String? name;
 
+  /// role=user 消息：本条发送是否附带了组合快照（用于在气泡上显示提示）
+  bool portfolioAttached;
+
+  /// role=user 消息：附带的组合名（仅展示用）
+  String? portfolioName;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -90,6 +96,8 @@ class ChatMessage extends HiveObject {
     this.toolCalls,
     this.toolCallId,
     this.name,
+    this.portfolioAttached = false,
+    this.portfolioName,
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now();
 }
@@ -114,13 +122,15 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       toolCalls: (fields[6] as List?)?.cast<ToolCall>(),
       toolCallId: fields[7] as String?,
       name: fields[8] as String?,
+      portfolioAttached: fields[9] as bool? ?? false,
+      portfolioName: fields[10] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -138,7 +148,11 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(7)
       ..write(obj.toolCallId)
       ..writeByte(8)
-      ..write(obj.name);
+      ..write(obj.name)
+      ..writeByte(9)
+      ..write(obj.portfolioAttached)
+      ..writeByte(10)
+      ..write(obj.portfolioName);
   }
 }
 

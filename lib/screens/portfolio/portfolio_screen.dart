@@ -5,6 +5,7 @@ import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import 'compare_screen.dart';
 import 'dialogs/create_portfolio_dialog.dart';
+import 'dialogs/import_screenshot_dialog.dart';
 import 'dialogs/instrument_picker_dialog.dart';
 import 'tabs/analytics_tab.dart';
 import 'tabs/economics_tab.dart';
@@ -60,6 +61,9 @@ class PortfolioScreen extends StatelessWidget {
                   onCreate: () => _create(context),
                   onAddAsset:
                       ps.activeId == null ? null : () => _addAsset(context),
+                  onImportScreenshot: ps.activeId == null
+                      ? null
+                      : () => _importScreenshot(context),
                   onDelete:
                       ps.activeId == null ? null : () => _delete(context),
                 ),
@@ -138,6 +142,14 @@ class PortfolioScreen extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (_) => const InstrumentPickerDialog(),
+    );
+  }
+
+  Future<void> _importScreenshot(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const ImportScreenshotDialog(),
     );
   }
 

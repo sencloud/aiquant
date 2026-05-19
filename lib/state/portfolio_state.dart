@@ -1,6 +1,7 @@
 import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/utils/china_market.dart';
 import '../models/instrument.dart';
 import '../models/portfolio.dart';
 import '../services/portfolio_repository.dart';
@@ -110,6 +111,56 @@ class PortfolioState extends ChangeNotifier {
     notifyListeners();
     // ignore: unawaited_futures
     refreshQuotes();
+  }
+
+  /// 截图导入：把 vision 解析出来的 holdings 列表批量写入当前组合。
+  ///
+  /// 每条记录走 [addAsset]（落 buy 交易），跟手动一条条添加同结构，
+  /// 避免引入新的写入路径影响行情聚合 / 报告 / 优化等下游使用。
+  ///
+  /// 入参 [rows] 是 UI 层确认对话框最终修正过的明细：
+  ///  - code/name/quantity/avgCost 都已校验非空非负；
+  ///  - market 用于推断 ts_code 后缀（无后缀时按 ChinaMarket 默认规则）。
+  ///
+  /// 返回成功导入的行数。
+  Future<int> importParsedHoldings(
+      List<({
+        String code,
+        String name,
+        String market,
+        double quantity,
+        double avgCost,
+      })> rows) async {
+    final id = _activeId;
+    if (id == null) return 0;
+    var ok = 0;
+    for (final r in rows) {
+      if (r.quantity <= 0 || r.avgCost <= 0) continue;
+      final tsCode = ChinaMarket.normalizeSymbol(r.code);
+      if (tsCode.isEmpty) continue;
+      final assetClass = ChinaMarket.assetClassOf(tsCode);
+      final ins = Instrument(
+        tsCode: tsCode,
+        displaySymbol: ChinaMarket.displaySymbol(tsCode),
+        name: r.name,
+        exchange: ChinaMarket.exchangeOf(tsCode),
+        assetClass: assetClass,
+      );
+      await _repo.addAsset(
+        portfolioId: id,
+        instrument: ins,
+        quantity: r.quantity,
+        price: r.avgCost,
+      );
+      ok++;
+    }
+    _rebuildSummary();
+    notifyListeners();
+    if (ok > 0) {
+      // ignore: unawaited_futures
+      refreshQuotes();
+    }
+    return ok;
   }
 
   Future<void> sellAsset({

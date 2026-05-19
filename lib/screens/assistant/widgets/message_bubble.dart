@@ -70,7 +70,14 @@ class MessageBubble extends StatelessWidget {
                 ),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: _content(context, fg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isUser && message.portfolioAttached)
+                      _PortfolioBadge(name: message.portfolioName),
+                    _content(context, fg),
+                  ],
+                ),
               ),
             ),
           if (message.streaming &&
@@ -146,6 +153,45 @@ class MessageBubble extends StatelessWidget {
         const SizedBox(height: 2),
         const _BlinkingCursor(),
       ],
+    );
+  }
+}
+
+/// 用户消息上方的"已附带组合"标识；仅在该消息发送时携带 portfolio_context
+/// 时显示，便于事后回看历史时知道当时的回答基于哪个组合。
+class _PortfolioBadge extends StatelessWidget {
+  const _PortfolioBadge({this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = name == null || name!.isEmpty ? '已附带组合' : '已附带组合：$name';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.account_balance_wallet,
+                size: 11, color: Colors.black87),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

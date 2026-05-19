@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/storage/hive_setup.dart';
 import '../../../core/utils/china_market.dart';
 import '../../../models/portfolio.dart';
+import '../../../services/ai_chat_service.dart';
 import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
 
@@ -23,12 +28,37 @@ class ReportsTab extends StatefulWidget {
 class _ReportsTabState extends State<ReportsTab> {
   bool _exporting = false;
 
+  // AI 诊断报告状态
+  final _aiSvc = AiChatService();
+  StreamSubscription<AiChatEvent>? _aiSub;
+  String _aiText = '';
+  String _aiReasoning = '';
+  bool _aiLoading = false;
+  String? _aiError;
+  DateTime? _aiGeneratedAt;
+  String? _aiCacheKeyLoaded;
+
+  static const _kAiCachePrefix = 'portfolio_ai_report:';
+
+  @override
+  void dispose() {
+    _aiSub?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ps = context.watch<PortfolioState>();
     final s = ps.currentSummary;
     if (s == null || s.holdings.isEmpty) {
       return const _Empty('加入品种后这里会生成可分享的组合报告。');
+    }
+
+    // 进入页面 / 切换组合时尝试加载缓存的 AI 报告（不自动发请求）
+    final key = _aiCacheKey(s);
+    if (_aiCacheKeyLoaded != key) {
+      _aiCacheKeyLoaded = key;
+      _loadCachedAi(key);
     }
 
     final fmt = NumberFormat('#,##0.00');
@@ -40,6 +70,8 @@ class _ReportsTabState extends State<ReportsTab> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        _aiReportCard(s),
+        const SizedBox(height: 12),
         _actionsCard(s),
         const SizedBox(height: 12),
         _summaryCard(s, fmt, df),
@@ -51,6 +83,308 @@ class _ReportsTabState extends State<ReportsTab> {
         _disclaimerCard(),
       ],
     );
+  }
+
+  // ── AI 诊断报告卡 ───────────────────────────────────────────────────
+
+  /// AI 诊断报告卡：未生成时显示「生成」按钮；生成中显示流式 markdown +
+  /// reasoning（可选）；生成完显示 markdown + 时间戳 + 重新生成 + 复制。
+  Widget _aiReportCard(PortfolioSummary s) {
+    final df = DateFormat('yyyy-MM-dd HH:mm');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome,
+                    color: AppColors.amber, size: 14),
+                const SizedBox(width: 6),
+                const Expanded(child: _Title('AI 持仓诊断')),
+                if (_aiGeneratedAt != null && !_aiLoading)
+                  Text(
+                    df.format(_aiGeneratedAt!),
+                    style: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 10),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (_aiText.isEmpty && !_aiLoading) _aiEmpty(s),
+            if (_aiLoading) ...[
+              if (_aiReasoning.isNotEmpty) _aiReasoningBlock(),
+              if (_aiText.isNotEmpty)
+                _aiMarkdownBlock(_aiText, streaming: true),
+              if (_aiText.isEmpty && _aiReasoning.isEmpty)
+                const _AiThinkingDots(),
+            ] else if (_aiText.isNotEmpty) ...[
+              _aiMarkdownBlock(_aiText, streaming: false),
+            ],
+            if (_aiError != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.40)),
+                ),
+                child: Text(_aiError!,
+                    style: const TextStyle(
+                        color: AppColors.danger, fontSize: 11)),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (_aiText.isEmpty)
+                  ElevatedButton.icon(
+                    onPressed: _aiLoading ? null : () => _runAiReport(s),
+                    icon: const Icon(Icons.bolt_rounded, size: 16),
+                    label: const Text('生成 AI 诊断'),
+                  )
+                else ...[
+                  OutlinedButton.icon(
+                    onPressed: _aiLoading ? null : () => _runAiReport(s),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('重新生成'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _copy(context, _aiText),
+                    icon: const Icon(Icons.content_copy, size: 16),
+                    label: const Text('复制全文'),
+                  ),
+                ],
+                if (_aiLoading)
+                  TextButton.icon(
+                    onPressed: _abortAi,
+                    icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                    label: const Text('停止生成'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _aiEmpty(PortfolioSummary s) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        '基于当前 ${s.holdings.length} 只持仓 + 实时行情 + 关键新闻，'
+        'AI 会出一份可执行的诊断报告（行业集中度、个股逻辑、风险点、下周重点）。'
+        '默认深度推理，预计耗几枚喜点。',
+        style: TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          height: 1.55,
+        ),
+      ),
+    );
+  }
+
+  Widget _aiReasoningBlock() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.bgRaised,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.borderDim),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.psychology_outlined,
+                  color: AppColors.amber, size: 12),
+              const SizedBox(width: 4),
+              Text('推理中…',
+                  style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _aiReasoning,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: AppColors.textSecondary, fontSize: 10, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aiMarkdownBlock(String md, {required bool streaming}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: AppColors.bgBase,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.borderDim),
+      ),
+      child: MarkdownBody(
+        data: md.isEmpty ? '…' : md,
+        selectable: true,
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(
+              color: AppColors.textPrimary, fontSize: 12, height: 1.55),
+          h1: const TextStyle(
+              color: AppColors.amber,
+              fontWeight: FontWeight.w800,
+              fontSize: 16),
+          h2: const TextStyle(
+              color: AppColors.amber,
+              fontWeight: FontWeight.w800,
+              fontSize: 14),
+          h3: const TextStyle(
+              color: AppColors.amber,
+              fontWeight: FontWeight.w800,
+              fontSize: 13),
+          listBullet:
+              TextStyle(color: AppColors.textPrimary, fontSize: 12),
+          strong: TextStyle(
+              color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+          tableHead: const TextStyle(
+              color: AppColors.amber,
+              fontSize: 11,
+              fontWeight: FontWeight.w800),
+          tableBody: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 11,
+              fontFamily: 'monospace'),
+          code: TextStyle(
+              color: AppColors.amber,
+              backgroundColor: AppColors.bgRaised,
+              fontFamily: 'monospace',
+              fontSize: 11),
+          codeblockDecoration: BoxDecoration(
+            color: AppColors.bgRaised,
+            border: Border.all(color: AppColors.borderDim),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _aiCacheKey(PortfolioSummary s) =>
+      '$_kAiCachePrefix${s.portfolio.id}';
+
+  Future<void> _loadCachedAi(String key) async {
+    final raw = prefsBox.get(key);
+    if (raw is! Map) {
+      _resetAi();
+      return;
+    }
+    final text = raw['text'] as String? ?? '';
+    final atMs = raw['at_ms'] as int?;
+    if (text.isEmpty) {
+      _resetAi();
+      return;
+    }
+    setState(() {
+      _aiText = text;
+      _aiGeneratedAt =
+          atMs == null ? null : DateTime.fromMillisecondsSinceEpoch(atMs);
+      _aiError = null;
+    });
+  }
+
+  void _resetAi() {
+    if (!mounted) return;
+    setState(() {
+      _aiText = '';
+      _aiReasoning = '';
+      _aiGeneratedAt = null;
+      _aiError = null;
+    });
+  }
+
+  Future<void> _runAiReport(PortfolioSummary s) async {
+    await _aiSub?.cancel();
+    setState(() {
+      _aiLoading = true;
+      _aiError = null;
+      _aiText = '';
+      _aiReasoning = '';
+    });
+    final completer = Completer<void>();
+    _aiSub = _aiSvc
+        .stream(
+      message: _kReportPrompt,
+      systemHint: _kReportSystemHint,
+      deepMode: true,
+      portfolioContext: s.toAiContext(),
+    )
+        .listen((ev) {
+      switch (ev.kind) {
+        case AiChatEventKind.textDelta:
+          if (!mounted) return;
+          setState(() => _aiText += ev.delta ?? '');
+          break;
+        case AiChatEventKind.toolCall:
+          // 报告页不展示具体 tool 调用细节，只在 reasoning 区透露"在查 xxx"
+          if (!mounted) return;
+          setState(() {
+            _aiReasoning =
+                '正在调用工具：${ev.toolName ?? '...'}（${ev.toolArguments ?? ''}）';
+          });
+          break;
+        case AiChatEventKind.toolResult:
+          break;
+        case AiChatEventKind.session:
+          break;
+        case AiChatEventKind.done:
+          break;
+        case AiChatEventKind.error:
+          if (!mounted) return;
+          setState(() {
+            _aiError = '${ev.errorCode}：${ev.errorMessage}';
+          });
+          break;
+      }
+    }, onError: (Object e, StackTrace _) {
+      if (!completer.isCompleted) completer.complete();
+    }, onDone: () {
+      if (!completer.isCompleted) completer.complete();
+    });
+    await completer.future;
+    if (!mounted) return;
+    setState(() {
+      _aiLoading = false;
+      _aiReasoning = '';
+      if (_aiText.isNotEmpty) {
+        _aiGeneratedAt = DateTime.now();
+        prefsBox.put(_aiCacheKey(s), {
+          'text': _aiText,
+          'at_ms': _aiGeneratedAt!.millisecondsSinceEpoch,
+        });
+      }
+    });
+  }
+
+  Future<void> _abortAi() async {
+    await _aiSub?.cancel();
+    _aiSub = null;
+    if (!mounted) return;
+    setState(() {
+      _aiLoading = false;
+      _aiReasoning = '';
+    });
   }
 
   Widget _actionsCard(PortfolioSummary s) {
@@ -80,7 +414,9 @@ class _ReportsTabState extends State<ReportsTab> {
             ),
             const SizedBox(height: 6),
             Text(
-                '说明：PDF 使用思源黑体（首次生成需联网下载并缓存中文字体）。',
+                _aiText.isEmpty
+                    ? '说明：PDF 使用思源黑体（首次生成需联网下载并缓存中文字体）。'
+                    : '说明：PDF 会一并包含上方 AI 诊断报告 + 持仓明细 / 行业分布。',
                 style: TextStyle(
                     color: AppColors.textTertiary, fontSize: 10)),
           ],
@@ -394,6 +730,8 @@ class _ReportsTabState extends State<ReportsTab> {
           ..sort((a, b) => b.value.compareTo(a.value)))
         .toList();
 
+    final aiSnippets = _splitAiMarkdown(_aiText);
+
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -424,6 +762,21 @@ class _ReportsTabState extends State<ReportsTab> {
                   const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
         ),
         build: (ctx) => [
+          if (aiSnippets.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Text('AI 持仓诊断',
+                style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.amber800)),
+            if (_aiGeneratedAt != null)
+              pw.Text('生成时间：${df.format(_aiGeneratedAt!)}',
+                  style: const pw.TextStyle(
+                      fontSize: 9, color: PdfColors.grey600)),
+            pw.SizedBox(height: 4),
+            for (final block in aiSnippets) block,
+            pw.SizedBox(height: 12),
+          ],
           pw.SizedBox(height: 8),
           pw.Text('概览',
               style: pw.TextStyle(
@@ -528,6 +881,71 @@ class _ReportsTabState extends State<ReportsTab> {
     return doc.save();
   }
 
+  /// 把 AI 生成的 markdown 拆成一组 pdf widgets。pdf 包没有原生 markdown
+  /// 渲染，这里手工识别 #/##/### 标题、`-`/`*` bullet、表格用纯文本表示。
+  /// 表格在 markdown 里复杂多变，简单起见整行作为段落输出（用户已能在 UI
+  /// 看到漂亮版本，PDF 当作分享附件即可）。
+  List<pw.Widget> _splitAiMarkdown(String md) {
+    if (md.trim().isEmpty) return const [];
+    final out = <pw.Widget>[];
+    for (final raw in md.split('\n')) {
+      final line = raw.trimRight();
+      if (line.isEmpty) {
+        out.add(pw.SizedBox(height: 4));
+        continue;
+      }
+      if (line.startsWith('### ')) {
+        out.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 4, bottom: 2),
+          child: pw.Text(line.substring(4),
+              style: pw.TextStyle(
+                  fontSize: 11, fontWeight: pw.FontWeight.bold)),
+        ));
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        out.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 6, bottom: 2),
+          child: pw.Text(line.substring(3),
+              style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.amber800)),
+        ));
+        continue;
+      }
+      if (line.startsWith('# ')) {
+        out.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 8, bottom: 3),
+          child: pw.Text(line.substring(2),
+              style: pw.TextStyle(
+                  fontSize: 13, fontWeight: pw.FontWeight.bold)),
+        ));
+        continue;
+      }
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        out.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(left: 8, top: 1, bottom: 1),
+          child: pw.Text('• ${line.substring(2)}',
+              style: const pw.TextStyle(fontSize: 9.5)),
+        ));
+        continue;
+      }
+      if (RegExp(r'^\d+\.\s').hasMatch(line)) {
+        out.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(left: 4, top: 1, bottom: 1),
+          child: pw.Text(line, style: const pw.TextStyle(fontSize: 9.5)),
+        ));
+        continue;
+      }
+      out.add(pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 1, bottom: 1),
+        child: pw.Text(line, style: const pw.TextStyle(fontSize: 9.5)),
+      ));
+    }
+    return out;
+  }
+
   pw.Widget _kvPdf(String k, String v) {
     return pw.Row(
       mainAxisSize: pw.MainAxisSize.min,
@@ -569,3 +987,97 @@ class _Empty extends StatelessWidget {
         ),
       );
 }
+
+class _AiThinkingDots extends StatefulWidget {
+  const _AiThinkingDots();
+
+  @override
+  State<_AiThinkingDots> createState() => _AiThinkingDotsState();
+}
+
+class _AiThinkingDotsState extends State<_AiThinkingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final n = ((_c.value * 4).floor() % 4);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.amber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'AI 正在分析持仓${'·' * n}',
+                style: TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+const _kReportSystemHint = '''
+你是专业的中国 A 股投研分析师。任务：基于附带的"用户当前组合快照"，输出一份
+可执行的"持仓诊断报告"。允许且鼓励调用提供的 tool 拉行情/财报/新闻/技术指标等
+辅助数据；不要凭空猜测。不要对任何标的下"必涨/必跌"结论；不要给免责声明。''';
+
+const _kReportPrompt = '''
+请基于已附带的当前组合，生成一份"持仓诊断报告"。结构如下（用 markdown，二级
+标题用 ##）：
+
+## 一、整体诊断
+- 仓位/集中度/行业偏向（一句话总览 + 关键数字）
+- 当前最大风险点（不超过 3 条）
+- 当前最重要机会（不超过 3 条）
+
+## 二、个股逐一诊断
+对每只持仓输出一段（按市值降序）：
+- 标的（代码 + 名称）
+- 一句话定位（行业 + 商业模式）
+- 现状：现价/成本/盈亏/权重；与同行业对比的相对位置（必要时调用 quote/财务工具）
+- 近期催化剂（新闻或公告，必要时调用 search_chinese_news）
+- 操作建议：继续持有 / 加仓（具体价位）/ 减仓（具体价位）/ 换仓到谁
+
+## 三、行业集中度风险
+- 当前权重排名前 3 的行业
+- 是否存在单一行业过度暴露（>30%）的风险
+- 给出"再平衡的具体方向"（哪个行业减、哪个加）
+
+## 四、下周关键事件
+- 列 3-5 条与当前持仓相关的关键事件 / 数据 / 财报披露日 / 重要会议
+- 每条注明影响哪只标的、可能方向
+
+## 五、可执行清单
+- 给一份"未来 5 个交易日"逐日操作清单（每日不超过 3 条）
+- 每条具体到代码 / 价位 / 数量 / 触发条件
+''';
