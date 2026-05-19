@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
+import '../../core/format/credit_fmt.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../theme/app_theme.dart';
@@ -45,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('充值成功 +${sku.totalCredits} 喜点'),
+        content: Text('充值成功 +${CreditFmt.label(sku.totalCredits)}'),
         duration: const Duration(seconds: 2),
       ));
       return;
@@ -151,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _section('喜点说明'),
             const SizedBox(height: 6),
             _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理与行情分析。'),
-            _bulletText('• 每次回答消耗 6 喜点，含行情查询则按次再加 1 喜点。'),
+            _bulletText('• 每次回答消耗 0.6 喜点，含行情查询则按次再加 0.1 喜点。'),
             _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
             if (user != null) ...[
               const SizedBox(height: 24),
@@ -269,7 +270,7 @@ class _BalanceCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '$balance',
+                CreditFmt.balance(balance),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 36,
@@ -309,7 +310,6 @@ class _PackageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasBonus = sku.bonusCredits > 0;
-    final unitPrice = sku.priceYuan / sku.totalCredits;
     final tappable = !loading && !disabled;
     return Material(
       color: AppColors.bgRaised,
@@ -344,7 +344,7 @@ class _PackageTile extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '${sku.baseCredits} 喜点',
+                          sku.baseLabel,
                           style: const TextStyle(
                             color: AppColors.amber,
                             fontSize: 16,
@@ -363,7 +363,7 @@ class _PackageTile extends StatelessWidget {
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: Text(
-                              '送 ${sku.bonusCredits}',
+                              sku.bonusLabel,
                               style: const TextStyle(
                                 color: AppColors.positive,
                                 fontSize: 10,
@@ -377,8 +377,8 @@ class _PackageTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       hasBonus
-                          ? '到账 ${sku.totalCredits} 喜点 · 折合 ¥${unitPrice.toStringAsFixed(3)}/喜点'
-                          : '折合 ¥${unitPrice.toStringAsFixed(3)}/喜点',
+                          ? '到账 ${sku.titleLabel} · 折合 ${sku.unitPriceLabel}'
+                          : '折合 ${sku.unitPriceLabel}',
                       style: TextStyle(
                           color: AppColors.textTertiary, fontSize: 11),
                     ),
@@ -819,7 +819,7 @@ class _LedgerRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text('余 ${item.balanceAfter}',
+              Text('余 ${item.balanceLabel}',
                   style: TextStyle(
                       color: AppColors.textTertiary, fontSize: 11)),
             ],

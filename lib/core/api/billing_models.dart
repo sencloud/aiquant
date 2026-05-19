@@ -1,6 +1,8 @@
 /// Billing 相关 DTO —— 与 backend `internal/billing` 字段一一对齐。
 library;
 
+import '../format/credit_fmt.dart';
+
 class CreditSku {
   CreditSku({
     required this.code,
@@ -34,9 +36,12 @@ class CreditSku {
       );
 
   /// 给 UI 展示用的"原价 / 总额 / 红利"标签。
-  String get titleLabel => '$totalCredits 喜点';
-  String get bonusLabel => bonusCredits > 0 ? '送 $bonusCredits' : '';
+  /// 注意：后端 credits 仍按整数计量，前端统一 ÷10 显示给用户。
+  String get titleLabel => CreditFmt.label(totalCredits);
+  String get baseLabel => CreditFmt.label(baseCredits);
+  String get bonusLabel => bonusCredits > 0 ? '送 ${CreditFmt.amount(bonusCredits)}' : '';
   String get priceLabel => '¥${priceYuan.toStringAsFixed(priceYuan == priceYuan.roundToDouble() ? 0 : 2)}';
+  String get unitPriceLabel => CreditFmt.unitPrice(priceYuan, totalCredits);
 }
 
 class CreditOrder {
@@ -138,6 +143,9 @@ class CreditLedgerItem {
     }
   }
 
-  /// "+50" / "-3"
-  String get deltaLabel => delta >= 0 ? '+$delta' : '$delta';
+  /// "+5.0" / "-0.6"
+  String get deltaLabel => CreditFmt.delta(delta);
+
+  /// "余 6.0"
+  String get balanceLabel => CreditFmt.balance(balanceAfter);
 }

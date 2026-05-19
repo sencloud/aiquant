@@ -224,6 +224,27 @@ class DingState extends ChangeNotifier {
     await _syncBadgeWithUnread();
   }
 
+  /// 批量删除一组消息（收件箱里折叠历史条用）。
+  ///
+  /// 服务端目前没有 batch API，这里按单条顺序删；失败的条会从入参集合中被跳过，
+  /// 整体不抛错，避免删了一半之后 UI 卡死。
+  Future<int> deleteMessages(Iterable<DingMessage> msgs) async {
+    final ids = <String>{};
+    for (final m in msgs) {
+      try {
+        await _service.deleteNotification(m.id);
+        ids.add(m.id);
+      } catch (_) {
+        // 单条失败不阻断其它删除
+      }
+    }
+    if (ids.isEmpty) return 0;
+    _messages.removeWhere((x) => ids.contains(x.id));
+    notifyListeners();
+    await _syncBadgeWithUnread();
+    return ids.length;
+  }
+
   Future<void> clearAllMessages() async {
     for (final m in List<DingMessage>.from(_messages)) {
       await _service.deleteNotification(m.id);
