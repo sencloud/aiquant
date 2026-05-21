@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../models/chat.dart';
 import '../../../theme/app_theme.dart';
 import 'reasoning_block.dart';
+import 'share_card_screen.dart';
 import 'tool_call_card.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -85,7 +85,10 @@ class MessageBubble extends StatelessWidget {
           if (!isUser && hasContent && !message.streaming)
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 2),
-              child: _MessageActionsBar(text: message.content),
+              child: _MessageActionsBar(
+                text: message.content,
+                timestamp: message.timestamp,
+              ),
             ),
           if (message.streaming &&
               !hasReasoning &&
@@ -164,14 +167,16 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
-/// 助理消息底部的轻量操作栏：复制 / 分享到微信。
+/// 助理消息底部的轻量操作栏：复制 / 生成长图分享。
 ///
-/// 分享走 iOS 系统分享面板（UIActivityViewController）—— 装了微信后会自动
-/// 出现「微信」「朋友圈」入口，无需额外引入微信 SDK 或原生配置。
+/// 「长图分享」先 push 到 [ShareCardScreen] 让用户预览，再调系统分享面板
+/// （iOS 装了微信会出现「微信 / 朋友圈」入口）。比直接 text 分享更"成图友好"，
+/// 接收方在微信里看是一张完整的品牌长图。
 class _MessageActionsBar extends StatelessWidget {
-  const _MessageActionsBar({required this.text});
+  const _MessageActionsBar({required this.text, required this.timestamp});
 
   final String text;
+  final DateTime timestamp;
 
   Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: text));
@@ -184,19 +189,10 @@ class _MessageActionsBar extends StatelessWidget {
     );
   }
 
-  Future<void> _shareToWeChat(BuildContext context) async {
-    // iPad 上系统要求提供 popover 锚点，否则可能崩溃；这里取按钮自身位置。
-    Rect? origin;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box != null && box.hasSize) {
-      final topLeft = box.localToGlobal(Offset.zero);
-      origin = topLeft & box.size;
-    }
-    await Share.share(
-      text,
-      subject: '来自喜宽 AI 助理',
-      sharePositionOrigin: origin,
-    );
+  void _shareAsImage(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ShareCardScreen(text: text, timestamp: timestamp),
+    ));
   }
 
   @override
@@ -210,12 +206,10 @@ class _MessageActionsBar extends StatelessWidget {
           onTap: () => _copy(context),
         ),
         const SizedBox(width: 6),
-        Builder(
-          builder: (btnCtx) => _ActionChip(
-            icon: Icons.ios_share,
-            label: '分享到微信',
-            onTap: () => _shareToWeChat(btnCtx),
-          ),
+        _ActionChip(
+          icon: Icons.ios_share,
+          label: '生成长图分享',
+          onTap: () => _shareAsImage(context),
         ),
       ],
     );
