@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/format/credit_fmt.dart';
+import '../../models/chat.dart';
 import '../../models/persona.dart';
+import '../../models/strategy.dart';
 import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
@@ -11,6 +13,7 @@ import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 import 'widgets/session_drawer.dart';
+import 'widgets/strategy_picker.dart';
 
 /// AssistantScreen 的入参。
 ///
@@ -241,20 +244,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
       drawer: const SessionDrawer(),
       body: Column(
         children: [
-          PersonaPicker(
-            activeId: persona.id,
-            disabled: chat.streaming,
-            onPick: (id) async {
-              final isNewSessionEmpty =
-                  (session?.messages.isEmpty ?? true);
-              if (isNewSessionEmpty) {
-                await chat.setPersona(id);
-              } else {
-                // 已有对话不切 persona，直接开新会话避免 prompt 跳变
-                await chat.newSession(personaId: id);
-              }
-            },
-          ),
+          _topTagBar(chat, persona, session),
           Container(height: 1, color: AppColors.borderDim),
           Expanded(
             child: session == null || session.messages.isEmpty
@@ -278,6 +268,59 @@ class _AssistantScreenState extends State<AssistantScreen> {
         ],
       ),
     );
+  }
+
+  /// 顶部「角色 + 策略之王」并列下拉 tag。
+  ///
+  /// - 角色 tag：合并原横向 chip 列表，显示当前选中 persona，点击展开角色清单。
+  /// - 策略之王 tag：呈现策略气泡列表，默认挂载「ETF 组合轮动」，点「立即运行」
+  ///   即把策略 prompt 直接发给当前会话的 AI 助理。
+  Widget _topTagBar(ChatState chat, Persona persona, ChatSession? session) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Row(
+        children: [
+          PersonaPicker(
+            activeId: persona.id,
+            disabled: chat.streaming,
+            onPick: (id) async {
+              final isNewSessionEmpty =
+                  (session?.messages.isEmpty ?? true);
+              if (isNewSessionEmpty) {
+                await chat.setPersona(id);
+              } else {
+                // 已有对话不切 persona，直接开新会话避免 prompt 跳变
+                await chat.newSession(personaId: id);
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          StrategyPicker(
+            disabled: chat.streaming,
+            onRun: (s) => _runStrategy(s),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 「策略之王」气泡里点「立即运行」 → 直接发送策略 prompt 给 AI。
+  ///
+  /// 若用户已开启「@组合」，则把组合快照也带上，让 AI 在策略报告里参考
+  /// 当前持仓做换仓建议。
+  Future<void> _runStrategy(Strategy s) async {
+    Map<String, dynamic>? ctxJson;
+    if (_attachPortfolio) {
+      final ps = context.read<PortfolioState>();
+      final summary = ps.currentSummary;
+      if (summary != null && summary.holdings.isNotEmpty) {
+        ctxJson = summary.toAiContext();
+      }
+    }
+    await context
+        .read<ChatState>()
+        .sendMessage(s.prompt, portfolioContext: ctxJson);
+    _scrollToBottom();
   }
 
   /// 空会话时的欢迎面板：参考"元宝"截图布局——上半部分留白让视线聚焦，
