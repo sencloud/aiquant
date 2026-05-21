@@ -192,12 +192,10 @@ class _MessageActionsBar extends StatelessWidget {
       final topLeft = box.localToGlobal(Offset.zero);
       origin = topLeft & box.size;
     }
-    await SharePlus.instance.share(
-      ShareParams(
-        text: text,
-        subject: '来自喜宽 AI 助理',
-        sharePositionOrigin: origin,
-      ),
+    await Share.share(
+      text,
+      subject: '来自喜宽 AI 助理',
+      sharePositionOrigin: origin,
     );
   }
 
