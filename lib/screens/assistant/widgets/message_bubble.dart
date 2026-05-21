@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../models/chat.dart';
 import '../../../theme/app_theme.dart';
@@ -80,6 +82,11 @@ class MessageBubble extends StatelessWidget {
                 ),
               ),
             ),
+          if (!isUser && hasContent && !message.streaming)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 2),
+              child: _MessageActionsBar(text: message.content),
+            ),
           if (message.streaming &&
               !hasReasoning &&
               !hasContent &&
@@ -153,6 +160,107 @@ class MessageBubble extends StatelessWidget {
         const SizedBox(height: 2),
         const _BlinkingCursor(),
       ],
+    );
+  }
+}
+
+/// 助理消息底部的轻量操作栏：复制 / 分享到微信。
+///
+/// 分享走 iOS 系统分享面板（UIActivityViewController）—— 装了微信后会自动
+/// 出现「微信」「朋友圈」入口，无需额外引入微信 SDK 或原生配置。
+class _MessageActionsBar extends StatelessWidget {
+  const _MessageActionsBar({required this.text});
+
+  final String text;
+
+  Future<void> _copy(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已复制到剪贴板'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  Future<void> _shareToWeChat(BuildContext context) async {
+    // iPad 上系统要求提供 popover 锚点，否则可能崩溃；这里取按钮自身位置。
+    Rect? origin;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      final topLeft = box.localToGlobal(Offset.zero);
+      origin = topLeft & box.size;
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        subject: '来自喜宽 AI 助理',
+        sharePositionOrigin: origin,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ActionChip(
+          icon: Icons.copy_outlined,
+          label: '复制',
+          onTap: () => _copy(context),
+        ),
+        const SizedBox(width: 6),
+        Builder(
+          builder: (btnCtx) => _ActionChip(
+            icon: Icons.ios_share,
+            label: '分享到微信',
+            onTap: () => _shareToWeChat(btnCtx),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
