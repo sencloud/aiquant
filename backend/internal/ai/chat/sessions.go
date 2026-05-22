@@ -96,6 +96,22 @@ func (r *SessionRepo) CreateOrLoad(ctx context.Context, userID int64, sessionUUI
 //
 // N <= 0 时返回全部。第一条若是 system，会保留；user/assistant/tool 之间的
 // 顺序保持。
+//
+// 关键约束（OpenAI / DeepSeek 协议）：
+//
+//	role=tool 必须紧跟在 role=assistant 且带 tool_calls 的消息之后；
+//	且每个 tool 消息的 tool_call_id 都要能在前一条 assistant 的 tool_calls
+//	里找到。
+//
+// 直接按 LIMIT 截最近 N 条会出现"截断点把 assistant(tool_calls) 砍掉、
+// 只留下后面的 tool 消息"这种孤儿情况，触发 LLM 端 400
+//
+//	"Messages with role 'tool' must be a response to a preceding
+//	 message with 'tool_calls'"。
+//
+// 我们在截断后做一次清洗：从 head 开始往后扫，丢掉所有"前面没有合法
+// assistant tool_calls 提供 id 的 tool 消息"，并丢掉"声明了 tool_calls
+// 但配对的 tool 已经不在窗口"的 assistant 消息。
 func (r *SessionRepo) LoadHistory(ctx context.Context, sessionID int64, limit int) ([]Message, error) {
 	if limit <= 0 {
 		var rows []Message
@@ -103,7 +119,7 @@ func (r *SessionRepo) LoadHistory(ctx context.Context, sessionID int64, limit in
 			"SELECT * FROM ai_chat_messages WHERE session_id=? ORDER BY id", sessionID); err != nil {
 			return nil, err
 		}
-		return rows, nil
+		return sanitizeToolPairs(rows), nil
 	}
 	var rows []Message
 	if err := r.st.DB.SelectContext(ctx, &rows, `
@@ -114,7 +130,81 @@ func (r *SessionRepo) LoadHistory(ctx context.Context, sessionID int64, limit in
 	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
 		rows[i], rows[j] = rows[j], rows[i]
 	}
-	return rows, nil
+	return sanitizeToolPairs(rows), nil
+}
+
+// sanitizeToolPairs 把窗口内 assistant↔tool 的配对补齐：
+//  1. 收集窗口里所有 tool 消息的 tool_call_id 集合；
+//  2. 第一遍：遍历 assistant 消息，把 tool_calls 中 id 不在集合的项删掉；
+//     若一条 assistant 的 tool_calls 整体都丢失了，但 content 为空，则该
+//     消息也整条丢弃（既无文本又无残留 tool_calls）。
+//  3. 第二遍：再收集"还活着的 assistant tool_call_id 集合"，遍历 tool
+//     消息，把孤儿（id 不在集合）的 tool 整条丢弃。
+//  4. 第三遍：从 head 起，连续丢掉以 tool 开头的消息（防止窗口起点就是
+//     orphan tool，但其 id 实际指向窗口外那条 assistant — 例如截断点恰
+//     好在 assistant↔tool 之间）。
+func sanitizeToolPairs(rows []Message) []Message {
+	if len(rows) == 0 {
+		return rows
+	}
+	toolIDs := make(map[string]bool, len(rows))
+	for _, m := range rows {
+		if m.Role == "tool" && m.ToolCallID.Valid && m.ToolCallID.String != "" {
+			toolIDs[m.ToolCallID.String] = true
+		}
+	}
+
+	out := make([]Message, 0, len(rows))
+	livingAsstIDs := make(map[string]bool)
+	for _, m := range rows {
+		if m.Role != "assistant" {
+			out = append(out, m)
+			continue
+		}
+		if !m.ToolCallsJSON.Valid || m.ToolCallsJSON.String == "" {
+			out = append(out, m)
+			continue
+		}
+		var calls []llm.ToolCall
+		if err := json.Unmarshal([]byte(m.ToolCallsJSON.String), &calls); err != nil {
+			out = append(out, m)
+			continue
+		}
+		keep := calls[:0]
+		for _, c := range calls {
+			if toolIDs[c.ID] {
+				keep = append(keep, c)
+				livingAsstIDs[c.ID] = true
+			}
+		}
+		if len(keep) == 0 {
+			if m.Content == "" {
+				continue
+			}
+			m.ToolCallsJSON.Valid = false
+			m.ToolCallsJSON.String = ""
+			out = append(out, m)
+			continue
+		}
+		raw, _ := json.Marshal(keep)
+		m.ToolCallsJSON.String = string(raw)
+		out = append(out, m)
+	}
+
+	filtered := out[:0]
+	for _, m := range out {
+		if m.Role == "tool" {
+			if !m.ToolCallID.Valid || !livingAsstIDs[m.ToolCallID.String] {
+				continue
+			}
+		}
+		filtered = append(filtered, m)
+	}
+
+	for len(filtered) > 0 && filtered[0].Role == "tool" {
+		filtered = filtered[1:]
+	}
+	return filtered
 }
 
 // AppendUser 追加一条 user 消息（事务内）。
