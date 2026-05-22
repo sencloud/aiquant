@@ -23,6 +23,9 @@ build/
 # Generated
 **/generated_plugin_registrant.dart
 
+# Local deploy build artifacts (cross-compiled linux binary)
+.tools/_build/
+
 # Environment / secrets
 .env
 .env.local
