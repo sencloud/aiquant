@@ -9,15 +9,19 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 )
 
-// registerRealtime 注册 3 个东方财富 push2 实时行情工具：
+// registerRealtime 注册东方财富 push2 实时行情工具：
 //
-//   - get_realtime_quote   单标的实时快照
-//   - get_top_movers       涨幅 / 跌幅榜（全 A / 创业板 / 科创 / 行业板块）
-//   - get_market_snapshot  主流指数实时快照（替代旧的 Tushare 日线版本）
+//   - get_realtime_quote          单标的实时快照（A 股 / ETF / 指数）
+//   - get_top_movers              涨幅 / 跌幅榜（全 A / 创业板 / 科创 / 行业板块）
+//   - get_market_snapshot         主流指数实时快照
+//   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX）
+//   - get_futures_realtime_batch  批量期货合约实时（并发拉取，最多 30 个）
 func registerRealtime(r *tool.Registry, c *realtime.Client) {
 	r.MustRegister(&getRealtimeQuoteTool{c: c})
 	r.MustRegister(&getTopMoversTool{c: c})
 	r.MustRegister(&getMarketSnapshotTool{c: c})
+	r.MustRegister(&getFuturesRealtimeTool{c: c})
+	r.MustRegister(&getFuturesRealtimeBatchTool{c: c})
 }
 
 // ── get_realtime_quote ─────────────────────────────────────────────────
@@ -199,6 +203,146 @@ func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (
 	}
 	return tool.EncodeJSON(map[string]any{
 		"indexes": out,
+		"source":  "eastmoney_push2",
+	}), nil
+}
+
+// ── get_futures_realtime ───────────────────────────────────────────────
+
+type getFuturesRealtimeTool struct{ c *realtime.Client }
+
+func (t *getFuturesRealtimeTool) Spec() tool.Spec {
+	return tool.Spec{
+		Name: "get_futures_realtime",
+		Description: "获取单个期货合约的实时行情（东方财富 push2，盘中即刻）。" +
+			"覆盖中金所(CFFEX)、上期所(SHFE)、上海能源(INE)、大商所(DCE)、郑商所(CZCE)、广期所(GFEX)。" +
+			"返回最新价、涨跌幅(相对昨结)、涨跌额、今开/最高/最低、昨收/昨结、成交量、成交额、持仓量、买一/卖一。" +
+			"价格已按品种自动还原（自动处理 RB/AU/IF 等不同小数位）。" +
+			"想知道某品种当前主力合约请先用 get_dominant_contract 取 ts_code，再传给本工具。",
+		Parameters: tool.ParameterSchema{
+			Properties: map[string]tool.ParameterProperty{
+				"ts_code": {
+					Type: "string",
+					Description: "完整期货合约 ts_code，必须带交易所后缀：" +
+						"沪铜 CU2510.SHF、螺纹 RB2510.SHF、原油 SC2509.INE、" +
+						"豆粕 M2509.DCE、白糖 SR509.CZC、IF2509.CFE、工业硅 SI2510.GFE",
+				},
+			},
+			Required: []string{"ts_code"},
+		},
+	}
+}
+
+func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		TsCode string `json:"ts_code"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", err
+	}
+	ts := strings.TrimSpace(in.TsCode)
+	if ts == "" {
+		return tool.EncodeJSON(map[string]any{"error": "ts_code 必填，例如 RB2510.SHF / IF2509.CFE"}), nil
+	}
+	q, err := t.c.FetchFuturesSnapshot(ctx, ts)
+	if err != nil {
+		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
+	}
+	return tool.EncodeJSON(map[string]any{
+		"code":       q.Code,
+		"ts_code":    q.TsCode,
+		"name":       q.Name,
+		"exchange":   q.Exchange,
+		"last":       q.Last,
+		"pct_chg":    q.PctChg,
+		"change":     q.Change,
+		"open":       q.Open,
+		"high":       q.High,
+		"low":        q.Low,
+		"pre_close":  q.PreClose,
+		"pre_settle": q.PreSettle,
+		"volume":     q.Volume,
+		"amount":     q.Amount,
+		"oi":         q.OI,
+		"bid":        q.Bid,
+		"ask":        q.Ask,
+		"delayed":    q.Delayed,
+		"source":     "eastmoney_push2",
+	}), nil
+}
+
+// ── get_futures_realtime_batch ─────────────────────────────────────────
+
+type getFuturesRealtimeBatchTool struct{ c *realtime.Client }
+
+func (t *getFuturesRealtimeBatchTool) Spec() tool.Spec {
+	return tool.Spec{
+		Name: "get_futures_realtime_batch",
+		Description: "批量获取多个期货合约的实时行情（最多 30 个，内部并发拉取，整体耗时与单合约接近）。" +
+			"适合一次性比较『黑色系主力』『有色金属主力』『股指三大合约』等场景。" +
+			"返回字段与 get_futures_realtime 一致。失败合约会被静默丢弃，不影响其他返回。",
+		Parameters: tool.ParameterSchema{
+			Properties: map[string]tool.ParameterProperty{
+				"ts_codes": {
+					Type:        "array",
+					Description: "期货合约 ts_code 数组，必须带交易所后缀，例如 [\"RB2510.SHF\",\"HC2510.SHF\",\"I2509.DCE\"]",
+					Items: &tool.ParameterProperty{
+						Type: "string",
+					},
+				},
+			},
+			Required: []string{"ts_codes"},
+		},
+	}
+}
+
+func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
+	var in struct {
+		TsCodes []string `json:"ts_codes"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", err
+	}
+	codes := []string{}
+	for _, s := range in.TsCodes {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			codes = append(codes, s)
+		}
+	}
+	if len(codes) == 0 {
+		return tool.EncodeJSON(map[string]any{"error": "ts_codes 至少传一个合约"}), nil
+	}
+	if len(codes) > 30 {
+		codes = codes[:30]
+	}
+	quotes, err := t.c.FetchFuturesBatch(ctx, codes)
+	if err != nil {
+		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
+	}
+	out := make([]map[string]any, 0, len(quotes))
+	for _, q := range quotes {
+		out = append(out, map[string]any{
+			"code":       q.Code,
+			"ts_code":    q.TsCode,
+			"name":       q.Name,
+			"exchange":   q.Exchange,
+			"last":       q.Last,
+			"pct_chg":    q.PctChg,
+			"change":     q.Change,
+			"open":       q.Open,
+			"high":       q.High,
+			"low":        q.Low,
+			"pre_settle": q.PreSettle,
+			"volume":     q.Volume,
+			"amount":     q.Amount,
+			"oi":         q.OI,
+			"delayed":    q.Delayed,
+		})
+	}
+	return tool.EncodeJSON(map[string]any{
+		"count":   len(out),
+		"quotes":  out,
 		"source":  "eastmoney_push2",
 	}), nil
 }
