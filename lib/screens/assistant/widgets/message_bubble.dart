@@ -87,6 +87,7 @@ class MessageBubble extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4, left: 2),
               child: _MessageActionsBar(
                 text: message.content,
+                question: _previousUserText(),
                 timestamp: message.timestamp,
               ),
             ),
@@ -106,6 +107,22 @@ class MessageBubble extends StatelessWidget {
   ChatMessage? _findToolResult(String toolCallId) {
     for (final m in allMessages) {
       if (m.role == 'tool' && m.toolCallId == toolCallId) return m;
+    }
+    return null;
+  }
+
+  /// 找当前 assistant 消息之前最近的一条 user 消息正文（供长图分享用）。
+  ///
+  /// 若找不到（例如对话首条就是 assistant），返回 null，
+  /// 长图渲染时则只显示「回答」段。
+  String? _previousUserText() {
+    final idx = allMessages.indexOf(message);
+    if (idx <= 0) return null;
+    for (var i = idx - 1; i >= 0; i--) {
+      final m = allMessages[i];
+      if (m.role == 'user' && m.content.trim().isNotEmpty) {
+        return m.content.trim();
+      }
     }
     return null;
   }
@@ -173,10 +190,17 @@ class MessageBubble extends StatelessWidget {
 /// （iOS 装了微信会出现「微信 / 朋友圈」入口）。比直接 text 分享更"成图友好"，
 /// 接收方在微信里看是一张完整的品牌长图。
 class _MessageActionsBar extends StatelessWidget {
-  const _MessageActionsBar({required this.text, required this.timestamp});
+  const _MessageActionsBar({
+    required this.text,
+    required this.timestamp,
+    this.question,
+  });
 
   final String text;
   final DateTime timestamp;
+
+  /// 触发这条 assistant 回答的上一条 user 提问；长图卡片里会同时渲染。
+  final String? question;
 
   Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: text));
@@ -191,7 +215,11 @@ class _MessageActionsBar extends StatelessWidget {
 
   void _shareAsImage(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ShareCardScreen(text: text, timestamp: timestamp),
+      builder: (_) => ShareCardScreen(
+        question: question,
+        text: text,
+        timestamp: timestamp,
+      ),
     ));
   }
 

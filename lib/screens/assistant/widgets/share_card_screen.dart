@@ -22,9 +22,13 @@ class ShareCardScreen extends StatefulWidget {
     super.key,
     required this.text,
     required this.timestamp,
+    this.question,
   });
 
-  /// 要分享的消息正文（Markdown）。
+  /// 触发回答的用户提问（可空）。非空时长图顶部会渲染一个"问题"气泡。
+  final String? question;
+
+  /// 要分享的助理回答正文（Markdown）。
   final String text;
 
   /// 消息时间（卡片右上角小字）。
@@ -94,6 +98,7 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
               child: RepaintBoundary(
                 key: _boundaryKey,
                 child: _ShareCard(
+                  question: widget.question,
                   text: widget.text,
                   timestamp: widget.timestamp,
                 ),
@@ -135,12 +140,17 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
   }
 }
 
-/// 实际要被截图的浅色卡片：品牌头部 + Markdown 正文 + 底部水印。
+/// 实际要被截图的浅色卡片：品牌头部 + 用户提问 + Markdown 回答 + 底部水印。
 ///
 /// 颜色与 App 主题解耦（始终浅色），保证发到微信里观感稳定。
 class _ShareCard extends StatelessWidget {
-  const _ShareCard({required this.text, required this.timestamp});
+  const _ShareCard({
+    required this.text,
+    required this.timestamp,
+    this.question,
+  });
 
+  final String? question;
   final String text;
   final DateTime timestamp;
 
@@ -167,8 +177,18 @@ class _ShareCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _header(),
+          if (question != null && question!.isNotEmpty) _questionBlock(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              (question != null && question!.isNotEmpty) ? 6 : 18,
+              20,
+              12,
+            ),
+            child: _answerHeader(),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: MarkdownBody(
               data: text.isEmpty ? '…' : text,
               selectable: false,
@@ -228,6 +248,85 @@ class _ShareCard extends StatelessWidget {
           _footer(),
         ],
       ),
+    );
+  }
+
+  Widget _questionBlock() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: _accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(Icons.person, size: 12, color: Colors.white),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                '我的提问',
+                style: TextStyle(
+                  color: _fgSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: _bgSoft,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _border),
+            ),
+            child: Text(
+              question!,
+              style: const TextStyle(
+                color: _fgPrimary,
+                fontSize: 12.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _answerHeader() {
+    return Row(
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: _accent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child:
+              const Icon(Icons.auto_awesome, size: 12, color: Colors.white),
+        ),
+        const SizedBox(width: 6),
+        const Text(
+          'AI 回答',
+          style: TextStyle(
+            color: _fgSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
     );
   }
 
