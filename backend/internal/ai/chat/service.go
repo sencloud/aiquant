@@ -403,17 +403,61 @@ func mapMessageToLLM(m Message) llm.MessageWithTools {
 
 // buildSystemPrompt 注入"我是中国 A 股助理"等基础人设；
 // 如有 portfolio context，再追加一段"用户当前组合快照"。
+//
+// 顶部强制注入「真实当前时间」段落：LLM 训练截止日远早于当前，且模型默认
+// 会用训练时的"今天"来推断"近 30 天 / 最新一期"等时间窗口。客户端没办法
+// 每次都在 user prompt 里写日期，因此一律在 system 这里钉死真实当下，并
+// 要求 LLM 不再自行猜测时间。
 func buildSystemPrompt(extra string, ctx *PortfolioContext) string {
-	base := "你是面向中国 A 股市场的智能投研助理。回答用户问题时优先调用提供的 tool 拉真实数据；" +
-		"涉及行情、估值、新闻、量化指标时不要凭空猜测。所有金额和指标都基于工具返回的实际数据，必要时主动调用 search_instrument 解析中文标的名称。" +
-		"输出语言：简体中文。"
+	var b strings.Builder
+	b.WriteString(renderNowBlock())
+	b.WriteString("\n\n")
+	b.WriteString("你是面向中国 A 股 / ETF / 期货 / 期权市场的智能投研助理。回答用户问题时优先调用提供的 tool 拉真实数据；")
+	b.WriteString("涉及行情、估值、新闻、量化指标、合约信息时不要凭空猜测。所有金额和指标都基于工具返回的实际数据。")
+	b.WriteString("\n- 解析中文标的名称用 search_instrument。")
+	b.WriteString("\n- 涉及期货 / 期权的「主力合约」「近月合约」「IF/IC/IH/RB/CU/原油/50ETF期权 …」时，**必须先调用 get_dominant_contract 拿真实代码**，再用该 ts_code 调 get_quote / get_option_quote，绝对禁止凭印象猜某月份是主力。")
+	b.WriteString("\n输出语言：简体中文。")
 	if extra != "" {
-		base += "\n\n额外指令：" + extra
+		b.WriteString("\n\n额外指令：")
+		b.WriteString(extra)
 	}
 	if ctx != nil && len(ctx.Holdings) > 0 {
-		base += "\n\n" + renderPortfolioBlock(ctx)
+		b.WriteString("\n\n")
+		b.WriteString(renderPortfolioBlock(ctx))
 	}
-	return base
+	return b.String()
+}
+
+// shanghaiLoc 缓存上海时区（中国大陆所有交易所统一使用）。
+var shanghaiLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		// 离线环境（Linux 容器可能没装 tzdata）回退到固定 +08:00
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}()
+
+// renderNowBlock 输出注入 system prompt 顶部的「真实当前时间」段落。
+//
+// 让 LLM 严格按这个时间理解"今天 / 最近一周 / 上月 / 本季度 / 近 3 年"
+// 等相对时间表达，禁止用训练时的时间。
+func renderNowBlock() string {
+	now := time.Now().In(shanghaiLoc)
+	weekdayCN := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}[now.Weekday()]
+	dateStr := now.Format("2006-01-02 15:04")
+	yearStr := now.Format("2006")
+	threeYearsAgo := now.AddDate(-3, 0, 0).Format("2006-01-02")
+	oneMonthAgo := now.AddDate(0, -1, 0).Format("2006-01-02")
+
+	var b strings.Builder
+	b.WriteString("【真实当前时间（务必以此为准，禁止使用模型训练时的『今天』）】\n")
+	b.WriteString(fmt.Sprintf("- 现在：%s（%s，时区 Asia/Shanghai）\n", dateStr, weekdayCN))
+	b.WriteString(fmt.Sprintf("- 当前年份：%s\n", yearStr))
+	b.WriteString(fmt.Sprintf("- 近 1 个月 = %s ~ %s\n", oneMonthAgo, now.Format("2006-01-02")))
+	b.WriteString(fmt.Sprintf("- 近 3 年   = %s ~ %s\n", threeYearsAgo, now.Format("2006-01-02")))
+	b.WriteString("规则：除非用户消息里给出明确日期，否则所有『今天 / 最近 / 上周 / 本月 / 上月 / 本季度 / 年初至今 / 近 N 年』 都以上述时间为参照。任何回答里出现『截至 20xx 年』 必须等于『当前年份』。")
+	return b.String()
 }
 
 // renderPortfolioBlock 把组合快照按可读 markdown 表格渲染，让 LLM 能识别。

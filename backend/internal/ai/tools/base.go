@@ -39,6 +39,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerRealtime(r, d.Realtime)
 	registerBacktest(r, d.Tushare)
 	registerOptions(r, d.Tushare)
+	registerDominant(r, d.Tushare)
 
 	return r
 }
