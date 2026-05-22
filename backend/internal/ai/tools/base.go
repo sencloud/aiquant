@@ -37,6 +37,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerMacro(r, d.Tushare)
 	registerEvent(r, d.News, d.CNNews)
 	registerRealtime(r, d.Realtime)
+	registerBacktest(r, d.Tushare)
 
 	return r
 }
