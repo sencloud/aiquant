@@ -310,7 +310,7 @@ class _WatchTab extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
         itemCount: s.watchlist.length,
         separatorBuilder: (_, __) =>
-            const Divider(height: 1, color: AppColors.borderDim),
+            Divider(height: 1, color: AppColors.borderDim),
         itemBuilder: (context, i) {
           final w = s.watchlist[i];
           return ListTile(
