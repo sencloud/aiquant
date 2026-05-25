@@ -31,6 +31,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
@@ -111,6 +112,11 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
 	dingSvc := ding.NewService(st, cfg, chatSvc, billing.NewLedgerRepo(st), &l)
+	liveSvc := live.NewService(
+		live.NewSessionRepo(st),
+		live.NewReportRepo(st),
+		live.NewWatchlistRepo(st),
+	)
 
 	var qwenVision *qwen.VisionClient
 	if cfg.Qwen.Configured() {
@@ -132,6 +138,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Devices:    devicesSvc,
 		Billing:    billingSvc,
 		Ding:       dingSvc,
+		Live:       liveSvc,
 		Onboarding: onboardSvc,
 		Chat:       chatSvc,
 		Qwen:       qwenVision,
@@ -228,6 +235,8 @@ func waitForSignal() {
 // runScheduler 启动 finme-server scheduler 子进程：
 // - 余额对账（每 5 分钟）
 // - DING runner（每 30 秒抢占 due tasks → 扣费 → chat.Service 工具 loop → 写通知）
+// - Live runner（每 1 分钟：日历填充 + 抢占 due 直播场次 → 选股 → 多 persona × 多股
+//   逐个 tool loop → 落 live_reports）
 func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
@@ -241,6 +250,35 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		runner := ding.NewRunner(st, chatSvc, ledger, &l, ding.RunnerConfig{})
 		sch.Register(runner)
 		l.Info().Msg("scheduler: ding runner enabled (chat.Service + tools)")
+	}
+
+	// Live runner 需要自己的 LLM + tools，不复用 chat.Service（chat 带扣费 +
+	// 会话持久化，对直播是无谓负担）。
+	if cfg.LLM.Configured() {
+		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+			cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+			time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+		if err != nil {
+			l.Warn().Err(err).Msg("scheduler: live runner disabled (deepseek init failed)")
+		} else {
+			tu := tushare.New(cfg.Tushare)
+			nw := news.New(cfg.News)
+			cn := cnnews.New(cfg.News.TimeoutSec)
+			rt := realtime.New(0)
+			reg := aitools.BuildAll(aitools.Deps{
+				Tushare: tu, News: nw, CNNews: cn, Realtime: rt,
+			})
+			exec := live.NewExecutor(ds, reg)
+			sessRepo := live.NewSessionRepo(st)
+			repRepo := live.NewReportRepo(st)
+			wlRepo := live.NewWatchlistRepo(st)
+			picker := live.NewPicker(tu, rt, wlRepo)
+			runner := live.NewRunner(sessRepo, repRepo, picker, exec, &l)
+			sch.Register(runner)
+			l.Info().Msg("scheduler: live runner enabled (6 persona × ≤5 symbols / session)")
+		}
+	} else {
+		l.Warn().Msg("scheduler: llm not configured, live runner disabled")
 	}
 
 	ctx, cancel := signalCtx()

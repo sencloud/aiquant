@@ -14,6 +14,7 @@ import 'state/auth_state.dart';
 import 'state/billing_state.dart';
 import 'state/chat_state.dart';
 import 'state/ding_state.dart';
+import 'state/live_state.dart';
 import 'state/portfolio_state.dart';
 import 'state/settings_state.dart';
 
@@ -58,6 +59,7 @@ Future<void> _bootstrap() async {
         // 避免未登录就把上一个用户的本地缓存读出来。
         ChangeNotifierProvider(create: (_) => ChatState()),
         ChangeNotifierProvider(create: (_) => DingState()),
+        ChangeNotifierProvider(create: (_) => LiveState()),
       ],
       child: const XikuanApp(),
     ),
