@@ -18,6 +18,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
@@ -34,6 +35,7 @@ type Deps struct {
 	Devices    *devices.Service
 	Billing    *billing.Service
 	Ding       *ding.Service
+	Live       *live.Service
 	Onboarding *onboarding.Service
 	Chat       *chat.Service
 	Qwen       *qwen.VisionClient
@@ -92,6 +94,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountDevices(r, d)
 				mountBillingPrivate(r, d)
 				mountDing(r, d)
+				mountLive(r, d)
 				mountPortfolioParse(r, d)
 			})
 		})
