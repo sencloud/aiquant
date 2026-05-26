@@ -39,7 +39,10 @@ type FuturesQuote struct {
 	Delayed   bool    `json:"delayed"`
 }
 
-// FetchFuturesSnapshot 拉单期货合约实时行情。
+// fetchFuturesSnapshotEM 拉单期货合约实时行情（东方财富 push2 实现）。
+//
+// 当前公开入口 FetchFuturesSnapshot 默认走新浪 hq.sinajs.cn（更稳定，详见 sina_futures.go）。
+// 本函数保留为可切回的备用实现。
 //
 // 端点：https://push2.eastmoney.com/api/qt/stock/get?secid=<m.code>
 // 字段：f43 最新 f44 高 f45 低 f46 开 f47 成交量 f48 成交额 f49 持仓量
@@ -50,7 +53,7 @@ type FuturesQuote struct {
 //
 // 价格还原：raw / 10^f59。RB(1 位) → raw 32450 / 10 = 3245；
 // AU(2 位) → raw 56050 / 100 = 560.50；IF(1 位) → 38520 / 10 = 3852.0。
-func (c *Client) FetchFuturesSnapshot(ctx context.Context, tsCode string) (*FuturesQuote, error) {
+func (c *Client) fetchFuturesSnapshotEM(ctx context.Context, tsCode string) (*FuturesQuote, error) {
 	secid := FuturesSecID(tsCode)
 	if secid == "" {
 		return nil, fmt.Errorf("invalid futures ts_code: %s", tsCode)
@@ -127,12 +130,14 @@ func (c *Client) FetchFuturesSnapshot(ctx context.Context, tsCode string) (*Futu
 	return q, nil
 }
 
-// FetchFuturesBatch 并发批量拉多个合约实时行情。
+// fetchFuturesBatchEM 并发批量拉多个合约实时行情（东方财富 push2 实现）。
+//
+// 当前公开入口 FetchFuturesBatch 默认走新浪 hq.sinajs.cn 的 list= 单次批量调用。
 //
 // push2 期货 ulist 不返回 f59（价格小数位），无法正确还原各品种价格，
-// 因此走"并发调 FetchFuturesSnapshot"路径。并发上限 8，避免触发限流。
+// 因此走"并发调 fetchFuturesSnapshotEM"路径。并发上限 8，避免触发限流。
 // 任何单合约失败被静默丢弃，结果按入参顺序返回。
-func (c *Client) FetchFuturesBatch(ctx context.Context, tsCodes []string) ([]FuturesQuote, error) {
+func (c *Client) fetchFuturesBatchEM(ctx context.Context, tsCodes []string) ([]FuturesQuote, error) {
 	codes := make([]string, 0, len(tsCodes))
 	for _, s := range tsCodes {
 		s = strings.TrimSpace(s)
@@ -152,7 +157,7 @@ func (c *Client) FetchFuturesBatch(ctx context.Context, tsCodes []string) ([]Fut
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			q, err := c.FetchFuturesSnapshot(ctx, code)
+			q, err := c.fetchFuturesSnapshotEM(ctx, code)
 			if err != nil {
 				return
 			}
