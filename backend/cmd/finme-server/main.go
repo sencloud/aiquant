@@ -112,10 +112,15 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
 	dingSvc := ding.NewService(st, cfg, chatSvc, billing.NewLedgerRepo(st), &l)
+
+	// Live v2:HTTP 读层只需要 RoomRepo + MessageRepo + KlineBuilder。
+	// 真正的房间生成在 scheduler 进程,这里不重复构造 host/guest LLM。
+	liveTu := tushare.New(cfg.Tushare)
+	liveRt := realtime.New(0)
 	liveSvc := live.NewService(
-		live.NewSessionRepo(st),
-		live.NewReportRepo(st),
-		live.NewWatchlistRepo(st),
+		live.NewRoomRepo(st),
+		live.NewMessageRepo(st),
+		live.NewKlineBuilder(liveTu, liveRt),
 	)
 
 	var qwenVision *qwen.VisionClient
@@ -268,14 +273,15 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 			reg := aitools.BuildAll(aitools.Deps{
 				Tushare: tu, News: nw, CNNews: cn, Realtime: rt,
 			})
+			// Live v2 调度器:host_planner(无 tools) + guest_speaker(有 tools 走 executor)。
 			exec := live.NewExecutor(ds, reg)
-			sessRepo := live.NewSessionRepo(st)
-			repRepo := live.NewReportRepo(st)
-			wlRepo := live.NewWatchlistRepo(st)
-			picker := live.NewPicker(tu, rt, wlRepo)
-			runner := live.NewRunner(sessRepo, repRepo, picker, exec, &l)
+			host := live.NewHostPlanner(ds)
+			guest := live.NewGuestSpeaker(exec)
+			roomRepo := live.NewRoomRepo(st)
+			msgRepo := live.NewMessageRepo(st)
+			runner := live.NewRunner(roomRepo, msgRepo, host, guest, rt, &l)
 			sch.Register(runner)
-			l.Info().Msg("scheduler: live runner enabled (6 persona × ≤5 symbols / session)")
+			l.Info().Msg("scheduler: live runner v2 enabled (host + guests realtime chat)")
 		}
 	} else {
 		l.Warn().Msg("scheduler: llm not configured, live runner disabled")

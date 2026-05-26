@@ -2,253 +2,213 @@ package live
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 )
 
-// Service 是 live 模块对外的 facade，给 HTTP handler 用。
+// Service 是 live v2 模块对外的 facade,给 HTTP handler 用。
 //
-// 负责把多表组合查询包装成"客户端友好"的视图 DTO。
+// 数据形态:
+//   * Room  → 直播间(等同于一场直播会话)
+//   * Message → 房间内的单条聊天
+//   * KlineHTML → 主图 K 线的 self-contained HTML(给 webview 用)
 type Service struct {
-	sessions *SessionRepo
-	reports  *ReportRepo
-	watch    *WatchlistRepo
+	rooms    *RoomRepo
+	messages *MessageRepo
+	kline    *KlineBuilder
 }
 
-func NewService(s *SessionRepo, r *ReportRepo, w *WatchlistRepo) *Service {
-	return &Service{sessions: s, reports: r, watch: w}
+func NewService(rooms *RoomRepo, messages *MessageRepo, kline *KlineBuilder) *Service {
+	return &Service{rooms: rooms, messages: messages, kline: kline}
 }
 
 // ── DTO ────────────────────────────────────────────────────────────────
 
-// SessionListItem 是 GET /v1/live/sessions 的列表项。
-type SessionListItem struct {
-	UUID            string         `json:"uuid"`
-	ScheduledAt     int64          `json:"scheduled_at"`
-	Phase           string         `json:"phase"`
-	Status          string         `json:"status"`
-	StartedAt       *int64         `json:"started_at,omitempty"`
-	FinishedAt      *int64         `json:"finished_at,omitempty"`
-	SelectionReason string         `json:"selection_reason,omitempty"`
-	PickedSymbols   []PickedSymbol `json:"picked_symbols"`
-	ReportCount     int            `json:"report_count"`
+// RoomBrief 是房间列表项。
+type RoomBrief struct {
+	UUID               string       `json:"uuid"`
+	Title              string       `json:"title"`
+	Phase              string       `json:"phase"`
+	Status             string       `json:"status"`
+	HostPersona        string       `json:"host_persona"`
+	HostPersonaName    string       `json:"host_persona_name"`
+	GuestPersonas      []PersonaRef `json:"guest_personas"`
+	CurrentFocusSymbol string       `json:"current_focus_symbol,omitempty"`
+	CurrentFocusName   string       `json:"current_focus_name,omitempty"`
+	MessageCount       int          `json:"message_count"`
+	StartedAt          int64        `json:"started_at"`
+	EndedAt            *int64       `json:"ended_at,omitempty"`
 }
 
-// PickedSymbol 是 live_sessions.picked_symbols JSON 中的一条。
-type PickedSymbol struct {
-	Symbol string `json:"symbol"`
-	Name   string `json:"name"`
-	Source string `json:"source"`
+// RoomDetail = RoomBrief + 最近 N 条消息(首屏初始化用)。
+type RoomDetail struct {
+	RoomBrief
+	Messages []MessageDTO `json:"messages"`
 }
 
-// SessionDetail 是 GET /v1/live/sessions/{uuid} 的返回。
-type SessionDetail struct {
-	SessionListItem
-	Reports []ReportBrief `json:"reports"`
+// MessageDTO 是单条消息的客户端形态。
+type MessageDTO struct {
+	Idx           int    `json:"idx"`
+	Role          string `json:"role"`
+	Persona       string `json:"persona"`
+	PersonaName   string `json:"persona_name"`
+	TargetPersona string `json:"target_persona,omitempty"`
+	FocusSymbol   string `json:"focus_symbol,omitempty"`
+	FocusName     string `json:"focus_name,omitempty"`
+	Content       string `json:"content"`
+	CreatedAt     int64  `json:"created_at"`
 }
 
-// ReportBrief 是单只票 × 单分析师的概览（用于列表，不含 html_body）。
-type ReportBrief struct {
-	ID           int64    `json:"id"`
-	Symbol       string   `json:"symbol"`
-	SymbolName   string   `json:"symbol_name"`
-	PersonaID    string   `json:"persona_id"`
-	PersonaName  string   `json:"persona_name"`
-	View         string   `json:"view,omitempty"`
-	Rating       string   `json:"rating,omitempty"`
-	TargetPrice  *float64 `json:"target_price,omitempty"`
-	StopLoss     *float64 `json:"stop_loss,omitempty"`
-	TakeProfit   *float64 `json:"take_profit,omitempty"`
-	PositionHint string   `json:"position_hint,omitempty"`
-	Summary      string   `json:"summary"`
-	CreatedAt    int64    `json:"created_at"`
+// MessagesResponse 是增量轮询接口的返回。
+type MessagesResponse struct {
+	Messages       []MessageDTO `json:"messages"`
+	LatestIdx      int          `json:"latest_idx"`        // 房间当前最大 idx(供客户端下次 since_idx 用)
+	RoomStatus     string       `json:"room_status"`       // live / ended / ended_abnormal
+	CurrentSymbol  string       `json:"current_symbol,omitempty"`
+	CurrentName    string       `json:"current_name,omitempty"`
 }
 
-// ReportFull 含 html_body，给 WebView 渲染用。
-type ReportFull struct {
-	ReportBrief
-	HTMLBody string `json:"html_body"`
-}
+// ── facade ─────────────────────────────────────────────────────────────
 
-// WatchItem 是关注表对客户端的 DTO。
-type WatchItem struct {
-	Symbol     string `json:"symbol"`
-	SymbolName string `json:"symbol_name"`
-	CreatedAt  int64  `json:"created_at"`
-}
-
-// ── facade methods ─────────────────────────────────────────────────────
-
-func (s *Service) ListSessions(ctx context.Context, limit int) ([]SessionListItem, error) {
-	rows, err := s.sessions.List(ctx, limit)
+func (s *Service) ListRooms(ctx context.Context, limit int) ([]RoomBrief, error) {
+	rows, err := s.rooms.List(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]SessionListItem, 0, len(rows))
+	out := make([]RoomBrief, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toSessionListItem(r, countOfReports(ctx, s.reports, r.ID)))
+		out = append(out, toRoomBrief(r))
 	}
 	return out, nil
 }
 
-func (s *Service) GetSessionDetail(ctx context.Context, uuid string) (*SessionDetail, error) {
-	sess, err := s.sessions.GetByUUID(ctx, uuid)
+func (s *Service) GetRoomDetail(ctx context.Context, uuid string, recentN int) (*RoomDetail, error) {
+	room, err := s.rooms.GetByUUID(ctx, uuid)
 	if err != nil {
 		return nil, err
 	}
-	if sess == nil {
+	if room == nil {
 		return nil, nil
 	}
-	reps, err := s.reports.ListBySession(ctx, sess.ID)
+	if recentN <= 0 {
+		recentN = 30
+	}
+	msgs, err := s.messages.ListRecent(ctx, room.ID, recentN)
 	if err != nil {
 		return nil, err
 	}
-	briefs := make([]ReportBrief, 0, len(reps))
-	for _, r := range reps {
-		briefs = append(briefs, toReportBrief(r))
+	dtos := make([]MessageDTO, 0, len(msgs))
+	for _, m := range msgs {
+		dtos = append(dtos, toMessageDTO(m))
 	}
-	item := toSessionListItem(*sess, len(briefs))
-	return &SessionDetail{SessionListItem: item, Reports: briefs}, nil
+	return &RoomDetail{
+		RoomBrief: toRoomBrief(*room),
+		Messages:  dtos,
+	}, nil
 }
 
-func (s *Service) GetReport(ctx context.Context, id int64) (*ReportFull, error) {
-	r, err := s.reports.GetByID(ctx, id)
+// MessagesSince 增量拉取(轮询接口主力)。
+//
+// 返回:
+//   * messages: idx > sinceIdx 的全部新消息(上限 200 条)
+//   * latest_idx: 房间至今最大 idx(若 messages 非空 = messages 末元素 idx)
+//   * room_status: 客户端据此判断"还在直播 / 已结束 / 异常结束"
+func (s *Service) MessagesSince(ctx context.Context, uuid string, sinceIdx int) (*MessagesResponse, error) {
+	room, err := s.rooms.GetByUUID(ctx, uuid)
 	if err != nil {
 		return nil, err
 	}
-	if r == nil {
+	if room == nil {
 		return nil, nil
 	}
-	out := ReportFull{ReportBrief: toReportBrief(*r), HTMLBody: r.HTMLBody}
-	return &out, nil
-}
-
-func (s *Service) ListReportsBySymbol(ctx context.Context, symbol string, limit int) ([]ReportBrief, error) {
-	if strings.TrimSpace(symbol) == "" {
-		return nil, errors.New("symbol empty")
-	}
-	rows, err := s.reports.ListBySymbol(ctx, strings.ToUpper(strings.TrimSpace(symbol)), limit)
+	rows, err := s.messages.ListSince(ctx, room.ID, sinceIdx, 200)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ReportBrief, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, toReportBrief(r))
+	dtos := make([]MessageDTO, 0, len(rows))
+	for _, m := range rows {
+		dtos = append(dtos, toMessageDTO(m))
 	}
-	return out, nil
-}
-
-// ── 关注 ───────────────────────────────────────────────────────────────
-
-func (s *Service) ListWatch(ctx context.Context, userID int64) ([]WatchItem, error) {
-	rows, err := s.watch.List(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]WatchItem, 0, len(rows))
-	for _, w := range rows {
-		out = append(out, WatchItem{
-			Symbol:     w.Symbol,
-			SymbolName: w.SymbolName,
-			CreatedAt:  w.CreatedAt,
-		})
-	}
-	return out, nil
-}
-
-func (s *Service) AddWatch(ctx context.Context, userID int64, symbol, name string) error {
-	symbol = strings.ToUpper(strings.TrimSpace(symbol))
-	if symbol == "" {
-		return errors.New("symbol required")
-	}
-	return s.watch.Add(ctx, userID, symbol, strings.TrimSpace(name))
-}
-
-func (s *Service) RemoveWatch(ctx context.Context, userID int64, symbol string) error {
-	symbol = strings.ToUpper(strings.TrimSpace(symbol))
-	if symbol == "" {
-		return errors.New("symbol required")
-	}
-	return s.watch.Remove(ctx, userID, symbol)
-}
-
-// ── 辅助：DB row → DTO ────────────────────────────────────────────────
-
-func toSessionListItem(s Session, reportCount int) SessionListItem {
-	item := SessionListItem{
-		UUID:        s.UUID,
-		ScheduledAt: s.ScheduledAt,
-		Phase:       s.Phase,
-		Status:      s.Status,
-		ReportCount: reportCount,
-	}
-	if s.StartedAt.Valid {
-		v := s.StartedAt.Int64
-		item.StartedAt = &v
-	}
-	if s.FinishedAt.Valid {
-		v := s.FinishedAt.Int64
-		item.FinishedAt = &v
-	}
-	if s.SelectionReason.Valid {
-		item.SelectionReason = s.SelectionReason.String
-	}
-	if s.PickedSymbols.Valid && s.PickedSymbols.String != "" {
-		var picks []PickedSymbol
-		if err := json.Unmarshal([]byte(s.PickedSymbols.String), &picks); err == nil {
-			item.PickedSymbols = picks
+	latest := sinceIdx
+	if len(dtos) > 0 {
+		latest = dtos[len(dtos)-1].Idx
+	} else {
+		// 没新消息时也回当前最大 idx,客户端可校准
+		cnt, _ := s.messages.CountByRoom(ctx, room.ID)
+		if cnt > 0 {
+			latest = cnt
 		}
 	}
-	if item.PickedSymbols == nil {
-		item.PickedSymbols = []PickedSymbol{}
+	resp := &MessagesResponse{
+		Messages:   dtos,
+		LatestIdx:  latest,
+		RoomStatus: room.Status,
 	}
-	return item
+	if room.CurrentFocusSymbol.Valid {
+		resp.CurrentSymbol = room.CurrentFocusSymbol.String
+	}
+	if room.CurrentFocusName.Valid {
+		resp.CurrentName = room.CurrentFocusName.String
+	}
+	return resp, nil
 }
 
-func toReportBrief(r Report) ReportBrief {
-	b := ReportBrief{
-		ID:          r.ID,
-		Symbol:      r.Symbol,
-		SymbolName:  r.SymbolName,
-		PersonaID:   r.PersonaID,
-		PersonaName: r.PersonaName,
-		Summary:     r.Summary,
-		CreatedAt:   r.CreatedAt,
+// KlineHTML 拼装主图 K 线 HTML,返回 self-contained 字符串。
+func (s *Service) KlineHTML(ctx context.Context, symbol string) (string, error) {
+	if s.kline == nil {
+		return "", errors.New("kline builder not configured")
 	}
-	if r.View.Valid {
-		b.View = r.View.String
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if symbol == "" {
+		return "", errors.New("symbol required")
 	}
-	if r.Rating.Valid {
-		b.Rating = r.Rating.String
+	return s.kline.Build(ctx, symbol), nil
+}
+
+// ── helpers ────────────────────────────────────────────────────────────
+
+func toRoomBrief(r Room) RoomBrief {
+	b := RoomBrief{
+		UUID:            r.UUID,
+		Title:           r.Title,
+		Phase:           r.Phase,
+		Status:          r.Status,
+		HostPersona:     r.HostPersona,
+		HostPersonaName: r.HostPersonaName,
+		GuestPersonas:   r.DecodeGuestPersonas(),
+		MessageCount:    r.MessageCount,
+		StartedAt:       r.StartedAt,
 	}
-	if r.PositionHint.Valid {
-		b.PositionHint = r.PositionHint.String
+	if r.CurrentFocusSymbol.Valid {
+		b.CurrentFocusSymbol = r.CurrentFocusSymbol.String
 	}
-	if r.TargetPrice.Valid {
-		v := r.TargetPrice.Float64
-		b.TargetPrice = &v
+	if r.CurrentFocusName.Valid {
+		b.CurrentFocusName = r.CurrentFocusName.String
 	}
-	if r.StopLoss.Valid {
-		v := r.StopLoss.Float64
-		b.StopLoss = &v
-	}
-	if r.TakeProfit.Valid {
-		v := r.TakeProfit.Float64
-		b.TakeProfit = &v
+	if r.EndedAt.Valid {
+		v := r.EndedAt.Int64
+		b.EndedAt = &v
 	}
 	return b
 }
 
-// countOfReports 给列表项填 report_count。出错返回 0，不影响渲染。
-func countOfReports(ctx context.Context, r *ReportRepo, sessionID int64) int {
-	rows, err := r.ListBySession(ctx, sessionID)
-	if err != nil {
-		return 0
+func toMessageDTO(m Message) MessageDTO {
+	d := MessageDTO{
+		Idx:         m.Idx,
+		Role:        m.Role,
+		Persona:     m.Persona,
+		PersonaName: m.PersonaName,
+		Content:     m.Content,
+		CreatedAt:   m.CreatedAt,
 	}
-	return len(rows)
+	if m.TargetPersona.Valid {
+		d.TargetPersona = m.TargetPersona.String
+	}
+	if m.FocusSymbol.Valid {
+		d.FocusSymbol = m.FocusSymbol.String
+	}
+	if m.FocusName.Valid {
+		d.FocusName = m.FocusName.String
+	}
+	return d
 }
-
-// ensure import used
-var _ = fmt.Sprintf
