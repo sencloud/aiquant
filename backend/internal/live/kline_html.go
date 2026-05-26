@@ -115,19 +115,43 @@ func (b *KlineBuilder) Build(ctx context.Context, symbol string) string {
 	ma5 := movingAverage(closes, 5)
 	ma10 := movingAverage(closes, 10)
 	ma20 := movingAverage(closes, 20)
+	ma60 := movingAverage(closes, 60)
+
+	// MACD(12, 26, 9)— DIF/DEA 折线 + MACD 柱
+	dif, dea, macdHist := calcMACD(closes, 12, 26, 9)
+
+	// 60 日内最高 / 最低点 — 给 markPoint 用(主图标注)
+	hiIdx, hiVal := -1, -1.0
+	loIdx, loVal := -1, -1.0
+	for i, c := range candles {
+		if hiIdx < 0 || c.High > hiVal {
+			hiIdx, hiVal = i, c.High
+		}
+		if loIdx < 0 || c.Low < loVal {
+			loIdx, loVal = i, c.Low
+		}
+	}
 
 	payload := map[string]any{
-		"name":         nameLabel,
-		"symbol":       symbol,
-		"last":         round2f(lastPrice),
-		"pct_chg":      round2f(pctChg),
-		"data_time":    dataTimeLab,
-		"dates":        dates,
-		"kline":        klineData,
-		"volume":       volData,
-		"ma5":          ma5,
-		"ma10":         ma10,
-		"ma20":         ma20,
+		"name":      nameLabel,
+		"symbol":    symbol,
+		"last":      round2f(lastPrice),
+		"pct_chg":   round2f(pctChg),
+		"data_time": dataTimeLab,
+		"dates":     dates,
+		"kline":     klineData,
+		"volume":    volData,
+		"ma5":       ma5,
+		"ma10":      ma10,
+		"ma20":      ma20,
+		"ma60":      ma60,
+		"dif":       dif,
+		"dea":       dea,
+		"macd":      macdHist,
+		"hi_idx":    hiIdx,
+		"hi_val":    round2f(hiVal),
+		"lo_idx":    loIdx,
+		"lo_val":    round2f(loVal),
 	}
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -210,21 +234,31 @@ func renderKlineHTML(dataJSON string) string {
       textStyle: { color: '#fff', fontSize: 11 }
     },
     legend: {
-      data: ['K线', 'MA5', 'MA10', 'MA20'],
-      top: 4, textStyle: { color: '#999', fontSize: 11 }
+      data: ['K线', 'MA5', 'MA10', 'MA20', 'MA60', 'DIF', 'DEA', 'MACD'],
+      top: 4, textStyle: { color: '#999', fontSize: 10 },
+      itemWidth: 10, itemHeight: 6, itemGap: 8
     },
+    // 3 个区域:主图(K)/ 成交量 / MACD
     grid: [
-      { left: '8%', right: '4%', top: 32, height: '60%' },
-      { left: '8%', right: '4%', top: '72%', bottom: 24 }
+      { left: '9%', right: '4%', top: 30, height: '50%' },
+      { left: '9%', right: '4%', top: '64%', height: '14%' },
+      { left: '9%', right: '4%', top: '82%', bottom: 22 }
     ],
     xAxis: [
       {
         type: 'category', data: DATA.dates, gridIndex: 0,
         axisLine: { lineStyle: { color: '#333' } },
-        axisLabel: { color: '#888', fontSize: 9, hideOverlap: true }
+        axisLabel: { show: false },
+        axisPointer: { label: { show: false } }
       },
       {
         type: 'category', data: DATA.dates, gridIndex: 1,
+        axisLine: { lineStyle: { color: '#333' } },
+        axisLabel: { show: false },
+        axisPointer: { label: { show: false } }
+      },
+      {
+        type: 'category', data: DATA.dates, gridIndex: 2,
         axisLine: { lineStyle: { color: '#333' } },
         axisLabel: { color: '#888', fontSize: 9, hideOverlap: true }
       }
@@ -240,9 +274,19 @@ func renderKlineHTML(dataJSON string) string {
         splitNumber: 2,
         splitLine: { show: false },
         axisLabel: { color: '#888', fontSize: 9 }
+      },
+      {
+        scale: true, gridIndex: 2,
+        splitNumber: 2,
+        splitLine: { show: false },
+        axisLabel: { color: '#888', fontSize: 9 }
       }
     ],
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 50, end: 100 }],
+    axisPointer: {
+      link: [{ xAxisIndex: 'all' }],
+      label: { backgroundColor: '#555' }
+    },
+    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1, 2], start: 50, end: 100 }],
     series: [
       {
         name: 'K线', type: 'candlestick', data: DATA.kline,
@@ -250,6 +294,28 @@ func renderKlineHTML(dataJSON string) string {
         itemStyle: {
           color: '#FF4D4F', color0: '#52C41A',
           borderColor: '#FF4D4F', borderColor0: '#52C41A'
+        },
+        // 60 日高 / 低点标注(直接画在 K 线上,直观看到极值位置)
+        markPoint: {
+          symbol: 'pin', symbolSize: 38,
+          label: { color: '#fff', fontSize: 9, fontWeight: 700 },
+          data: [
+            { name: '高', coord: [DATA.hi_idx, DATA.hi_val], value: DATA.hi_val,
+              itemStyle: { color: '#FF4D4F' } },
+            { name: '低', coord: [DATA.lo_idx, DATA.lo_val], value: DATA.lo_val,
+              itemStyle: { color: '#52C41A' } }
+          ]
+        },
+        // 当前价水平虚线 — 给人一个"现在在哪个位置"的直观参考
+        markLine: {
+          symbol: ['none', 'none'],
+          lineStyle: { color: '#FFD666', type: 'dashed', width: 1 },
+          label: {
+            color: '#FFD666', fontSize: 10, fontWeight: 700,
+            formatter: function(p){ return '现价 ' + Number(p.value).toFixed(2); },
+            position: 'insideEndTop'
+          },
+          data: [{ yAxis: DATA.last }]
         }
       },
       {
@@ -268,11 +334,35 @@ func renderKlineHTML(dataJSON string) string {
         smooth: true, showSymbol: false, lineStyle: { color: '#B37FEB', width: 1 }
       },
       {
+        name: 'MA60', type: 'line', data: DATA.ma60,
+        xAxisIndex: 0, yAxisIndex: 0,
+        smooth: true, showSymbol: false, lineStyle: { color: '#F759AB', width: 1.5 }
+      },
+      {
         name: '成交量', type: 'bar',
         xAxisIndex: 1, yAxisIndex: 1,
         data: DATA.volume.map(function(d){
           return { value: d[1], itemStyle: { color: d[2] > 0 ? '#FF4D4F' : '#52C41A' } };
         })
+      },
+      // MACD 副图 — 柱 + DIF/DEA 折线
+      {
+        name: 'MACD', type: 'bar',
+        xAxisIndex: 2, yAxisIndex: 2,
+        data: DATA.macd.map(function(v){
+          if (v == null) return { value: null };
+          return { value: v, itemStyle: { color: v >= 0 ? '#FF4D4F' : '#52C41A' } };
+        })
+      },
+      {
+        name: 'DIF', type: 'line', data: DATA.dif,
+        xAxisIndex: 2, yAxisIndex: 2,
+        smooth: true, showSymbol: false, lineStyle: { color: '#FFD666', width: 1 }
+      },
+      {
+        name: 'DEA', type: 'line', data: DATA.dea,
+        xAxisIndex: 2, yAxisIndex: 2,
+        smooth: true, showSymbol: false, lineStyle: { color: '#69C0FF', width: 1 }
       }
     ]
   };
@@ -313,6 +403,80 @@ func movingAverage(closes []float64, window int) []any {
 		} else {
 			out[i] = nil
 		}
+	}
+	return out
+}
+
+// calcMACD 计算 EMA12/EMA26/DIF/DEA/MACD柱(长度同 closes,前置位用 nil)。
+//
+// 标准定义:
+//   DIF = EMA(close, short) - EMA(close, long)
+//   DEA = EMA(DIF, signal)
+//   MACD = (DIF - DEA) * 2
+//
+// 输出元素类型 any:数据点合法时填 float64,前置位填 nil(JSON null,ECharts 跳过)。
+func calcMACD(closes []float64, short, long, signal int) (dif, dea, macd []any) {
+	n := len(closes)
+	dif = make([]any, n)
+	dea = make([]any, n)
+	macd = make([]any, n)
+	if n == 0 || short <= 0 || long <= 0 || signal <= 0 {
+		return
+	}
+
+	emaShort := ema(closes, short)
+	emaLong := ema(closes, long)
+
+	difVals := make([]float64, n)
+	difValid := make([]bool, n)
+	for i := 0; i < n; i++ {
+		if i < long-1 {
+			continue
+		}
+		difVals[i] = emaShort[i] - emaLong[i]
+		difValid[i] = true
+		dif[i] = round2f(difVals[i])
+	}
+
+	// DEA = EMA(DIF, signal),只在 DIF 有效区段算
+	deaVals := make([]float64, n)
+	deaValid := make([]bool, n)
+	alpha := 2.0 / float64(signal+1)
+	for i := 0; i < n; i++ {
+		if !difValid[i] {
+			continue
+		}
+		if i == long-1 {
+			deaVals[i] = difVals[i]
+		} else {
+			deaVals[i] = difVals[i]*alpha + deaVals[i-1]*(1-alpha)
+		}
+		deaValid[i] = true
+		dea[i] = round2f(deaVals[i])
+		macd[i] = round2f((difVals[i] - deaVals[i]) * 2)
+	}
+	return
+}
+
+// ema 计算指数移动平均(长度同 closes)。前 window-1 位用 SMA 启动后续递推。
+func ema(closes []float64, window int) []float64 {
+	out := make([]float64, len(closes))
+	if window <= 0 || len(closes) == 0 {
+		return out
+	}
+	alpha := 2.0 / float64(window+1)
+	var sum float64
+	for i, v := range closes {
+		if i < window-1 {
+			sum += v
+			continue
+		}
+		if i == window-1 {
+			sum += v
+			out[i] = sum / float64(window)
+			continue
+		}
+		out[i] = v*alpha + out[i-1]*(1-alpha)
 	}
 	return out
 }

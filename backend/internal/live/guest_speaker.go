@@ -82,22 +82,38 @@ func (s *GuestSpeaker) systemPrompt(guest PersonaRef, style string) string {
 	b.WriteString("\n\n# 直播间共同规则\n")
 	b.WriteString("- 涉及具体数字(股价/涨跌幅/估值/财报)时**必须先用工具拉真实数据**,不准凭记忆给数字\n")
 	b.WriteString("- 纯宏观/国际/政策/行业逻辑性讨论可以**不用工具**,直接基于你的人设方法论发表看法\n")
-	b.WriteString("- 措辞像直播间发言而非研报。**可适度口语化**(如「嗯」「你看」「说实话」「我直接说」)\n")
-	b.WriteString("- 篇幅 100-280 字,**简短有力**优于冗长\n\n")
+	b.WriteString("- 措辞像直播间发言而非研报。可适度口语化,但不要刻意填充语气词\n")
+	b.WriteString("- 篇幅 100-260 字,**简短有力**优于冗长\n\n")
+
+	b.WriteString("# 关键铁律(违反将让你的发言被丢弃)\n\n")
+
+	b.WriteString("**1. 严禁复读自己 — 不许把人设方法论当固定台词重复念**\n")
+	b.WriteString("   - 你是一个真人,不是 chatbot。真人不会每次开口都讲一遍\"我的投资框架\"\n")
+	b.WriteString("   - **不要重复你这场已经说过的话、案例、口头禅、关键句**(下方会列出)\n")
+	b.WriteString("   - 把方法论当**默认背景**而不是**台词**:不要总说\"按我的 X 思维\",直接基于此思维给具体看法\n")
+	b.WriteString("   - **不要每次开场都讲一个寓言/类比/箴言**;一场直播里这类比喻最多用 1 次\n\n")
+
+	b.WriteString("**2. 每次发言必须有\"本次特有内容\" — 至少 2 个具体锚点**\n")
+	b.WriteString("   - 锚点 = 本次工具实际拉到的具体数字 / 新闻标题 / 事件名 / 行业数据\n")
+	b.WriteString("   - 例如不要只说\"估值偏贵\",要说\"**PE 38 倍,处于近 5 年 85% 分位**\"\n")
+	b.WriteString("   - 例如不要只说\"消费在改善\",要说\"**社零 4 月同比 +4.5%,化妆品 +6.8%**\"\n")
+	b.WriteString("   - 没有具体锚点的纯方法论表态会被视为套话\n\n")
+
+	b.WriteString("**3. 严禁鹦鹉学舌别人 — 不许复述其他嘉宾的话**\n")
+	b.WriteString("   - 不要说\"刚才 XX 说...我也这么认为\"这种空洞跟话\n")
+	b.WriteString("   - 可以**简短表态后**立刻给**自己独立观点**(同意+补充新角度 / 反驳+给反例 / 换维度切入)\n\n")
+
+	b.WriteString("**4. 给意见要落到具体价位数字,不要口水话**\n")
+	b.WriteString("   - 涉及买卖判断:支撑位 / 压力位 / 止损位 / 目标价 都给具体数字\n")
+	b.WriteString("   - 禁止\"等回踩\"\"逢低介入\"\"逢高减仓\"这类零信息量表达\n\n")
 
 	b.WriteString("# 富文本格式(可用,但克制)\n")
 	b.WriteString("- 可以用 `**加粗**` 强调关键数字 / 关键判断,例如:`**PE 23 倍**`、`**短线压力位 1850**`\n")
 	b.WriteString("- 可以用 `- 项目` 列举要点(最多 3-4 项,不要长列表)\n")
-	b.WriteString("- 可以**适度使用 emoji** 表达情绪/方向(如 📈 看多、📉 看空、⚠️ 风险、💡 观点、🎯 目标),每段最多 1-2 个,不要堆\n")
+	b.WriteString("- 可适度使用 emoji 表达情绪/方向(如 📈 📉 ⚠️ 💡 🎯),每段最多 1-2 个,不要堆\n")
 	b.WriteString("- **禁止**用 `#` `##` 大标题(这是聊天,不是报告)\n")
 	b.WriteString("- **禁止**用 markdown 表格 / 代码块\n")
-	b.WriteString("- **禁止**输出 JSON、不要 markdown 围栏 ```、不要前缀「我:」之类的角色标记。直接说话。\n\n")
-
-	b.WriteString("# 内容禁忌(违反将让你信誉受损)\n")
-	b.WriteString("- **严禁复读 / 鹦鹉学舌**:不要说「刚才 XX 说... 我也这么认为」这种空洞跟话。可以**简短表态后立刻给自己独立观点**(同意/反驳/补充新角度)\n")
-	b.WriteString("- 不要重复你自己之前已经说过的话或论点\n")
-	b.WriteString("- 给买卖建议时**要具体到价位数字**:支撑位/压力位/止损位/目标价,而不是「等回踩」「逢低介入」这种口水话\n")
-	b.WriteString("- 跨人设禁忌:你是一位真实的、知名的国际/国内投资人,**不要表演**或夸张人设,保持你这个人正常的思考节奏\n")
+	b.WriteString("- **禁止**输出 JSON、markdown 围栏 ```、前缀「我:」之类的角色标记。直接说话。\n")
 	return b.String()
 }
 
@@ -130,15 +146,35 @@ func (s *GuestSpeaker) userPrompt(in SpeakInput) string {
 			b.WriteString(condense(m.Content, 220))
 			b.WriteString("\n\n")
 		}
+
+		// 列出"你自己"这场已经发过的内容 — 显式禁区,防止 LLM 把人设当固定台词
+		ownLines := []Message{}
+		for _, m := range in.History {
+			if m.Persona == in.Guest.ID {
+				ownLines = append(ownLines, m)
+			}
+		}
+		if len(ownLines) > 0 {
+			b.WriteString("# ⛔ 你(本人)本场已经说过的内容,**禁止与之雷同 / 复读 / 换皮重说**:\n")
+			// 倒序取最近 3 条,前面长度不超过 150
+			start := len(ownLines) - 3
+			if start < 0 {
+				start = 0
+			}
+			for _, m := range ownLines[start:] {
+				b.WriteString(fmt.Sprintf("  - %s\n", condense(m.Content, 150)))
+			}
+			b.WriteString("\n要求:本次发言换一个角度 / 换一组数据 / 换一个具体案例,不要再讲已经讲过的方法论与口头禅。\n\n")
+		}
 	}
 
 	if in.IsReact {
 		if in.ReactTo != "" {
-			b.WriteString(fmt.Sprintf("# 你的任务\n请就「%s」刚才的观点表态(同意/反驳/补充)。", in.ReactTo))
+			b.WriteString(fmt.Sprintf("# 你的任务\n请就「%s」刚才的观点表态(同意/反驳/补充新角度)。\n", in.ReactTo))
 		} else {
-			b.WriteString("# 你的任务\n请基于直播间最近的讨论,自发说一段你的看法。")
+			b.WriteString("# 你的任务\n请基于直播间最近的讨论,自发说一段你的看法。\n")
 		}
-		b.WriteString("不必先工具调用再说话——可以先表态再补数据。\n")
+		b.WriteString("可以先表态再补数据;**但至少要带 1 个具体数字/事实锚点**(本次拉到的或刚才讨论里的),不要只讲方法论。\n")
 	} else {
 		b.WriteString("# 你的任务\n")
 		if strings.TrimSpace(in.HostQuestion) != "" {
@@ -146,7 +182,8 @@ func (s *GuestSpeaker) userPrompt(in SpeakInput) string {
 			b.WriteString(in.HostQuestion)
 			b.WriteString("\n\n")
 		}
-		b.WriteString("请用你的人设视角回应。**先用工具拉真实数据**,再给出 150-350 字的口语化点评。\n")
+		b.WriteString("请用你的人设视角回应,**先用工具拉真实数据**,再给 100-260 字的具体点评。\n")
+		b.WriteString("**硬要求**:回答里至少要出现 **2 个具体数字 / 事实锚点**(股价、涨跌幅、PE、营收、新闻标题、政策名…),没有数据支撑的纯方法论表态视为无效。\n")
 	}
 	return b.String()
 }
