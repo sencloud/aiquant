@@ -11,11 +11,11 @@ import (
 
 // registerRealtime 注册实时行情工具：
 //
-//   - get_realtime_quote          单标的实时快照（A 股 / ETF / 指数，新浪 hq.sinajs.cn）
-//   - get_top_movers              涨幅 / 跌幅榜（东方财富 push2 clist；新浪无等价接口）
-//   - get_market_snapshot         主流指数实时快照（新浪 hq.sinajs.cn）
-//   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX，新浪）
-//   - get_futures_realtime_batch  批量期货合约实时（新浪 list= 单次批量拉取，最多 30 个）
+//   - get_realtime_quote          单标的实时快照（A 股 / ETF / 指数,**腾讯 qt.gtimg.cn**)
+//   - get_top_movers              涨幅 / 跌幅榜（东方财富 push2 clist;腾讯无等价接口）
+//   - get_market_snapshot         主流指数实时快照（**腾讯 qt.gtimg.cn**)
+//   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX,**东方财富 push2**;腾讯无公开期货接口)
+//   - get_futures_realtime_batch  批量期货合约实时（**东方财富 push2** ulist.np;并发拉取）
 func registerRealtime(r *tool.Registry, c *realtime.Client) {
 	r.MustRegister(&getRealtimeQuoteTool{c: c})
 	r.MustRegister(&getTopMoversTool{c: c})
@@ -31,9 +31,9 @@ type getRealtimeQuoteTool struct{ c *realtime.Client }
 func (t *getRealtimeQuoteTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "get_realtime_quote",
-		Description: "获取 A 股 / ETF / 主流指数当下实时报价（东方财富 push2，交易日盘中即时）。" +
-			"返回最新价、涨跌幅、涨跌额、今开/最高/最低/昨收、成交量、成交额、换手率、市盈率。" +
-			"想看多日历史走势请用 get_quote；这里专门覆盖「今天/此刻」语义。",
+		Description: "获取 A 股 / ETF / 主流指数当下实时报价（腾讯财经 qt.gtimg.cn,交易日盘中即时）。" +
+			"返回最新价、涨跌幅、涨跌额、今开/最高/最低/昨收、成交量(手)、成交额(元)、换手率、TTM 市盈率。" +
+			"想看多日历史走势请用 get_quote;这里专门覆盖「今天/此刻」语义。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
 				"symbol": {Type: "string", Description: "标的代码：6 位数字或 ts_code（600519 / 600519.SH / 000300.SH）"},
@@ -74,7 +74,7 @@ func (t *getRealtimeQuoteTool) Run(ctx context.Context, args json.RawMessage) (s
 		"turnover_rate": q.TurnoverRate,
 		"pe_ttm":        q.PE,
 		"delayed":       q.Delayed,
-		"source":        "sina_hq",
+		"source":        "tencent_qt",
 	}
 	return tool.EncodeJSON(out), nil
 }
@@ -163,7 +163,7 @@ func (t *getMarketSnapshotTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "get_market_snapshot",
 		Description: "获取 A 股主要指数（沪深 300 / 上证 50 / 中证 500 / 科创 50 / 创业板指 / 上证综指 / 深证成指）" +
-			"的实时快照（东方财富 push2，交易日盘中即刻反映当日点位与涨跌幅）。",
+			"的实时快照（腾讯财经 qt.gtimg.cn,交易日盘中即刻反映当日点位与涨跌幅）。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{},
 		},
@@ -203,7 +203,7 @@ func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (
 	}
 	return tool.EncodeJSON(map[string]any{
 		"indexes": out,
-		"source":  "sina_hq",
+		"source":  "tencent_qt",
 	}), nil
 }
 
@@ -267,7 +267,7 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 		"bid":        q.Bid,
 		"ask":        q.Ask,
 		"delayed":    q.Delayed,
-		"source":     "sina_hq",
+		"source":     "eastmoney_push2",
 	}), nil
 }
 
@@ -343,6 +343,6 @@ func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMess
 	return tool.EncodeJSON(map[string]any{
 		"count":  len(out),
 		"quotes": out,
-		"source": "sina_hq",
+		"source": "eastmoney_push2",
 	}), nil
 }
