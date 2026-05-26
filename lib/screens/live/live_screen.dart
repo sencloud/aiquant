@@ -48,7 +48,56 @@ class _LiveScreenState extends State<LiveScreen> {
         ],
       ),
       body: _buildBody(context, s),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.amber,
+        foregroundColor: Colors.black,
+        onPressed: s.creatingRoom ? null : () => _onCreateManual(context),
+        icon: s.creatingRoom
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.black),
+              )
+            : const Icon(Icons.add, size: 18),
+        label: Text(s.creatingRoom ? '创建中…' : '新建直播间'),
+      ),
     );
+  }
+
+  Future<void> _onCreateManual(BuildContext context) async {
+    final input = await showDialog<_ManualRoomInput>(
+      context: context,
+      builder: (_) => const _NewManualRoomDialog(),
+    );
+    if (input == null) return; // 用户取消
+    if (!context.mounted) return;
+
+    final state = context.read<LiveState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final res = await state.createManualRoom(
+        focusSymbol: input.symbol,
+        focusName: input.name,
+      );
+      if (!navigator.mounted) return;
+      if (!res.isNew) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('已有直播间正在进行,直接进入查看'),
+        ));
+      }
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => LiveRoomScreen(roomUUID: res.uuid),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('新建直播间失败:$e',
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+      ));
+    }
   }
 
   Widget _buildBody(BuildContext context, LiveState s) {
@@ -64,12 +113,119 @@ class _LiveScreenState extends State<LiveScreen> {
     return RefreshIndicator(
       onRefresh: () => context.read<LiveState>().refreshRooms(),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
         itemCount: s.rooms.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, i) => _RoomCard(room: s.rooms[i]),
       ),
     );
+  }
+}
+
+class _ManualRoomInput {
+  const _ManualRoomInput({this.symbol, this.name});
+  final String? symbol;
+  final String? name;
+}
+
+/// 新建直播间对话框:可选填一只票作为开场焦点(留空则由主持人自挑)。
+///
+/// 行为约束(后端层):
+///   * 全局同时只允许 1 个 status='live' 房间(无论 manual / auto)
+///   * 手动房间硬时长 15 分钟,到点自动结束并进入历史
+class _NewManualRoomDialog extends StatefulWidget {
+  const _NewManualRoomDialog();
+
+  @override
+  State<_NewManualRoomDialog> createState() => _NewManualRoomDialogState();
+}
+
+class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
+  final _symbolCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _symbolCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.bgRaised,
+      title: Row(
+        children: [
+          const Icon(Icons.live_tv, color: AppColors.amber, size: 18),
+          const SizedBox(width: 6),
+          Text(
+            '新建直播间',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '主持人会带 4 位嘉宾即时开聊,时长 15 分钟,到点自动结束并形成历史。\n同时只允许有 1 个直播间。',
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _symbolCtrl,
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: '开场票代码(选填)',
+              hintText: '如 600519.SH(留空则由主持人自挑)',
+              hintStyle:
+                  TextStyle(color: AppColors.textTertiary, fontSize: 12),
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _nameCtrl,
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: '股票名称(选填)',
+              hintText: '如 贵州茅台',
+              hintStyle:
+                  TextStyle(color: AppColors.textTertiary, fontSize: 12),
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.amber,
+            foregroundColor: Colors.black,
+          ),
+          onPressed: _submit,
+          child: const Text('开播'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(_ManualRoomInput(
+      symbol: _symbolCtrl.text.trim().isEmpty ? null : _symbolCtrl.text.trim(),
+      name: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
+    ));
   }
 }
 
@@ -126,7 +282,11 @@ class _RoomCard extends StatelessWidget {
               Row(
                 children: [
                   _phaseChip(room.phaseLabel),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
+                  if (room.isManual) ...[
+                    _manualChip(),
+                    const SizedBox(width: 6),
+                  ],
                   Text(
                     '$dateLabel · $hhmm',
                     style: TextStyle(
@@ -238,6 +398,24 @@ class _RoomCard extends StatelessWidget {
           color: AppColors.amber,
           fontWeight: FontWeight.w700,
           fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Widget _manualChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF8b5cf6).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        '手动',
+        style: TextStyle(
+          color: Color(0xFFc4b5fd),
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

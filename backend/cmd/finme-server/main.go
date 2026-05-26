@@ -113,15 +113,42 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
 	dingSvc := ding.NewService(st, cfg, chatSvc, billing.NewLedgerRepo(st), &l)
 
-	// Live v2:HTTP 读层只需要 RoomRepo + MessageRepo + KlineBuilder。
-	// 真正的房间生成在 scheduler 进程,这里不重复构造 host/guest LLM。
+	// Live v2:
+	//   * 读接口(rooms / messages / kline) → 直接走 RoomRepo / MessageRepo / KlineBuilder
+	//   * 自动开播(SeedRooms 4 个定时窗口)→ 在 scheduler 进程跑(见 runScheduler)
+	//   * 手动开播(POST /v1/live/rooms,15 分钟硬截止)→ api 进程内嵌一个 mini-runner,
+	//     即时启动 liveLoop;若 LLM 未配置则 manual 端点回 503 LIVE.MANUAL_DISABLED。
 	liveTu := tushare.New(cfg.Tushare)
 	liveRt := realtime.New(0)
+	liveRoomRepo := live.NewRoomRepo(st)
+	liveMsgRepo := live.NewMessageRepo(st)
 	liveSvc := live.NewService(
-		live.NewRoomRepo(st),
-		live.NewMessageRepo(st),
+		liveRoomRepo,
+		liveMsgRepo,
 		live.NewKlineBuilder(liveTu, liveRt),
 	)
+	if cfg.LLM.Configured() {
+		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+			cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+			time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+		if err != nil {
+			l.Warn().Err(err).Msg("api: live manual runner disabled (deepseek init failed)")
+		} else {
+			liveNw := news.New(cfg.News)
+			liveCn := cnnews.New(cfg.News.TimeoutSec)
+			liveReg := aitools.BuildAll(aitools.Deps{
+				Tushare: liveTu, News: liveNw, CNNews: liveCn, Realtime: liveRt,
+			})
+			liveExec := live.NewExecutor(ds, liveReg)
+			liveHost := live.NewHostPlanner(ds)
+			liveGuest := live.NewGuestSpeaker(liveExec)
+			liveRunner := live.NewRunner(liveRoomRepo, liveMsgRepo, liveHost, liveGuest, liveRt, &l)
+			liveSvc.SetRunner(liveRunner)
+			l.Info().Msg("api: live manual runner enabled (POST /v1/live/rooms 可用)")
+		}
+	} else {
+		l.Warn().Msg("api: llm not configured, POST /v1/live/rooms 将返回 503")
+	}
 
 	var qwenVision *qwen.VisionClient
 	if cfg.Qwen.Configured() {

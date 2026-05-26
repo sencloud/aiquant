@@ -28,6 +28,16 @@ const (
 	PhasePost     = "post"
 )
 
+// 直播间触发来源 —— 决定是否受"15 分钟硬截止"约束。
+const (
+	OriginAuto   = "auto"   // scheduler 在 4 个定时窗口创建
+	OriginManual = "manual" // 用户 HTTP 主动触发,有 auto_end_at(默认 +15min)
+)
+
+// ManualRoomDuration 是 origin='manual' 房间的硬时长。
+// liveLoop 每轮检查 now > started_at + ManualRoomDuration 则主动 host_close。
+const ManualRoomDuration = 15 * time.Minute
+
 // 消息角色 — 决定前端展示样式 + LLM prompt 注入策略。
 const (
 	RoleHostOpen    = "host_open"    // 主持人开场白
@@ -56,6 +66,8 @@ type Room struct {
 	EndedAt             sql.NullInt64  `db:"ended_at"`
 	Error               sql.NullString `db:"error"`
 	CreatedAt           int64          `db:"created_at"`
+	Origin              string         `db:"origin"`
+	AutoEndAt           sql.NullInt64  `db:"auto_end_at"`
 }
 
 // Message 是单条聊天消息数据库行。

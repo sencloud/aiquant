@@ -8,6 +8,29 @@ class LiveService {
   LiveService({ApiClient? client}) : _client = client ?? ApiClient.instance;
   final ApiClient _client;
 
+  /// 手动新建一场直播间(origin='manual',15 分钟硬截止)。
+  ///
+  /// 全局任一时刻仅允许 1 个 status='live' 房间,服务端冲突时抛 ApiException
+  /// (statusCode=409, code='LIVE.ROOM_LIVE_EXISTS')。上层应当 catch + 引导
+  /// 用户进入已存在的房间。
+  ///
+  /// [focusSymbol] 可空;非空时(如 '600519.SH')主持人首条 ask 会聚焦它。
+  Future<LiveRoom> createManualRoom({
+    String? focusSymbol,
+    String? focusName,
+  }) async {
+    final body = <String, dynamic>{};
+    final s = focusSymbol?.trim();
+    final n = focusName?.trim();
+    if (s != null && s.isNotEmpty) body['focus_symbol'] = s;
+    if (n != null && n.isNotEmpty) body['focus_name'] = n;
+    final r = await _client.dio.post<Map<String, dynamic>>(
+      '/v1/live/rooms',
+      data: body.isEmpty ? null : body,
+    );
+    return LiveRoom.fromJson(r.data!);
+  }
+
   /// 列直播间(最近 N 场,含 live + ended,按 started_at desc)。
   Future<List<LiveRoom>> listRooms({int limit = 20}) async {
     final r = await _client.dio.get<Map<String, dynamic>>(

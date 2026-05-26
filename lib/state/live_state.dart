@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/api/auth_models.dart';
 import '../models/live.dart';
 import '../services/live_service.dart';
 
@@ -134,6 +136,53 @@ class LiveState extends ChangeNotifier {
     }
   }
 
+  // ── 手动开播 ────────────────────────────────────────────────────────
+
+  bool _creatingRoom = false;
+  bool get creatingRoom => _creatingRoom;
+
+  /// 用户在大厅点"+ 新建直播间":
+  ///   * 调 POST /v1/live/rooms;成功 → 把新房间塞到列表头并返回 uuid 供 push 路由
+  ///   * 已有 live (409 LIVE.ROOM_LIVE_EXISTS) → 找出列表里那个 live 房间的 uuid 返回,
+  ///     调用方应据此跳到那个房间
+  ///   * 其他错误 → 抛出,UI 用 SnackBar 提示
+  ///
+  /// 返回 (uuid, isNew):isNew=true 表示新建成功,false 表示返回的是已存在的 live 房间 uuid。
+  Future<({String uuid, bool isNew})> createManualRoom({
+    String? focusSymbol,
+    String? focusName,
+  }) async {
+    _creatingRoom = true;
+    notifyListeners();
+    try {
+      final room = await _service.createManualRoom(
+        focusSymbol: focusSymbol,
+        focusName: focusName,
+      );
+      // 插到列表头,UI 立刻能看到
+      _rooms.insert(0, room);
+      _lastError = null;
+      return (uuid: room.uuid, isNew: true);
+    } on DioException catch (e) {
+      final api = e.error;
+      if (api is ApiException && api.statusCode == 409) {
+        // 服务端拒绝:已有 live。从本地列表找出那个 live(可能需要刷新一次)
+        LiveRoom? existing = _firstLive();
+        if (existing == null) {
+          await refreshRooms();
+          existing = _firstLive();
+        }
+        if (existing != null) {
+          return (uuid: existing.uuid, isNew: false);
+        }
+      }
+      rethrow;
+    } finally {
+      _creatingRoom = false;
+      notifyListeners();
+    }
+  }
+
   // ── 内部:轮询 ──────────────────────────────────────────────────────
 
   void _startPolling() {
@@ -205,6 +254,13 @@ class LiveState extends ChangeNotifier {
     }
   }
 
+  LiveRoom? _firstLive() {
+    for (final r in _rooms) {
+      if (r.isLive) return r;
+    }
+    return null;
+  }
+
   LiveRoom _copyRoomWithStatus(LiveRoom r, String status) {
     return LiveRoom(
       uuid: r.uuid,
@@ -219,6 +275,8 @@ class LiveState extends ChangeNotifier {
       messageCount: r.messageCount,
       startedAt: r.startedAt,
       endedAt: r.endedAt,
+      origin: r.origin,
+      autoEndAt: r.autoEndAt,
     );
   }
 

@@ -188,8 +188,103 @@ func (r *Runner) createRoom(ctx context.Context, s slotWindow, now time.Time) (*
 		Phase:         s.phase,
 		HostPersona:   Host,
 		GuestPersonas: guests,
+		Origin:        OriginAuto,
 	})
 }
+
+// ManualRoomOptions 是 HTTP 触发开播的入参。
+type ManualRoomOptions struct {
+	// FocusSymbol 可空;非空时房间元信息直接挂上焦点,host 第一条消息将聚焦它。
+	FocusSymbol string
+	FocusName   string
+	// Phase 自动按当下时间推断,调用方一般不传。
+	Phase string
+}
+
+// StartManualRoom 创建一个用户手动触发的直播间并立即启动 goroutine。
+//
+// 约束:全局任一时刻只允许 1 个 status='live' 房间(无论 auto / manual);
+// 已有 live → 返回 ErrLiveAlreadyExists,HTTP 层映射为 409。
+//
+// 行为:
+//   * Origin=OriginManual,AutoEndAt=now+ManualRoomDuration(15min)
+//   * liveLoop 每轮检查超期 → 主动 host_close → MarkEnded(自然进入历史)
+//   * 即便房间内 host LLM 提前 close,也照常 MarkEnded(更早结束,无碍)
+func (r *Runner) StartManualRoom(ctx context.Context, opts ManualRoomOptions) (*Room, error) {
+	now := time.Now()
+	phase := opts.Phase
+	if phase == "" {
+		phase = guessPhase(now)
+	}
+
+	// 唯一性前置:CountLive 非事务但配合"立刻 Create + scheduler 60s tick"已足够安全
+	// (并发同秒内两个 manual 请求最坏会创建 2 个房间,SweepStale 不会清,
+	//  但概率极低,且本应用单用户场景,暂不引入 DB unique index)。
+	n, err := r.rooms.CountLive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if n > 0 {
+		return nil, ErrLiveAlreadyExists
+	}
+
+	guests := pickGuests(4)
+	title := buildManualTitle(opts.FocusName, opts.FocusSymbol, now)
+	endAt := now.Add(ManualRoomDuration).UnixMilli()
+	room, err := r.rooms.Create(ctx, CreateInput{
+		Title:         title,
+		Phase:         phase,
+		HostPersona:   Host,
+		GuestPersonas: guests,
+		Origin:        OriginManual,
+		AutoEndAtMs:   endAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 用户传了开场焦点 → 写入冗余字段,host 第一条 ask 会被强引导聚焦它
+	if opts.FocusSymbol != "" {
+		_ = r.rooms.UpdateFocus(ctx, room.ID, opts.FocusSymbol, opts.FocusName)
+		// 重新读一次让返回值带上 focus
+		if updated, _ := r.rooms.GetByID(ctx, room.ID); updated != nil {
+			room = updated
+		}
+	}
+	r.startLoop(room)
+	r.logger.Info().
+		Int64("room_id", room.ID).Str("uuid", room.UUID).
+		Str("title", room.Title).Str("origin", OriginManual).
+		Int64("auto_end_at", endAt).Msg("live: manual room created + loop started")
+	return room, nil
+}
+
+// guessPhase 按当下时间推断市场阶段(给 manual 房间用)。
+func guessPhase(t time.Time) string {
+	cur := t.Hour()*60 + t.Minute()
+	switch {
+	case cur < 9*60+15: // < 09:15
+		return PhasePre
+	case cur < 15*60: // 09:15 ~ 14:59
+		return PhaseIntraday
+	default: // >= 15:00
+		return PhasePost
+	}
+}
+
+func buildManualTitle(focusName, focusSymbol string, t time.Time) string {
+	hm := t.Format("15:04")
+	if focusName != "" {
+		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusName, Host.Name)
+	}
+	if focusSymbol != "" {
+		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusSymbol, Host.Name)
+	}
+	return fmt.Sprintf("%s · 随时直播 · %s 主持", hm, Host.Name)
+}
+
+// ErrLiveAlreadyExists 由 StartManualRoom 在已有 live 房间时返回;
+// HTTP 层映射为 409 Conflict。
+var ErrLiveAlreadyExists = errors.New("another live room is in progress")
 
 // startLoop 启动一个 goroutine 跑 liveLoop。父 ctx 用 background(scheduler ctx),
 // 避免 scheduler tick 函数返回导致 loop 被取消。但进程退出 SIGTERM 仍会传递。
@@ -244,6 +339,32 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		}
 		if cnt >= r.MaxMessagesPerRoom {
 			logger.Info().Int("count", cnt).Msg("live loop: max messages reached")
+			break
+		}
+
+		// 手动房间硬截止:到点写一条 host_close 然后退出循环 → MarkEnded 进入历史。
+		if room.AutoEndAt.Valid && nowMs() >= room.AutoEndAt.Int64 {
+			focus, focusName := "", ""
+			if room.CurrentFocusSymbol.Valid {
+				focus = room.CurrentFocusSymbol.String
+			}
+			if room.CurrentFocusName.Valid {
+				focusName = room.CurrentFocusName.String
+			}
+			closing := fmt.Sprintf("时间到了,这场 %d 分钟的临时直播就到这,感谢各位嘉宾,我们后会有期。",
+				int(ManualRoomDuration.Minutes()))
+			_, _ = r.messages.Append(ctx, AppendInput{
+				RoomID:      rid,
+				Role:        RoleHostClose,
+				Persona:     Host.ID,
+				PersonaName: Host.Name,
+				FocusSymbol: focus,
+				FocusName:   focusName,
+				Content:     closing,
+			})
+			_ = r.rooms.IncMessageCount(ctx, rid)
+			logger.Info().Int64("auto_end_at", room.AutoEndAt.Int64).
+				Msg("live loop: manual room auto-end reached")
 			break
 		}
 

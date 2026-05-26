@@ -1,22 +1,26 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/platform"
 )
 
 // mountLive 挂载 /v1/live/* 路由(v2 直播间形态)。
 //
-// 全部为读接口,且对全部登录用户开放;直播由 scheduler 进程自动生成,
-// HTTP 层不暴露手动触发入口(避免被滥用 / 浪费 LLM 配额)。
+// 读接口由 scheduler 进程持续生成的房间/消息提供;
+// POST /v1/live/rooms 在 api 进程内嵌的 mini-runner 上即时启动一个 origin='manual'
+// 房间(全局任一时刻最多 1 个 status='live',15 分钟硬截止自动进入历史)。
 func mountLive(r chi.Router, d *Deps) {
 	r.Route("/live", func(r chi.Router) {
 		r.Get("/rooms", handleLiveListRooms(d))
+		r.Post("/rooms", handleLiveCreateRoom(d))
 		r.Get("/rooms/{uuid}", handleLiveGetRoom(d))
 		r.Get("/rooms/{uuid}/messages", handleLiveListMessages(d))
 		r.Get("/kline", handleLiveKline(d))
@@ -33,6 +37,45 @@ func handleLiveListRooms(d *Deps) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{"items": items})
+	}
+}
+
+// POST /v1/live/rooms
+//
+// Body (可选): {"focus_symbol": "600519.SH", "focus_name": "贵州茅台"}
+//
+// 行为:
+//   * 检查全局 status='live' 房间数 → 已存在则 409 LIVE.ROOM_LIVE_EXISTS
+//   * 创建一个 origin='manual' 房间,auto_end_at=now+15min,立即启动 liveLoop
+//   * 返回 RoomBrief(客户端用 uuid 进入直播间页)
+//
+// 限流:Service 层依赖"全局唯一"语义已经天然防滥用,这里不另做 token bucket。
+func handleLiveCreateRoom(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in live.CreateManualInput
+		// 允许空 body(用户不指定开场焦点)
+		if r.ContentLength > 0 {
+			if err := DecodeJSON(r, &in); err != nil {
+				WriteError(w, r, err)
+				return
+			}
+		}
+		brief, err := d.Live.CreateManualRoom(r.Context(), in)
+		if err != nil {
+			switch {
+			case errors.Is(err, live.ErrLiveAlreadyExists):
+				WriteError(w, r, platform.ErrConflict(
+					"LIVE.ROOM_LIVE_EXISTS",
+					"已有直播间正在进行,请先进入查看或等待结束"))
+			case errors.Is(err, live.ErrManualNotEnabled):
+				WriteError(w, r, platform.ErrUnavailable(
+					"LIVE.MANUAL_DISABLED", err))
+			default:
+				WriteError(w, r, platform.ErrInternal("LIVE.CREATE_ROOM", err))
+			}
+			return
+		}
+		WriteJSON(w, http.StatusCreated, brief)
 	}
 }
 
