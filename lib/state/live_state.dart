@@ -187,9 +187,12 @@ class LiveState extends ChangeNotifier {
 
   void _startPolling() {
     _stopPolling();
-    final uuid = _currentRoom?.uuid;
-    if (uuid == null || uuid.isEmpty) return;
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollOnce(uuid));
+    final room = _currentRoom;
+    if (room == null || room.uuid.isEmpty) return;
+    // 房间已结束,无新消息,不必持续轮询(避免 ended 房还在每 3s 请求)
+    if (room.status != 'live') return;
+    _pollTimer = Timer.periodic(
+        const Duration(seconds: 3), (_) => _pollOnce(room.uuid));
   }
 
   void _stopPolling() {

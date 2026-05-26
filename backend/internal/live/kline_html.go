@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -11,6 +12,17 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
 )
+
+// echartsJS 在编译期由 //go:embed 嵌入二进制(~1MB),
+// 用于把 K 线 HTML 做成 self-contained 文档 — 完全脱离 CDN,
+// 客户端 webview 不需要任何外网请求即可渲染。
+//
+// 这是用户在 v1 反馈 "ECharts 加载失败 / 未就绪" 之后选定的根治方案 —
+// 之前用 CDN(lib.baomitu / staticfile / elemecdn)的路径全部不可达或返回 404 占位,
+// 内嵌彻底消除了 CDN 命中失败 / 跨域 / ATS 拦截等所有可能性。
+//
+//go:embed assets/echarts.min.js
+var echartsJS string
 
 // KlineBuilder 拼装"AI 直播主图"的 K 线 HTML 片段(给 Flutter webview_flutter 直接 loadHtmlString)。
 //
@@ -127,11 +139,8 @@ func (b *KlineBuilder) Build(ctx context.Context, symbol string) string {
 
 // renderKlineHTML 把数据 JSON 嵌入 ECharts 模板。
 //
-// CDN 策略:3 个国内可达的 CDN 链式 fallback,任一可达即渲染成功。
-//   1) lib.baomitu.com    — 360 静态资源加速,全国节点多
-//   2) cdn.staticfile.org — 七牛 + ChinaNetCenter 联合 CDN
-//   3) npm.elemecdn.com   — 饿了么 unpkg 国内镜像
-// 任一脚本 onload 触发 __echarts_ready;最后兜底脚本检测全局 echarts 是否已注入。
+// ECharts JS 通过 //go:embed 内嵌(echartsJS 变量),HTML 内 <script> 直接内联,
+// 客户端 webview 不再依赖任何 CDN,彻底消除"加载失败"问题。
 func renderKlineHTML(dataJSON string) string {
 	return `<!doctype html>
 <html lang="zh-CN">
@@ -171,32 +180,9 @@ func renderKlineHTML(dataJSON string) string {
   <span class="time" id="tm"></span>
 </div>
 <div id="chart"></div>
+<script>` + echartsJS + `</script>
 <script>
-// 多 CDN 链式加载 ECharts:从第 0 个开始,失败自动尝试下一个
 (function(){
-  var CDNS = [
-    'https://lib.baomitu.com/echarts/5.4.3/echarts.min.js',
-    'https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js',
-    'https://npm.elemecdn.com/echarts@5.4.3/dist/echarts.min.js'
-  ];
-  var idx = 0;
-  function tryLoad(){
-    if (idx >= CDNS.length) {
-      var el = document.getElementById('chart');
-      if (el) el.innerHTML = '<div id="err">ECharts 全部 CDN 加载失败,请检查网络</div>';
-      return;
-    }
-    var s = document.createElement('script');
-    s.src = CDNS[idx++];
-    s.onload = function(){ window.__renderChart && window.__renderChart(); };
-    s.onerror = tryLoad;
-    document.head.appendChild(s);
-  }
-  tryLoad();
-})();
-</script>
-<script>
-window.__renderChart = function(){
   var DATA = ` + dataJSON + `;
   document.getElementById('nm').textContent = DATA.name;
   document.getElementById('cd').textContent = DATA.symbol;
@@ -292,7 +278,7 @@ window.__renderChart = function(){
   };
   chart.setOption(option);
   window.addEventListener('resize', function(){ chart.resize(); });
-};
+})();
 </script>
 </body>
 </html>`
