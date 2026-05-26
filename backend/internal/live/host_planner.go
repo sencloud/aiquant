@@ -41,8 +41,9 @@ func NewHostPlanner(d *llm.DeepSeek) *HostPlanner {
 
 // PlanInput 是 Plan 的入参。
 type PlanInput struct {
-	Guests           []PersonaRef    // 当场嘉宾
-	Phase            string          // pre/intraday/post
+	Host             PersonaRef       // 本场主持人(决定 prompt 里"你是谁")
+	Guests           []PersonaRef     // 当场嘉宾
+	Phase            string           // pre/intraday/post
 	Now              time.Time
 	CandidatePool    []CandidateStock // 当日热门股票池(供主持人切换 focus 时挑选)
 	History          []Message        // 最近 N 条消息(给上下文)
@@ -97,24 +98,40 @@ func (p *HostPlanner) Plan(ctx context.Context, in PlanInput) (*HostAction, erro
 
 func (p *HostPlanner) systemPrompt(in PlanInput) string {
 	var b strings.Builder
-	b.WriteString(HostStyle)
+
+	// 本场主持人的人设(从 Hosts 池查回 Style)
+	style := FindHostStyle(in.Host.ID)
+	if style == "" {
+		// fallback:Hosts 池意外缺少该 id,给一个最小化人设让 LLM 仍可工作
+		style = fmt.Sprintf("你是「%s」,本场直播间主持人,沉稳控场,引导嘉宾对话。", in.Host.Name)
+	}
+	b.WriteString(style)
 	b.WriteString("\n\n")
+
 	b.WriteString("# 输出契约(必须严格遵守)\n")
 	b.WriteString("你的每一次发言都必须以一个**纯 JSON 对象**返回,前后不要任何解释或 markdown 围栏。\n")
 	b.WriteString("JSON 字段:\n")
 	b.WriteString(`{
-  "action": "open|ask|switch|react_prompt|close",
-  "target_persona": "<嘉宾 persona id,见下方嘉宾列表>(action 为 ask/switch/react_prompt 时必填)",
-  "focus_symbol": "<ts_code 如 600519.SH>(action 为 ask/switch 时必填)",
-  "focus_name": "<股票中文名>(action 为 ask/switch 时必填)",
-  "content": "<主持人这次的口播,20-80 字,口语化,可以提问/调侃/串联前文>"
+  "action": "open|ask|switch|topic|react_prompt|close",
+  "target_persona": "<嘉宾 persona id,见下方嘉宾列表>(action 为 ask/switch/topic/react_prompt 时必填)",
+  "focus_symbol": "<ts_code 如 600519.SH>(action 为 ask/switch 时必填,其他时禁止填)",
+  "focus_name": "<股票中文名>(action 为 ask/switch 时必填,其他时禁止填)",
+  "content": "<主持人这次的口播,30-90 字,口语化,可以提问/调侃/串联前文,可适度用 emoji>"
 }`)
 	b.WriteString("\n\n# Action 含义\n")
 	b.WriteString("- `open`:开场白(全场第一条)。content 含问候 + 介绍今天主题 + 第一个话题切入。这条**也必须填 focus_symbol/focus_name + target_persona**,等于「我点名第一位嘉宾就这只票发言」。\n")
-	b.WriteString("- `ask`:就**当前 focus**点名某嘉宾发言。\n")
-	b.WriteString("- `switch`:**切换 focus 到新股票**,顺便点名。每聊 4-8 条左右就应切换,避免一只票聊太久。\n")
-	b.WriteString("- `react_prompt`:不指定新焦点,诱导嘉宾之间互动(如「小马你同意老张刚才的看法吗」)。当感觉某嘉宾观点有争议时用。\n")
+	b.WriteString("- `ask`:就**当前 focus**点名某嘉宾发言。focus_symbol/focus_name 沿用当前焦点(也可重新填一次)。\n")
+	b.WriteString("- `switch`:**切换 focus 到新股票**,顺便点名。一只票聊 3-5 条就应切换,避免单股聊太久。\n")
+	b.WriteString("- `topic`:**抛一个非个股的宏观/行业/国际/政策话题**,点名嘉宾发表看法。例如:「美联储下次议息」「半导体行业景气」「房地产新政」「日股创新高」「AI 算力投资」等。**focus_symbol/focus_name 必须留空**,这是和 ask 的关键区别。每 4-6 条之间至少穿插 1 条 topic,否则全场聊个股会枯燥。\n")
+	b.WriteString("- `react_prompt`:不指定新焦点,诱导嘉宾之间互动(如「巴菲特你同意达里奥刚才的看法吗」)。focus_symbol/focus_name 沿用当前焦点。当感觉某嘉宾观点有争议时用。\n")
 	b.WriteString("- `close`:收尾陈词(全场最后一条)。当 message_count ≥ 软上限时主动出此 action。content 含致谢 + 总结 + 下场预告。**close 时 focus_symbol/target_persona 必须留空**。\n\n")
+
+	b.WriteString("# 内容禁忌(违反将被丢弃后重新生成)\n")
+	b.WriteString("- 严禁与你最近 3 条发言**雷同或极度相似**(开头 40 字符不能与之前任何一条一样),换角度、换嘉宾、换股票或换话题\n")
+	b.WriteString("- 不要给买卖建议(那是嘉宾的活)\n")
+	b.WriteString("- 不要长篇大论自我表达\n")
+	b.WriteString("- 不要一直问同一只票超过 4 轮,要主动 switch 或 topic\n\n")
+
 	b.WriteString("# 嘉宾列表(target_persona 只能用以下 id)\n")
 	for _, g := range in.Guests {
 		b.WriteString(fmt.Sprintf("- `%s` (%s)\n", g.ID, g.Name))
@@ -169,6 +186,19 @@ func (p *HostPlanner) userPrompt(in PlanInput) string {
 			b.WriteString(condense(m.Content, 200))
 			b.WriteString("\n\n")
 		}
+
+		// 列出你最近 3 条 host 发言全文 — 让 LLM 直观看到"不要写跟这些一样"
+		b.WriteString("# 你(主持人)最近 3 条发言(禁止与之雷同):\n")
+		shown := 0
+		for i := len(in.History) - 1; i >= 0 && shown < 3; i-- {
+			m := in.History[i]
+			if m.Persona != in.Host.ID {
+				continue
+			}
+			shown++
+			b.WriteString(fmt.Sprintf("  ⛔ %s\n", condense(m.Content, 120)))
+		}
+		b.WriteString("\n")
 	} else {
 		b.WriteString("# 当前是开场第一条,请用 open action 开场。\n")
 	}
@@ -199,13 +229,18 @@ func parseHostAction(raw string) (*HostAction, error) {
 	}
 	act.Action = strings.ToLower(strings.TrimSpace(act.Action))
 	switch act.Action {
-	case "open", "ask", "switch", "react_prompt", "close":
+	case "open", "ask", "switch", "topic", "react_prompt", "close":
 		// ok
 	default:
 		return nil, fmt.Errorf("unknown action: %q", act.Action)
 	}
 	if strings.TrimSpace(act.Content) == "" {
 		return nil, errors.New("empty content")
+	}
+	// 契约保险:topic / close 不带 focus(LLM 偶尔违反约定,这里硬清空)
+	if act.Action == "topic" || act.Action == "close" {
+		act.FocusSymbol = ""
+		act.FocusName = ""
 	}
 	return &act, nil
 }
