@@ -16,11 +16,21 @@ type Service struct {
 	rooms    *RoomRepo
 	messages *MessageRepo
 	kline    *KlineBuilder
+	// runner 可选;非 nil 时支持 CreateManualRoom 即时启动 liveLoop。
+	// api 进程注入(已有 LLM + tools);scheduler 进程内自己持有 Runner,不需 Service.runner。
+	runner *Runner
 }
 
 func NewService(rooms *RoomRepo, messages *MessageRepo, kline *KlineBuilder) *Service {
 	return &Service{rooms: rooms, messages: messages, kline: kline}
 }
+
+// SetRunner 在 api 进程构造完 live.Runner 后注入,启用 CreateManualRoom。
+// scheduler 进程不需要调用。
+func (s *Service) SetRunner(r *Runner) { s.runner = r }
+
+// ErrManualNotEnabled 表示当前进程没有挂载 Runner,无法处理手动开播。
+var ErrManualNotEnabled = errors.New("manual live not enabled in this process")
 
 // ── DTO ────────────────────────────────────────────────────────────────
 
@@ -38,6 +48,14 @@ type RoomBrief struct {
 	MessageCount       int          `json:"message_count"`
 	StartedAt          int64        `json:"started_at"`
 	EndedAt            *int64       `json:"ended_at,omitempty"`
+	Origin             string       `json:"origin"`                 // auto / manual
+	AutoEndAt          *int64       `json:"auto_end_at,omitempty"`  // manual 房间硬截止
+}
+
+// CreateManualInput 是 HTTP 触发开播的入参。
+type CreateManualInput struct {
+	FocusSymbol string `json:"focus_symbol"`
+	FocusName   string `json:"focus_name"`
 }
 
 // RoomDetail = RoomBrief + 最近 N 条消息(首屏初始化用)。
@@ -153,6 +171,27 @@ func (s *Service) MessagesSince(ctx context.Context, uuid string, sinceIdx int) 
 	return resp, nil
 }
 
+// CreateManualRoom 处理"用户随时新建直播间"请求。
+//
+// 失败映射:
+//   * runner 未挂载            → ErrManualNotEnabled       (HTTP 503)
+//   * 已存在 live 房间(任何来源) → ErrLiveAlreadyExists      (HTTP 409)
+//   * 其他                     → DB / 创建错误             (HTTP 500)
+func (s *Service) CreateManualRoom(ctx context.Context, in CreateManualInput) (*RoomBrief, error) {
+	if s.runner == nil {
+		return nil, ErrManualNotEnabled
+	}
+	room, err := s.runner.StartManualRoom(ctx, ManualRoomOptions{
+		FocusSymbol: strings.ToUpper(strings.TrimSpace(in.FocusSymbol)),
+		FocusName:   strings.TrimSpace(in.FocusName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	b := toRoomBrief(*room)
+	return &b, nil
+}
+
 // KlineHTML 拼装主图 K 线 HTML,返回 self-contained 字符串。
 func (s *Service) KlineHTML(ctx context.Context, symbol string) (string, error) {
 	if s.kline == nil {
@@ -178,6 +217,7 @@ func toRoomBrief(r Room) RoomBrief {
 		GuestPersonas:   r.DecodeGuestPersonas(),
 		MessageCount:    r.MessageCount,
 		StartedAt:       r.StartedAt,
+		Origin:          r.Origin,
 	}
 	if r.CurrentFocusSymbol.Valid {
 		b.CurrentFocusSymbol = r.CurrentFocusSymbol.String
@@ -188,6 +228,10 @@ func toRoomBrief(r Room) RoomBrief {
 	if r.EndedAt.Valid {
 		v := r.EndedAt.Int64
 		b.EndedAt = &v
+	}
+	if r.AutoEndAt.Valid {
+		v := r.AutoEndAt.Int64
+		b.AutoEndAt = &v
 	}
 	return b
 }

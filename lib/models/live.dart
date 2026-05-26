@@ -33,6 +33,8 @@ class LiveRoom {
     this.messageCount = 0,
     required this.startedAt,
     this.endedAt,
+    this.origin = 'auto',
+    this.autoEndAt,
   });
 
   final String uuid;
@@ -47,10 +49,13 @@ class LiveRoom {
   final int messageCount;
   final int startedAt;                 // unix ms
   final int? endedAt;
+  final String origin;                 // auto / manual
+  final int? autoEndAt;                // unix ms;非空时房间到点自动结束(manual 房专用)
 
   bool get isLive => status == 'live';
   bool get isEnded => status == 'ended';
   bool get isEndedAbnormal => status == 'ended_abnormal';
+  bool get isManual => origin == 'manual';
 
   String get phaseLabel => switch (phase) {
         'pre' => '盘前',
@@ -77,6 +82,8 @@ class LiveRoom {
       messageCount: ((json['message_count'] as num?) ?? 0).toInt(),
       startedAt: ((json['started_at'] as num?) ?? 0).toInt(),
       endedAt: (json['ended_at'] as num?)?.toInt(),
+      origin: (json['origin'] as String?) ?? 'auto',
+      autoEndAt: (json['auto_end_at'] as num?)?.toInt(),
     );
   }
 }

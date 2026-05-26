@@ -18,29 +18,47 @@ func NewRoomRepo(st *store.Store) *RoomRepo { return &RoomRepo{st: st} }
 
 // CreateInput 描述一场新直播间的初始化参数。
 type CreateInput struct {
-	Title           string
-	Phase           string
-	HostPersona     PersonaRef
-	GuestPersonas   []PersonaRef
+	Title         string
+	Phase         string
+	HostPersona   PersonaRef
+	GuestPersonas []PersonaRef
+	// Origin 取值 OriginAuto / OriginManual,默认 OriginAuto。
+	Origin string
+	// AutoEndAtMs ms 时间戳;非 0 时 liveLoop 超期主动 close。
+	// 仅对 OriginManual 有意义;OriginAuto 通常留 0(由 SoftCloseAfter 控制结束)。
+	AutoEndAtMs int64
 }
 
 // Create 写一行 status='live' 的房间,返回完整 Room。
+//
+// 注意:本方法**不做唯一性检查**(让调用方决定如何取舍 — manual 走 StartManualRoom
+// 持事务防并发,auto 走 SeedRooms 已在 tick 层判定 windowHasRoom)。
 func (r *RoomRepo) Create(ctx context.Context, in CreateInput) (*Room, error) {
 	guestJSON, err := json.Marshal(in.GuestPersonas)
 	if err != nil {
 		return nil, err
 	}
+	origin := in.Origin
+	if origin == "" {
+		origin = OriginAuto
+	}
+	var autoEnd any
+	if in.AutoEndAtMs > 0 {
+		autoEnd = in.AutoEndAtMs
+	}
 	now := nowMs()
 	id, err := r.st.DB.ExecContext(ctx, `
 		INSERT INTO live_rooms
 		  (uuid, title, phase, status, host_persona, host_persona_name,
-		   guest_personas, message_count, started_at, created_at)
-		VALUES (?, ?, ?, 'live', ?, ?, ?, 0, ?, ?)`,
+		   guest_personas, message_count, started_at, created_at,
+		   origin, auto_end_at)
+		VALUES (?, ?, ?, 'live', ?, ?, ?, 0, ?, ?, ?, ?)`,
 		uuid.NewString(),
 		in.Title, in.Phase,
 		in.HostPersona.ID, in.HostPersona.Name,
 		string(guestJSON),
 		now, now,
+		origin, autoEnd,
 	)
 	if err != nil {
 		return nil, err
@@ -50,6 +68,14 @@ func (r *RoomRepo) Create(ctx context.Context, in CreateInput) (*Room, error) {
 		return nil, err
 	}
 	return r.GetByID(ctx, rid)
+}
+
+// CountLive 返回当前 status='live' 的房间数。
+// 用于手动开播前的"全局唯一"前置检查(组合事务做并发安全)。
+func (r *RoomRepo) CountLive(ctx context.Context) (int, error) {
+	var n int
+	err := r.st.DB.GetContext(ctx, &n, `SELECT COUNT(*) FROM live_rooms WHERE status='live'`)
+	return n, err
 }
 
 // GetByID 取单个房间(包含 status='ended' 的历史)。
