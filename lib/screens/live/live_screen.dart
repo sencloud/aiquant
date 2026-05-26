@@ -5,13 +5,12 @@ import 'package:provider/provider.dart';
 import '../../models/live.dart';
 import '../../state/live_state.dart';
 import '../../theme/app_theme.dart';
-import 'live_session_detail_screen.dart';
-import 'widgets/live_watch_add_sheet.dart';
+import 'live_room_screen.dart';
 
-/// AI 直播主页：[直播大厅] + [我的关注] 两个 tab。
+/// AI 直播大厅:仅展示「房间列表」。
 ///
-/// 直播大厅 = 最近场次列表（按 scheduled_at desc）。
-/// 我的关注 = 用户加过关注的股票；其将在下一场直播被自动纳入选股池。
+/// v2 形态:废弃了「我的关注」「分析师独立报告」概念,直播是真聊天直播间,
+/// 入口只是个房间列表 — 点进去看主持人 + 嘉宾实时对话。
 class LiveScreen extends StatefulWidget {
   const LiveScreen({super.key});
 
@@ -19,146 +18,94 @@ class LiveScreen extends StatefulWidget {
   State<LiveScreen> createState() => _LiveScreenState();
 }
 
-class _LiveScreenState extends State<LiveScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
-
+class _LiveScreenState extends State<LiveScreen> {
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final s = context.read<LiveState>();
-      s.refreshSessions();
-      s.refreshWatch();
+      context.read<LiveState>().refreshRooms();
     });
   }
 
   @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final s = context.watch<LiveState>();
     return Scaffold(
       appBar: AppBar(
         title: const Row(
           children: [
             Icon(Icons.live_tv, color: AppColors.amber, size: 18),
             SizedBox(width: 6),
-            Text('AI 直播'),
-          ],
-        ),
-        bottom: TabBar(
-          controller: _tab,
-          labelColor: AppColors.amber,
-          indicatorColor: AppColors.amber,
-          unselectedLabelColor: AppColors.textTertiary,
-          tabs: const [
-            Tab(text: '直播大厅'),
-            Tab(text: '我的关注'),
+            Text('AI 直播间'),
           ],
         ),
         actions: [
           IconButton(
             tooltip: '刷新',
             icon: const Icon(Icons.refresh, size: 18),
-            onPressed: () {
-              final s = context.read<LiveState>();
-              s.refreshSessions();
-              s.refreshWatch();
-            },
+            onPressed: () => context.read<LiveState>().refreshRooms(),
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tab,
-        children: const [
-          _SessionsTab(),
-          _WatchTab(),
-        ],
-      ),
-      floatingActionButton: AnimatedBuilder(
-        animation: _tab,
-        builder: (context, _) {
-          if (_tab.index != 1) return const SizedBox.shrink();
-          return FloatingActionButton.extended(
-            backgroundColor: AppColors.amber,
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.add),
-            label: const Text('加关注'),
-            onPressed: () => LiveWatchAddSheet.show(context),
-          );
-        },
-      ),
+      body: _buildBody(context, s),
     );
   }
-}
 
-// ── 直播大厅 ──────────────────────────────────────────────────────────
-
-class _SessionsTab extends StatelessWidget {
-  const _SessionsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<LiveState>();
-    if (s.loadingSessions && s.sessions.isEmpty) {
+  Widget _buildBody(BuildContext context, LiveState s) {
+    if (s.loadingRooms && s.rooms.isEmpty) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    if (s.sessions.isEmpty) {
+    if (s.rooms.isEmpty) {
       return _emptyHint(
-        '还没有直播场次',
-        '今天 9:30/10:30/11:30/13:30/14:30/15:00 各一场，敬请等待。',
+        '还没有直播间',
+        '工作日 9:30/11:30/14:30/15:30 各开一场,主持人会带嘉宾实时聊大盘和热点票。',
       );
     }
     return RefreshIndicator(
-      onRefresh: () => context.read<LiveState>().refreshSessions(),
+      onRefresh: () => context.read<LiveState>().refreshRooms(),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-        itemCount: s.sessions.length,
+        itemCount: s.rooms.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _SessionCard(session: s.sessions[i]),
+        itemBuilder: (context, i) => _RoomCard(room: s.rooms[i]),
       ),
     );
   }
 }
 
-class _SessionCard extends StatelessWidget {
-  const _SessionCard({required this.session});
-  final LiveSession session;
+class _RoomCard extends StatelessWidget {
+  const _RoomCard({required this.room});
+  final LiveRoom room;
 
   @override
   Widget build(BuildContext context) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(session.scheduledAt);
+    final dt = DateTime.fromMillisecondsSinceEpoch(room.startedAt);
     final hhmm = DateFormat('HH:mm').format(dt);
     final dateLabel = DateFormat('MM-dd').format(dt);
 
     Color statusColor;
     String statusLabel;
     IconData statusIcon;
-    switch (session.status) {
-      case 'done':
-        statusColor = const Color(0xFF16a34a);
-        statusLabel = '已生成';
-        statusIcon = Icons.check_circle;
-        break;
-      case 'running':
-        statusColor = AppColors.amber;
+    switch (room.status) {
+      case 'live':
+        statusColor = const Color(0xFFef4444);
         statusLabel = '直播中';
         statusIcon = Icons.podcasts;
         break;
-      case 'failed':
-        statusColor = const Color(0xFFef4444);
-        statusLabel = '失败';
-        statusIcon = Icons.error;
+      case 'ended':
+        statusColor = const Color(0xFF16a34a);
+        statusLabel = '已结束';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'ended_abnormal':
+        statusColor = AppColors.textTertiary;
+        statusLabel = '异常中断';
+        statusIcon = Icons.error_outline;
         break;
       default:
         statusColor = AppColors.textTertiary;
-        statusLabel = '待开始';
-        statusIcon = Icons.schedule;
+        statusLabel = room.status;
+        statusIcon = Icons.help_outline;
     }
 
     return Material(
@@ -168,7 +115,7 @@ class _SessionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => LiveSessionDetailScreen(sessionUUID: session.uuid),
+            builder: (_) => LiveRoomScreen(roomUUID: room.uuid),
           ),
         ),
         child: Padding(
@@ -178,7 +125,7 @@ class _SessionCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _phaseChip(session.phaseLabel),
+                  _phaseChip(room.phaseLabel),
                   const SizedBox(width: 8),
                   Text(
                     '$dateLabel · $hhmm',
@@ -191,46 +138,78 @@ class _SessionCard extends StatelessWidget {
                   const Spacer(),
                   Row(
                     children: [
-                      Icon(statusIcon, color: statusColor, size: 14),
-                      const SizedBox(width: 4),
+                      if (room.isLive)
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      else
+                        Icon(statusIcon, color: statusColor, size: 14),
+                      if (!room.isLive) const SizedBox(width: 4),
                       Text(
                         statusLabel,
                         style: TextStyle(
-                            color: statusColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700),
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
-              if (session.selectionReason.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  session.selectionReason,
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11),
+              const SizedBox(height: 8),
+              Text(
+                room.title,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-              if (session.pickedSymbols.isNotEmpty) ...[
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _personaChip(room.hostPersonaName, isHost: true),
+                  for (final g in room.guestPersonas)
+                    _personaChip(g.name, isHost: false),
+                ],
+              ),
+              if (room.currentFocusSymbol.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
+                Row(
                   children: [
-                    for (final p in session.pickedSymbols.take(6))
-                      _symbolChip(p),
+                    const Icon(Icons.center_focus_strong,
+                        color: AppColors.amber, size: 13),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '正在聊:${room.currentFocusName.isEmpty ? room.currentFocusSymbol : "${room.currentFocusName} (${room.currentFocusSymbol})"}',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ],
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.assignment,
+                  const Icon(Icons.chat_bubble_outline,
                       color: AppColors.amber, size: 13),
                   const SizedBox(width: 4),
                   Text(
-                    '${session.reportCount} 份分析师报告',
+                    '${room.messageCount} 条消息',
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11),
                   ),
@@ -253,97 +232,33 @@ class _SessionCard extends StatelessWidget {
         color: AppColors.amber.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(label,
-          style: const TextStyle(
-              color: AppColors.amber,
-              fontWeight: FontWeight.w700,
-              fontSize: 11)),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.amber,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
     );
   }
 
-  Widget _symbolChip(LivePickedSymbol p) {
+  Widget _personaChip(String name, {required bool isHost}) {
+    final color = isHost ? AppColors.amber : AppColors.textSecondary;
+    final bg = isHost
+        ? AppColors.amber.withValues(alpha: 0.12)
+        : AppColors.bgSurface;
+    final prefix = isHost ? '🎙 ' : '';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: bg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.borderDim),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            p.name.isEmpty ? p.symbol : p.name,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 11),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            p.symbol,
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 10),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 我的关注 ──────────────────────────────────────────────────────────
-
-class _WatchTab extends StatelessWidget {
-  const _WatchTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<LiveState>();
-    if (s.loadingWatch && s.watchlist.isEmpty) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    }
-    if (s.watchlist.isEmpty) {
-      return _emptyHint(
-        '还没添加关注',
-        '点右下角"+加关注"添加你关心的股票；下场直播会优先纳入选股。',
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: () => context.read<LiveState>().refreshWatch(),
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-        itemCount: s.watchlist.length,
-        separatorBuilder: (_, __) =>
-            Divider(height: 1, color: AppColors.borderDim),
-        itemBuilder: (context, i) {
-          final w = s.watchlist[i];
-          return ListTile(
-            dense: true,
-            title: Text(
-              w.symbolName.isEmpty ? w.symbol : w.symbolName,
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14),
-            ),
-            subtitle: Text(
-              w.symbol,
-              style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  color: AppColors.amber, size: 18),
-              tooltip: '取消关注',
-              onPressed: () async {
-                try {
-                  await context.read<LiveState>().removeWatch(w.symbol);
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('取消关注失败，请稍后再试')),
-                    );
-                  }
-                }
-              },
-            ),
-          );
-        },
+      child: Text(
+        '$prefix$name',
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -354,8 +269,7 @@ Widget _emptyHint(String title, String subtitle) {
     physics: const AlwaysScrollableScrollPhysics(),
     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 80),
     children: [
-      const Icon(Icons.live_tv,
-          color: AppColors.amber, size: 56),
+      const Icon(Icons.live_tv, color: AppColors.amber, size: 56),
       const SizedBox(height: 14),
       Text(
         title,

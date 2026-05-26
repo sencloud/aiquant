@@ -1,10 +1,12 @@
-// Package live 实现「AI 直播」：每个交易日整点 / 半点一场，
-// 由后台 cron 自动从龙虎榜 / 涨幅榜 + 用户关注表选股，
-// 然后对每只标的依次让 6 位"具体人名分析师"persona（巴菲特/格雷厄姆/林奇/
-// 芒格/达里奥/索罗斯）独立给出结构化 HTML 报告（含买卖评级 + 止盈止损）。
+// Package live 实现 v2「AI 直播间」：每场直播是一个长会话(live_room),
+// 由 1 名 host(主持人 persona) + N 名 guest(嘉宾 persona) 实时聊天产出。
 //
-// 与 DING 区别：DING 是「用户配置的 prompt 定时跑」，扣费走用户；
-// 直播是「系统自动跑、所有用户共享报告」，不扣任何用户喜点。
+// 与 v1 区别(已废弃):
+//   v1: 每场预选 3-5 只票,每只票每个 persona 独立写一份静态 markdown 报告;
+//   v2: 主持人持续决策"问谁、聊哪只票",嘉宾轮流应答,消息流式落库,
+//       前端轮询拉新消息,主图 K 线随讨论焦点(focus_symbol)切换。
+//
+// 与 DING 区别同 v1:DING 用户付费,直播是系统服务不扣费。
 package live
 
 import (
@@ -12,72 +14,69 @@ import (
 	"time"
 )
 
-// 直播场次的生命周期。
+// 直播间生命周期。
 const (
-	SessionPending = "pending" // 已写入日历，待 runner 抢占
-	SessionRunning = "running"
-	SessionDone    = "done"
-	SessionFailed  = "failed"
+	RoomLive          = "live"           // 正在进行
+	RoomEnded         = "ended"          // 正常结束(到达预定消息数 / 时长)
+	RoomEndedAbnormal = "ended_abnormal" // 异常结束(LLM 连续失败 / runner 中断)
 )
 
-// 直播场次的市场阶段。
+// 市场阶段(沿用 v1)。
 const (
-	PhasePre      = "pre"      // 盘前（8:00-9:30）
-	PhaseIntraday = "intraday" // 盘中（9:30-15:00）
-	PhasePost     = "post"     // 盘后（15:00 之后）
+	PhasePre      = "pre"
+	PhaseIntraday = "intraday"
+	PhasePost     = "post"
 )
 
-// 多空观点。
+// 消息角色 — 决定前端展示样式 + LLM prompt 注入策略。
 const (
-	ViewBullish = "bullish"
-	ViewNeutral = "neutral"
-	ViewBearish = "bearish"
+	RoleHostOpen    = "host_open"    // 主持人开场白
+	RoleHostAsk     = "host_ask"     // 主持人提问/点名(focus 已选定)
+	RoleHostSwitch  = "host_switch"  // 主持人主动切换焦点股票
+	RoleHostClose   = "host_close"   // 主持人收尾陈词
+	RoleGuestAnswer = "guest_answer" // 嘉宾正式应答 host 的提问
+	RoleGuestReact  = "guest_react"  // 嘉宾自发对前一条插话/反驳
+	RoleSystem      = "system"       // 系统消息(异常 / 提示)
 )
 
-// Session 是单场直播的数据库行。
-type Session struct {
-	ID              int64          `db:"id"`
-	UUID            string         `db:"uuid"`
-	ScheduledAt     int64          `db:"scheduled_at"`
-	Phase           string         `db:"phase"`
-	Status          string         `db:"status"`
-	StartedAt       sql.NullInt64  `db:"started_at"`
-	FinishedAt      sql.NullInt64  `db:"finished_at"`
-	PickedSymbols   sql.NullString `db:"picked_symbols"` // JSON
-	SelectionReason sql.NullString `db:"selection_reason"`
-	Error           sql.NullString `db:"error"`
-	CreatedAt       int64          `db:"created_at"`
+// Room 是单场直播间数据库行。
+type Room struct {
+	ID                  int64          `db:"id"`
+	UUID                string         `db:"uuid"`
+	Title               string         `db:"title"`
+	Phase               string         `db:"phase"`
+	Status              string         `db:"status"`
+	HostPersona         string         `db:"host_persona"`
+	HostPersonaName     string         `db:"host_persona_name"`
+	GuestPersonas       string         `db:"guest_personas"` // JSON [{"id","name"}]
+	CurrentFocusSymbol  sql.NullString `db:"current_focus_symbol"`
+	CurrentFocusName    sql.NullString `db:"current_focus_name"`
+	MessageCount        int            `db:"message_count"`
+	StartedAt           int64          `db:"started_at"`
+	EndedAt             sql.NullInt64  `db:"ended_at"`
+	Error               sql.NullString `db:"error"`
+	CreatedAt           int64          `db:"created_at"`
 }
 
-// Report 是 (session × symbol × persona) 的报告行。
-type Report struct {
-	ID            int64           `db:"id"`
-	SessionID     int64           `db:"session_id"`
-	Symbol        string          `db:"symbol"`
-	SymbolName    string          `db:"symbol_name"`
-	PersonaID     string          `db:"persona_id"`
-	PersonaName   string          `db:"persona_name"`
-	View          sql.NullString  `db:"view"`
-	Rating        sql.NullString  `db:"rating"`
-	TargetPrice   sql.NullFloat64 `db:"target_price"`
-	StopLoss      sql.NullFloat64 `db:"stop_loss"`
-	TakeProfit    sql.NullFloat64 `db:"take_profit"`
-	PositionHint  sql.NullString  `db:"position_hint"`
-	Summary       string          `db:"summary"`
-	HTMLBody      string          `db:"html_body"`
-	ToolCalls     int             `db:"tool_calls"`
-	DurationMs    int64           `db:"duration_ms"`
-	CreatedAt     int64           `db:"created_at"`
+// Message 是单条聊天消息数据库行。
+type Message struct {
+	ID             int64          `db:"id"`
+	RoomID         int64          `db:"room_id"`
+	Idx            int            `db:"idx"`
+	Role           string         `db:"role"`
+	Persona        string         `db:"persona"`
+	PersonaName    string         `db:"persona_name"`
+	TargetPersona  sql.NullString `db:"target_persona"`
+	FocusSymbol    sql.NullString `db:"focus_symbol"`
+	FocusName      sql.NullString `db:"focus_name"`
+	Content        string         `db:"content"`
+	CreatedAt      int64          `db:"created_at"`
 }
 
-// Watch 是单条用户关注。
-type Watch struct {
-	ID         int64  `db:"id"`
-	UserID     int64  `db:"user_id"`
-	Symbol     string `db:"symbol"`
-	SymbolName string `db:"symbol_name"`
-	CreatedAt  int64  `db:"created_at"`
+// PersonaRef 是 host/guest 的"轻量名片",用于 LLM prompt 描述 + 入库 JSON。
+type PersonaRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
-// nowMs 统一时间戳工具（业务全用 unix ms）。
 func nowMs() int64 { return time.Now().UnixMilli() }

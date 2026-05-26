@@ -2,242 +2,522 @@ package live
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"github.com/sencloud/finme-backend/internal/ai/realtime"
 )
 
-// Runner 是直播调度器。
+// Runner 是直播 v2 的调度器,每 tick 1 分钟:
 //
-// 一个 scheduler 进程里跑一个 Runner，每分钟跑一次：
+//   1) SweepStale:扫 status='live' 但最后消息 > StaleAfter 没动的房间 → MarkAbnormal
+//   2) SeedRooms :工作日特定时段若当下无 live 房间 → Create + 异步启动 liveLoop
 //
-//  1. SeedCalendar：把"今天还没插入的整点 / 半点直播场次"统一 INSERT pending；
-//  2. AcquireDue：找一条 due 的 pending 场次，CAS 标 running；
-//  3. RunSession：选股 → 对每只票顺序跑全部 persona → 落 live_reports；
-//  4. MarkDone：写 finished_at + status。
-//
-// 调度时间表（北京时间，仅工作日 9:30-15:00 共 6 场）：
-//
-//	09:30 盘前
-//	10:30 盘中
-//	11:30 盘中
-//	13:30 盘中
-//	14:30 盘中
-//	15:00 盘后
+// 一个 room = 一个 goroutine = 一场 N 条消息的直播,跑完自然 MarkEnded。
+// 进程重启时所有 in-flight goroutine 丢失,下次 tick 的 SweepStale 会把它们标 abnormal。
 type Runner struct {
-	sessions *SessionRepo
-	reports  *ReportRepo
-	picker   *Picker
-	exec     *Executor
+	rooms    *RoomRepo
+	messages *MessageRepo
+	host     *HostPlanner
+	guest    *GuestSpeaker
+	rt       *realtime.Client
 	logger   *zerolog.Logger
 
-	tickInterval time.Duration
+	// 调度参数(开放给 main.go 配置)
+	TickInterval       time.Duration
+	StaleAfter         time.Duration // > 这么久没新消息的 live 房间 → abnormal
+	PaceInterval       time.Duration // 一条消息到下一条的间隔(模拟"直播节奏")
+	PaceJitter         time.Duration // 间隔抖动 ±
+	MaxMessagesPerRoom int           // 单场硬上限
+	SoftCloseAfter     int           // 软上限:超过这个数主持人会倾向 close
+
+	// 内部:已启动 loop 的房间 id → 取消函数(防止 tick 重复启动)
+	mu      sync.Mutex
+	running map[int64]context.CancelFunc
 }
 
 func NewRunner(
-	sessions *SessionRepo,
-	reports *ReportRepo,
-	picker *Picker,
-	exec *Executor,
+	rooms *RoomRepo,
+	messages *MessageRepo,
+	host *HostPlanner,
+	guest *GuestSpeaker,
+	rt *realtime.Client,
 	l *zerolog.Logger,
 ) *Runner {
 	return &Runner{
-		sessions:     sessions,
-		reports:      reports,
-		picker:       picker,
-		exec:         exec,
-		logger:       l,
-		tickInterval: 60 * time.Second,
+		rooms:              rooms,
+		messages:           messages,
+		host:               host,
+		guest:              guest,
+		rt:                 rt,
+		logger:             l,
+		TickInterval:       60 * time.Second,
+		StaleAfter:         5 * time.Minute,
+		PaceInterval:       18 * time.Second,
+		PaceJitter:         6 * time.Second,
+		MaxMessagesPerRoom: 30,
+		SoftCloseAfter:     20,
+		running:            map[int64]context.CancelFunc{},
 	}
 }
 
-func (r *Runner) Name() string            { return "live_runner" }
-func (r *Runner) Interval() time.Duration { return r.tickInterval }
+func (r *Runner) Name() string            { return "live_runner_v2" }
+func (r *Runner) Interval() time.Duration { return r.TickInterval }
 
-// Run 每分钟调用一次。
+// Run 是 scheduler 每 tick 调一次。
+//
+// 注意:tick 本身只做"管理性动作"(扫陈旧 / 创建房间 + 启动 goroutine),
+// 不在 tick 内做 LLM 调用 — 后者在 liveLoop goroutine 里。
 func (r *Runner) Run(ctx context.Context) error {
 	now := time.Now()
 
-	// 1) 日历填充：保证今天剩余场次都有 pending 行
-	if err := r.SeedCalendar(ctx, now); err != nil {
-		r.logger.Warn().Err(err).Msg("live: seed calendar")
+	if err := r.SweepStale(ctx, now); err != nil {
+		r.logger.Warn().Err(err).Msg("live: sweep stale")
 	}
 
-	// 2) 一次最多抢一条 due，避免单 tick 跑太久阻塞下一个 tick
-	sess, err := r.sessions.AcquireDue(ctx, now.UnixMilli())
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		return fmt.Errorf("acquire due: %w", err)
+	if err := r.SeedRooms(ctx, now); err != nil {
+		r.logger.Warn().Err(err).Msg("live: seed rooms")
 	}
-	r.logger.Info().Str("uuid", sess.UUID).Str("phase", sess.Phase).
-		Int64("sched_ms", sess.ScheduledAt).Msg("live: session acquired")
-
-	if err := r.runSession(ctx, sess); err != nil {
-		_ = r.sessions.MarkDone(ctx, sess.ID, false, err.Error())
-		r.logger.Error().Err(err).Str("uuid", sess.UUID).Msg("live: session failed")
-		return nil
-	}
-	_ = r.sessions.MarkDone(ctx, sess.ID, true, "")
-	r.logger.Info().Str("uuid", sess.UUID).Msg("live: session done")
 	return nil
 }
 
-// runSession 选股 + 逐 (symbol × persona) 串行生成报告并落库。
-//
-// 异常处理策略：
-//   - 选股全失败 → 整场标 failed
-//   - 单只票 / 单个 persona 失败 → 跳过，只要至少一份成功就把场次标 done
-func (r *Runner) runSession(ctx context.Context, s *Session) error {
-	pick, err := r.picker.Pick(ctx, s.Phase, time.UnixMilli(s.ScheduledAt))
+// SweepStale 把 live 但最后消息 > StaleAfter 的房间标为 abnormal,清理 running map。
+func (r *Runner) SweepStale(ctx context.Context, now time.Time) error {
+	live, err := r.rooms.ListLive(ctx)
 	if err != nil {
-		return fmt.Errorf("pick: %w", err)
+		return err
 	}
-	if pick == nil || len(pick.Symbols) == 0 {
-		return errors.New("picked 0 symbols")
-	}
-	if err := r.sessions.MarkPicked(ctx, s.ID, PickedSymbolsJSON(pick.Symbols), pick.Reason); err != nil {
-		r.logger.Warn().Err(err).Msg("live: mark picked")
-	}
-
-	success := 0
-	for _, sym := range pick.Symbols {
-		for _, p := range LivePersonas {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-			if err := r.runOne(ctx, s, sym, p); err != nil {
-				r.logger.Warn().Err(err).
-					Str("symbol", sym.Symbol).Str("persona", p.ID).
-					Msg("live: one report failed")
+	cutoff := now.Add(-r.StaleAfter).UnixMilli()
+	for _, room := range live {
+		// 用 max(started_at, last_message_at) 判断陈旧
+		var lastAt int64
+		if err := r.rooms.st.DB.GetContext(ctx, &lastAt, `
+			SELECT COALESCE(MAX(created_at), ?)
+			FROM live_messages WHERE room_id=?`, room.StartedAt, room.ID); err != nil {
+			r.logger.Warn().Err(err).Int64("room_id", room.ID).Msg("live: last msg time")
+			continue
+		}
+		if lastAt < cutoff {
+			// 若仍在 running map(本进程内),不算 stale,跳过
+			r.mu.Lock()
+			_, inflight := r.running[room.ID]
+			r.mu.Unlock()
+			if inflight {
 				continue
 			}
-			success++
+			_ = r.rooms.MarkAbnormal(ctx, room.ID, "stale: no new messages within "+r.StaleAfter.String())
+			r.logger.Info().Int64("room_id", room.ID).Str("uuid", room.UUID).
+				Msg("live: marked abnormal (stale)")
 		}
-	}
-	if success == 0 {
-		return errors.New("no successful reports in session")
 	}
 	return nil
 }
 
-// runOne 跑「单只票 × 单分析师」一份报告。
-func (r *Runner) runOne(ctx context.Context, s *Session, sym Picked, p PersonaSpec) error {
-	sys := "你是一名严谨的中国市场投研分析师。回答必须基于工具拉取的真实数据，禁止编造价格、估值、新闻。" +
-		"必须严格按用户给出的输出格式契约（===META===/===REPORT===）生成，不得添加任何额外文字。"
-	user := buildLiveUserPrompt(p, sym.Symbol, sym.Name, sym.Source, s.Phase, time.UnixMilli(s.ScheduledAt))
-
-	res, err := r.exec.Run(ctx, sys, user)
-	if err != nil {
-		return fmt.Errorf("exec: %w", err)
-	}
-	if strings.TrimSpace(res.FinalText) == "" {
-		return errors.New("empty llm output")
-	}
-
-	meta, body, perr := ParseLLMOutput(res.FinalText)
-	if perr != nil {
-		// JSON 头解析失败也照样存：meta 字段空，body 用全文兜底
-		r.logger.Debug().Err(perr).Str("symbol", sym.Symbol).Str("persona", p.ID).
-			Msg("live: parse meta failed, fallback to raw body")
-	}
-	if meta == nil {
-		meta = &ExtractedMeta{}
-	}
-
-	htmlStr := RenderReportHTML(RenderInput{
-		PersonaName:    p.Name,
-		PersonaTitle:   personaTitleOf(p.ID),
-		SymbolName:     sym.Name,
-		SymbolCode:     sym.Symbol,
-		Summary:        meta.Summary,
-		View:           meta.View,
-		Rating:         meta.Rating,
-		TargetPrice:    meta.TargetPrice,
-		StopLoss:       meta.StopLoss,
-		TakeProfit:     meta.TakeProfit,
-		PositionHint:   meta.PositionHint,
-		MarkdownBody:   body,
-		CreatedAtLabel: time.UnixMilli(s.ScheduledAt).Format("2006-01-02 15:04"),
-	})
-
-	_, err = r.reports.Insert(ctx, CreateReportInput{
-		SessionID:    s.ID,
-		Symbol:       sym.Symbol,
-		SymbolName:   sym.Name,
-		PersonaID:    p.ID,
-		PersonaName:  p.Name,
-		View:         meta.View,
-		Rating:       meta.Rating,
-		TargetPrice:  meta.TargetPrice,
-		StopLoss:     meta.StopLoss,
-		TakeProfit:   meta.TakeProfit,
-		PositionHint: meta.PositionHint,
-		Summary:      meta.Summary,
-		HTMLBody:     htmlStr,
-		ToolCalls:    res.ToolCalls,
-		DurationMs:   res.DurationMs,
-	})
-	return err
+// roomSchedule 定义工作日的开播窗口。窗口内若当下无 live 房间则启动一场。
+//
+// 设计为"窗口"而非"打点":避免错过整分钟时刻、避免重复触发,且支持 5 分钟内补偿。
+type slotWindow struct {
+	hStart, mStart int
+	hEnd, mEnd     int
+	phase          string
+	title          string
 }
 
-// SeedCalendar 把今天 09:30/10:30/11:30/13:30/14:30/15:00 还没有的 pending 场次插上。
-//
-// 周末跳过；节假日不在本期处理（后续可对接交易日历）。
-func (r *Runner) SeedCalendar(ctx context.Context, now time.Time) error {
+var liveSlots = []slotWindow{
+	{9, 30, 9, 50, PhasePre, "早盘开盘观察"},
+	{11, 30, 11, 50, PhaseIntraday, "上午盘中复盘"},
+	{14, 30, 14, 50, PhaseIntraday, "下午盘中观察"},
+	{15, 30, 15, 50, PhasePost, "盘后龙虎榜复盘"},
+}
+
+// SeedRooms 在每个窗口内若无 live 房间则创建一场并启动 goroutine。
+func (r *Runner) SeedRooms(ctx context.Context, now time.Time) error {
 	if isWeekend(now) {
 		return nil
 	}
-	loc := now.Location()
-	y, m, d := now.Year(), now.Month(), now.Day()
-	type slot struct {
-		h, mi int
-		phase string
-	}
-	slots := []slot{
-		{9, 30, PhasePre},
-		{10, 30, PhaseIntraday},
-		{11, 30, PhaseIntraday},
-		{13, 30, PhaseIntraday},
-		{14, 30, PhaseIntraday},
-		{15, 0, PhasePost},
-	}
-	for _, s := range slots {
-		t := time.Date(y, m, d, s.h, s.mi, 0, 0, loc)
-		if err := r.sessions.SeedIfAbsent(ctx, t.UnixMilli(), s.phase); err != nil {
-			return err
+	for _, s := range liveSlots {
+		if !inWindow(now, s) {
+			continue
 		}
+		// 该窗口已有任意 live 或本日已结束的同 phase 房间则跳过
+		exists, err := r.windowHasRoom(ctx, now, s)
+		if err != nil {
+			r.logger.Warn().Err(err).Msg("live: check window room")
+			continue
+		}
+		if exists {
+			continue
+		}
+		room, err := r.createRoom(ctx, s, now)
+		if err != nil {
+			r.logger.Warn().Err(err).Str("title", s.title).Msg("live: create room")
+			continue
+		}
+		r.startLoop(room)
+		r.logger.Info().Int64("room_id", room.ID).Str("uuid", room.UUID).
+			Str("title", room.Title).Msg("live: room created + loop started")
 	}
 	return nil
+}
+
+func (r *Runner) windowHasRoom(ctx context.Context, now time.Time, s slotWindow) (bool, error) {
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
+	dayEnd := dayStart + 24*3600*1000
+	var n int
+	err := r.rooms.st.DB.GetContext(ctx, &n, `
+		SELECT COUNT(*) FROM live_rooms
+		WHERE phase=? AND started_at >= ? AND started_at < ?`,
+		s.phase, dayStart, dayEnd)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (r *Runner) createRoom(ctx context.Context, s slotWindow, now time.Time) (*Room, error) {
+	guests := pickGuests(4)
+	title := fmt.Sprintf("%s · %s 主持", s.title, Host.Name)
+	return r.rooms.Create(ctx, CreateInput{
+		Title:         title,
+		Phase:         s.phase,
+		HostPersona:   Host,
+		GuestPersonas: guests,
+	})
+}
+
+// startLoop 启动一个 goroutine 跑 liveLoop。父 ctx 用 background(scheduler ctx),
+// 避免 scheduler tick 函数返回导致 loop 被取消。但进程退出 SIGTERM 仍会传递。
+func (r *Runner) startLoop(room *Room) {
+	r.mu.Lock()
+	if _, ok := r.running[room.ID]; ok {
+		r.mu.Unlock()
+		return
+	}
+	loopCtx, cancel := context.WithCancel(context.Background())
+	r.running[room.ID] = cancel
+	r.mu.Unlock()
+
+	go func() {
+		defer func() {
+			r.mu.Lock()
+			delete(r.running, room.ID)
+			r.mu.Unlock()
+		}()
+		r.liveLoop(loopCtx, room)
+	}()
+}
+
+// liveLoop 是单场直播的完整生成循环。串行生成消息直到 close 或达到 MaxMessages。
+func (r *Runner) liveLoop(ctx context.Context, room *Room) {
+	rid := room.ID
+	logger := r.logger.With().Int64("room_id", rid).Str("uuid", room.UUID).Logger()
+	logger.Info().Msg("live loop: start")
+
+	candidatePool := r.buildCandidatePool(ctx, room.Phase)
+	logger.Info().Int("candidates", len(candidatePool)).Msg("live loop: pool ready")
+
+	guests := room.DecodeGuestPersonas()
+	if len(guests) == 0 {
+		_ = r.rooms.MarkAbnormal(ctx, rid, "empty guest personas")
+		return
+	}
+
+	failures := 0
+	for {
+		select {
+		case <-ctx.Done():
+			_ = r.rooms.MarkAbnormal(ctx, rid, "context cancelled")
+			logger.Warn().Msg("live loop: ctx done")
+			return
+		default:
+		}
+
+		cnt, err := r.messages.CountByRoom(ctx, rid)
+		if err != nil {
+			logger.Warn().Err(err).Msg("live loop: count messages")
+		}
+		if cnt >= r.MaxMessagesPerRoom {
+			logger.Info().Int("count", cnt).Msg("live loop: max messages reached")
+			break
+		}
+
+		// 1. host 决策
+		history, _ := r.messages.ListRecent(ctx, rid, 12)
+		focus, focusName := currentFocus(history)
+		action, err := r.host.Plan(ctx, PlanInput{
+			Guests:           guests,
+			Phase:            room.Phase,
+			Now:              time.Now(),
+			CandidatePool:    candidatePool,
+			History:          history,
+			CurrentFocus:     focus,
+			CurrentFocusName: focusName,
+			MessageCount:     cnt,
+			SoftCloseAfterN:  r.SoftCloseAfter,
+		})
+		if err != nil {
+			failures++
+			logger.Warn().Err(err).Int("failures", failures).Msg("live loop: host plan failed")
+			if failures >= 3 {
+				_ = r.rooms.MarkAbnormal(ctx, rid, "host plan failed 3x: "+err.Error())
+				return
+			}
+			r.sleepPace(ctx)
+			continue
+		}
+		failures = 0
+
+		// 2. 写 host message
+		hostRole := actionToRole(action.Action)
+		hostMsg, err := r.messages.Append(ctx, AppendInput{
+			RoomID:        rid,
+			Role:          hostRole,
+			Persona:       Host.ID,
+			PersonaName:   Host.Name,
+			TargetPersona: action.TargetPersona,
+			FocusSymbol:   action.FocusSymbol,
+			FocusName:     action.FocusName,
+			Content:       strings.TrimSpace(action.Content),
+		})
+		if err != nil {
+			logger.Warn().Err(err).Msg("live loop: append host msg")
+			r.sleepPace(ctx)
+			continue
+		}
+		_ = r.rooms.IncMessageCount(ctx, rid)
+		if action.FocusSymbol != "" {
+			_ = r.rooms.UpdateFocus(ctx, rid, action.FocusSymbol, action.FocusName)
+		}
+
+		// 3. close → 直接退出
+		if action.Action == "close" {
+			logger.Info().Msg("live loop: host closed")
+			break
+		}
+
+		// 4. 由 guest 接话
+		if err := r.handleGuestResponse(ctx, rid, room.Phase, action, hostMsg, guests); err != nil {
+			logger.Warn().Err(err).Msg("live loop: guest response")
+			// 嘉宾失败不算 fatal,继续下一轮
+		}
+
+		r.sleepPace(ctx)
+	}
+
+	_ = r.rooms.MarkEnded(ctx, rid)
+	logger.Info().Msg("live loop: ended normally")
+}
+
+// handleGuestResponse 在 host 发完 ask/switch/open/react_prompt 后,生成嘉宾应答并写库。
+func (r *Runner) handleGuestResponse(
+	ctx context.Context,
+	roomID int64,
+	phase string,
+	action *HostAction,
+	hostMsg *Message,
+	guests []PersonaRef,
+) error {
+	// 取目标嘉宾
+	var target PersonaRef
+	if action.TargetPersona != "" {
+		for _, g := range guests {
+			if g.ID == action.TargetPersona {
+				target = g
+				break
+			}
+		}
+	}
+
+	isReact := action.Action == "react_prompt"
+	var reactTo string
+	if isReact {
+		// 找最近一条 guest 消息的 persona 名作为"被回应对象"
+		recent, _ := r.messages.ListRecent(ctx, roomID, 10)
+		for i := len(recent) - 1; i >= 0; i-- {
+			if strings.HasPrefix(recent[i].Role, "guest_") {
+				reactTo = recent[i].PersonaName
+				if target.ID == "" {
+					// react_prompt 没指定具体人,随机一个非"被回应人"
+					for _, g := range guests {
+						if g.Name != recent[i].PersonaName {
+							target = g
+							break
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+
+	if target.ID == "" {
+		// 极端 fallback:随机选一个嘉宾(避免空目标)
+		if len(guests) > 0 {
+			target = guests[rand.Intn(len(guests))]
+		} else {
+			return errors.New("no target persona")
+		}
+	}
+
+	// 取历史(含 host 刚发的提问)
+	history, _ := r.messages.ListRecent(ctx, roomID, 12)
+	focus, focusName := currentFocus(history)
+
+	res, err := r.guest.Speak(ctx, SpeakInput{
+		Guest:        target,
+		Phase:        phase,
+		Now:          time.Now(),
+		FocusSymbol:  focus,
+		FocusName:    focusName,
+		History:      history,
+		HostQuestion: hostMsg.Content,
+		IsReact:      isReact,
+		ReactTo:      reactTo,
+	})
+	if err != nil {
+		// 写一条 system message 占位,让前端不会"问完没人答"
+		_, _ = r.messages.Append(ctx, AppendInput{
+			RoomID:      roomID,
+			Role:        RoleSystem,
+			Persona:     "system",
+			PersonaName: "系统",
+			FocusSymbol: focus,
+			FocusName:   focusName,
+			Content:     fmt.Sprintf("(%s 信号暂时不好,稍后再说)", target.Name),
+		})
+		_ = r.rooms.IncMessageCount(ctx, roomID)
+		return err
+	}
+
+	guestRole := RoleGuestAnswer
+	if isReact {
+		guestRole = RoleGuestReact
+	}
+	_, err = r.messages.Append(ctx, AppendInput{
+		RoomID:      roomID,
+		Role:        guestRole,
+		Persona:     target.ID,
+		PersonaName: target.Name,
+		FocusSymbol: focus,
+		FocusName:   focusName,
+		Content:     res.Content,
+	})
+	if err != nil {
+		return err
+	}
+	_ = r.rooms.IncMessageCount(ctx, roomID)
+	return nil
+}
+
+// buildCandidatePool 拉当日热门股票池(20 只)作为 host 切换 focus 的备选。
+//
+// 失败时返回空池子 — host 在没有候选时会用 LLM 自己想股票(可能编造,
+// 但有 guest 工具兜底真实数据,问题不大)。
+func (r *Runner) buildCandidatePool(ctx context.Context, phase string) []CandidateStock {
+	if r.rt == nil {
+		return nil
+	}
+	rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	movers, err := r.rt.FetchTopMovers(rctx, realtime.MoversOptions{
+		Direction: "up", Scope: "a", Limit: 20,
+	})
+	if err != nil {
+		r.logger.Warn().Err(err).Msg("live: build candidate pool")
+		return nil
+	}
+	out := make([]CandidateStock, 0, len(movers))
+	for _, m := range movers {
+		if m.TsCode == "" {
+			continue
+		}
+		out = append(out, CandidateStock{
+			Symbol: m.TsCode,
+			Name:   m.Name,
+			Reason: fmt.Sprintf("涨幅 %.2f%% / 换手 %.2f%%", m.PctChg, m.TurnoverRate),
+		})
+	}
+	return out
+}
+
+// sleepPace 间隔 PaceInterval ± PaceJitter,可被 ctx 取消。
+func (r *Runner) sleepPace(ctx context.Context) {
+	dur := r.PaceInterval
+	if r.PaceJitter > 0 {
+		j := time.Duration(rand.Int63n(int64(r.PaceJitter * 2))) - r.PaceJitter
+		dur += j
+	}
+	if dur < time.Second {
+		dur = time.Second
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(dur):
+	}
+}
+
+// currentFocus 从历史里反向查最近一条非空 focus_symbol。
+func currentFocus(history []Message) (string, string) {
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m.FocusSymbol.Valid && m.FocusSymbol.String != "" {
+			name := m.FocusSymbol.String
+			if m.FocusName.Valid && m.FocusName.String != "" {
+				name = m.FocusName.String
+			}
+			return m.FocusSymbol.String, name
+		}
+	}
+	return "", ""
+}
+
+func actionToRole(action string) string {
+	switch action {
+	case "open":
+		return RoleHostOpen
+	case "ask":
+		return RoleHostAsk
+	case "switch":
+		return RoleHostSwitch
+	case "react_prompt":
+		return RoleHostAsk // 复用 ask 样式
+	case "close":
+		return RoleHostClose
+	}
+	return RoleHostAsk
+}
+
+// pickGuests 从 Guests 池随机选 n 个(无重复)。
+func pickGuests(n int) []PersonaRef {
+	if n >= len(Guests) {
+		out := make([]PersonaRef, 0, len(Guests))
+		for _, g := range Guests {
+			out = append(out, g.PersonaRef)
+		}
+		return out
+	}
+	idxs := rand.Perm(len(Guests))[:n]
+	out := make([]PersonaRef, 0, n)
+	for _, i := range idxs {
+		out = append(out, Guests[i].PersonaRef)
+	}
+	return out
 }
 
 func isWeekend(t time.Time) bool {
 	return t.Weekday() == time.Saturday || t.Weekday() == time.Sunday
 }
 
-// personaTitleOf 返回与客户端 lib/models/persona.dart 对齐的 persona 副标题，
-// 用于 RenderReportHTML 的 header 副标。
-func personaTitleOf(id string) string {
-	switch id {
-	case "buffett":
-		return "价值投资 · 长期持有 · 护城河"
-	case "graham":
-		return "深度价值 · 安全边际 · 净流动资产"
-	case "lynch":
-		return "成长投资 · 行业研究 · PEG"
-	case "munger":
-		return "多元思维 · 反向 · 第一性原理"
-	case "dalio":
-		return "宏观周期 · 全天候 · 风险平价"
-	case "soros":
-		return "反身性 · 宏观对冲 · 趋势捕捉"
-	}
-	return ""
+func inWindow(t time.Time, s slotWindow) bool {
+	cur := t.Hour()*60 + t.Minute()
+	start := s.hStart*60 + s.mStart
+	end := s.hEnd*60 + s.mEnd
+	return cur >= start && cur < end
 }
+
