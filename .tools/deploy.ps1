@@ -18,7 +18,9 @@ param(
   [string]$User     = "root",
   [string]$Pass     = "sc1q2w#E4r",
   [string]$Hostkey  = "SHA256:L67TyBUEmjxVjtsCdYWOkp50zJPcyoSU8rhNeDL+Ric",
-  [string]$Unit     = "finme-api",
+  # 三个 systemd unit 共用同一个二进制(/server/bin/finme-server),
+  # 替换后必须一起重启,否则旧进程会继续跑旧代码。
+  [string[]]$Units  = @('finme-api','finme-scheduler','finme-pusher'),
   [string]$Remote   = "/server/bin/finme-server"
 )
 
@@ -39,6 +41,8 @@ Write-Host "==> scp -> ${User}@${TargetHost}:${remoteTmp}"
 & $pscp -batch -hostkey $Hostkey -pw $Pass $BinPath ("{0}@{1}:{2}" -f $User, $TargetHost, $remoteTmp)
 if ($LASTEXITCODE -ne 0) { throw "pscp failed ($LASTEXITCODE)" }
 
+$unitsArg = ($Units -join ' ')
+
 # Write a remote-shell script to a temp file (LF endings) and run with `plink -m`.
 $remoteScript = @"
 set -euo pipefail
@@ -57,10 +61,18 @@ if [ "`$remote_sha" != "$sha" ]; then
   echo "ERROR: sha mismatch (local=$sha)" >&2
   exit 11
 fi
-systemctl restart $Unit
+
+# 三个 unit 共用同一个二进制,必须全部重启拿新版
+for u in $unitsArg; do
+  echo "---restart `$u---"
+  systemctl restart "`$u"
+done
 sleep 3
-echo "---systemd---"
-systemctl --no-pager --full status $Unit | head -12
+for u in $unitsArg; do
+  echo "---systemd: `$u---"
+  systemctl --no-pager --full status "`$u" | head -8
+done
+
 echo
 echo "---health probe---"
 curl -fsS --max-time 5 http://127.0.0.1:8080/v1/health 2>&1 || \
@@ -71,7 +83,9 @@ echo "---listener---"
 ss -tlnp 2>/dev/null | grep finme-server || echo "WARNING: finme-server not listening!"
 echo
 echo "---recent log---"
-journalctl -u $Unit -n 25 --no-pager 2>/dev/null | tail -25 || true
+journalctl -u finme-api -n 10 --no-pager 2>/dev/null | tail -10 || true
+echo "---scheduler log---"
+journalctl -u finme-scheduler -n 10 --no-pager 2>/dev/null | tail -10 || true
 "@
 
 $tmp = New-TemporaryFile
