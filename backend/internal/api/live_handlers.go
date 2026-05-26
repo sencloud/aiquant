@@ -114,7 +114,9 @@ func handleLiveListMessages(d *Deps) http.HandlerFunc {
 			WriteError(w, r, platform.ErrBadRequest("LIVE.UUID_REQUIRED", "uuid required", nil))
 			return
 		}
-		sinceIdx := atoiOr(r.URL.Query().Get("since_idx"), 0) - 1
+		// since_idx 语义:返回 idx 严格大于此值的消息。
+		// atoiOr 在缺省/非法/<=0 时返回 0,表示客户端要"从头开始"。
+		sinceIdx := atoiOr(r.URL.Query().Get("since_idx"), 0)
 		if sinceIdx < 0 {
 			sinceIdx = 0
 		}
