@@ -126,6 +126,12 @@ func (b *KlineBuilder) Build(ctx context.Context, symbol string) string {
 }
 
 // renderKlineHTML 把数据 JSON 嵌入 ECharts 模板。
+//
+// CDN 策略:3 个国内可达的 CDN 链式 fallback,任一可达即渲染成功。
+//   1) lib.baomitu.com    — 360 静态资源加速,全国节点多
+//   2) cdn.staticfile.org — 七牛 + ChinaNetCenter 联合 CDN
+//   3) npm.elemecdn.com   — 饿了么 unpkg 国内镜像
+// 任一脚本 onload 触发 __echarts_ready;最后兜底脚本检测全局 echarts 是否已注入。
 func renderKlineHTML(dataJSON string) string {
 	return `<!doctype html>
 <html lang="zh-CN">
@@ -165,9 +171,32 @@ func renderKlineHTML(dataJSON string) string {
   <span class="time" id="tm"></span>
 </div>
 <div id="chart"></div>
-<script src="https://lib.baomitu.com/echarts/5.4.3/echarts.min.js"></script>
 <script>
+// 多 CDN 链式加载 ECharts:从第 0 个开始,失败自动尝试下一个
 (function(){
+  var CDNS = [
+    'https://lib.baomitu.com/echarts/5.4.3/echarts.min.js',
+    'https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js',
+    'https://npm.elemecdn.com/echarts@5.4.3/dist/echarts.min.js'
+  ];
+  var idx = 0;
+  function tryLoad(){
+    if (idx >= CDNS.length) {
+      var el = document.getElementById('chart');
+      if (el) el.innerHTML = '<div id="err">ECharts 全部 CDN 加载失败,请检查网络</div>';
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = CDNS[idx++];
+    s.onload = function(){ window.__renderChart && window.__renderChart(); };
+    s.onerror = tryLoad;
+    document.head.appendChild(s);
+  }
+  tryLoad();
+})();
+</script>
+<script>
+window.__renderChart = function(){
   var DATA = ` + dataJSON + `;
   document.getElementById('nm').textContent = DATA.name;
   document.getElementById('cd').textContent = DATA.symbol;
@@ -180,7 +209,7 @@ func renderKlineHTML(dataJSON string) string {
   document.getElementById('px').className = 'price ' + (DATA.pct_chg > 0 ? 'up' : (DATA.pct_chg < 0 ? 'down' : 'flat'));
 
   if (typeof echarts === 'undefined') {
-    document.getElementById('chart').innerHTML = '<div id="err">ECharts 加载失败</div>';
+    document.getElementById('chart').innerHTML = '<div id="err">ECharts 未就绪</div>';
     return;
   }
   var chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
@@ -263,7 +292,7 @@ func renderKlineHTML(dataJSON string) string {
   };
   chart.setOption(option);
   window.addEventListener('resize', function(){ chart.resize(); });
-})();
+};
 </script>
 </body>
 </html>`

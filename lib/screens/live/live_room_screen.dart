@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -40,7 +41,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     _webCtl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF0E0E10))
-      ..loadHtmlString(_placeholderHtml);
+      ..loadHtmlString(_placeholderHtml, baseUrl: _kWebBaseUrl);
+    _scrollCtl.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LiveState>().enterRoom(widget.roomUUID);
     });
@@ -50,6 +52,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
   void dispose() {
     // leaveRoom 是异步的,但 dispose 不能 await;Provider 内部会处理。
     context.read<LiveState>().leaveRoom();
+    _scrollCtl.removeListener(_onScroll);
     _scrollCtl.dispose();
     super.dispose();
   }
@@ -71,10 +74,61 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
               children: [
                 _buildKlineSection(s),
                 Divider(height: 1, color: AppColors.borderDim),
-                Expanded(child: _buildChatList(s)),
+                Expanded(child: Stack(children: [
+                  _buildChatList(s),
+                  if (_pendingNewCount > 0) _buildNewMessageBadge(),
+                ])),
               ],
             ),
     );
+  }
+
+  Widget _buildNewMessageBadge() {
+    return Positioned(
+      bottom: 12,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Material(
+          color: AppColors.amber,
+          borderRadius: BorderRadius.circular(20),
+          elevation: 4,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: _jumpToBottom,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_downward,
+                      size: 14, color: Colors.black),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$_pendingNewCount 条新消息',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _jumpToBottom() {
+    if (!_scrollCtl.hasClients) return;
+    _scrollCtl.animateTo(
+      _scrollCtl.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+    setState(() => _pendingNewCount = 0);
   }
 
   // ── AppBar ──────────────────────────────────────────────────────────
@@ -215,6 +269,11 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
   }
 
   /// 焦点 symbol 变了就重新 loadHtmlString。
+  ///
+  /// baseUrl 关键:不传 baseUrl 时 iOS WKWebView 把页面当 about:blank,
+  /// 外部 https:// script(ECharts CDN)会被 ATS / origin 策略屏蔽,
+  /// 表现为 "ECharts 加载失败"。传一个真实 https 域名作为 baseUrl
+  /// 让 webview 把页面当 https 页面,加载同/跨 https 资源正常。
   void _syncKlineWebView(LiveState s) {
     final sym = s.currentFocusSymbol;
     if (sym.isEmpty) return;
@@ -222,8 +281,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     if (html == null || html.isEmpty) return;
     if (sym == _loadedSymbol) return;
     _loadedSymbol = sym;
-    // 异步加载;不 await,不阻塞 build
-    _webCtl.loadHtmlString(html);
+    _webCtl.loadHtmlString(html, baseUrl: _kWebBaseUrl);
   }
 
   // ── 聊天消息流 ──────────────────────────────────────────────────────
@@ -250,20 +308,53 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     );
   }
 
+  // ── 智能跟随滚动 ──────────────────────────────────────────────────
+  //
+  // 行为:
+  //   * 用户贴近底部(distFromBottom < 100px)时 → 新消息自动滚到底
+  //   * 用户已往上翻看历史 → 不打断;改为攒计数显示「↓ N 条新消息」浮按钮
+  //   * 用户点浮按钮 → 跳到底部 + 清零计数
+  //   * 用户主动滚到底 → 清零计数(_onScroll 监听)
+
   int _lastLen = 0;
+  int _pendingNewCount = 0;
+  bool _userPinnedToBottom = true; // 默认贴底
+
+  static const double _kStickThreshold = 100.0;
+
+  void _onScroll() {
+    if (!_scrollCtl.hasClients) return;
+    final pos = _scrollCtl.position;
+    final dist = pos.maxScrollExtent - pos.pixels;
+    final pinned = dist < _kStickThreshold;
+    if (pinned != _userPinnedToBottom) {
+      setState(() {
+        _userPinnedToBottom = pinned;
+        if (pinned) _pendingNewCount = 0; // 滚回底部自动清零
+      });
+    } else if (pinned && _pendingNewCount > 0) {
+      setState(() => _pendingNewCount = 0);
+    }
+  }
+
   void _autoScrollOnNewMessage(int len) {
-    if (len <= _lastLen) {
+    final newCount = len - _lastLen;
+    if (newCount <= 0) {
       _lastLen = len;
       return;
     }
     _lastLen = len;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtl.hasClients) return;
-      _scrollCtl.animateTo(
-        _scrollCtl.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      if (_userPinnedToBottom) {
+        _scrollCtl.animateTo(
+          _scrollCtl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
+      } else {
+        setState(() => _pendingNewCount += newCount);
+      }
     });
   }
 
@@ -275,6 +366,10 @@ display:flex;align-items:center;justify-content:center;height:100vh;font-size:12
 </head><body>主图加载中…</body></html>
 ''';
 }
+
+// baseUrl for webview_flutter loadHtmlString:让 WKWebView 把 HTML 当 https 页面
+// 处理,允许加载 https script(ECharts CDN)。具体域名不重要,只要是 https 即可。
+const String _kWebBaseUrl = 'https://lib.baomitu.com/';
 
 /// _MessageBubble — 单条消息气泡。
 ///
@@ -366,13 +461,11 @@ class _MessageBubble extends StatelessWidget {
                     bottomRight: Radius.circular(10),
                   ),
                 ),
-                child: Text(
-                  message.content,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
+                child: MarkdownBody(
+                  data: message.content,
+                  shrinkWrap: true,
+                  styleSheet: _chatMdStyle,
+                  softLineBreak: true,
                 ),
               ),
             ],
@@ -429,6 +522,55 @@ class _Avatar extends StatelessWidget {
     );
   }
 }
+
+// 聊天 bubble 内的 markdown 样式表 — 与直播间深色 + 紧凑 bubble 协调。
+final MarkdownStyleSheet _chatMdStyle = MarkdownStyleSheet(
+  p: TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 13,
+    height: 1.55,
+  ),
+  strong: TextStyle(
+    color: AppColors.amber,
+    fontWeight: FontWeight.w800,
+    fontSize: 13,
+  ),
+  em: TextStyle(
+    color: AppColors.textPrimary,
+    fontStyle: FontStyle.italic,
+    fontSize: 13,
+  ),
+  listBullet: TextStyle(color: AppColors.amber, fontSize: 13),
+  blockquote: TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 13,
+    fontStyle: FontStyle.italic,
+  ),
+  blockquoteDecoration: BoxDecoration(
+    color: AppColors.bgSurface,
+    border: Border(
+      left: BorderSide(color: AppColors.amber, width: 3),
+    ),
+  ),
+  blockquotePadding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+  listIndent: 18,
+  // 禁用 h1-h3 大字号(prompt 已禁标题但留兜底:不让 # 把样式撑爆)
+  h1: TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+  ),
+  h2: TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+  ),
+  h3: TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+  ),
+);
 
 // 一组协调的"嘉宾"配色,主持人专用橙。
 const _guestPalette = <Color>[

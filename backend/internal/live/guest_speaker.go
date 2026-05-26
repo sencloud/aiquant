@@ -77,16 +77,27 @@ func (s *GuestSpeaker) Speak(ctx context.Context, in SpeakInput) (*SpeakResult, 
 
 func (s *GuestSpeaker) systemPrompt(guest PersonaRef, style string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("你正在做客 A 股财经直播间「直播间」,你的人设是「%s」。\n\n", guest.Name))
+	b.WriteString(fmt.Sprintf("你正在做客一个国际财经直播间,你的人设是「%s」。\n\n", guest.Name))
 	b.WriteString(style)
 	b.WriteString("\n\n# 直播间共同规则\n")
-	b.WriteString("- 你必须使用工具拉取真实数据后再发表观点;**不准凭记忆给价格、估值、新闻**\n")
-	b.WriteString("- 措辞像直播间发言,不像研报。可以口语化、可以有「嗯」「你看」「说实话」等填充语\n")
-	b.WriteString("- 篇幅 150-350 字,**不要写成 markdown 长报告**,不要分一级二级标题\n")
-	b.WriteString("- 但**关键数字必须出现**:涉及个股至少要给当前价、当日涨跌幅;涉及估值要给 PE/PB/ROE\n")
-	b.WriteString("- 如果给买卖建议,要直接说价位:支撑位/压力位/止损位/目标价,具体数字而不是「等回踩」\n")
-	b.WriteString("- 不要复述别人的话(不要「刚才老张说...我也认为...」这样的句式);可以**简短表态后给自己独立观点**\n")
-	b.WriteString("- 不要输出 JSON、不要 markdown 围栏、不要前缀「我:」之类的角色标记。直接说话。\n")
+	b.WriteString("- 涉及具体数字(股价/涨跌幅/估值/财报)时**必须先用工具拉真实数据**,不准凭记忆给数字\n")
+	b.WriteString("- 纯宏观/国际/政策/行业逻辑性讨论可以**不用工具**,直接基于你的人设方法论发表看法\n")
+	b.WriteString("- 措辞像直播间发言而非研报。**可适度口语化**(如「嗯」「你看」「说实话」「我直接说」)\n")
+	b.WriteString("- 篇幅 100-280 字,**简短有力**优于冗长\n\n")
+
+	b.WriteString("# 富文本格式(可用,但克制)\n")
+	b.WriteString("- 可以用 `**加粗**` 强调关键数字 / 关键判断,例如:`**PE 23 倍**`、`**短线压力位 1850**`\n")
+	b.WriteString("- 可以用 `- 项目` 列举要点(最多 3-4 项,不要长列表)\n")
+	b.WriteString("- 可以**适度使用 emoji** 表达情绪/方向(如 📈 看多、📉 看空、⚠️ 风险、💡 观点、🎯 目标),每段最多 1-2 个,不要堆\n")
+	b.WriteString("- **禁止**用 `#` `##` 大标题(这是聊天,不是报告)\n")
+	b.WriteString("- **禁止**用 markdown 表格 / 代码块\n")
+	b.WriteString("- **禁止**输出 JSON、不要 markdown 围栏 ```、不要前缀「我:」之类的角色标记。直接说话。\n\n")
+
+	b.WriteString("# 内容禁忌(违反将让你信誉受损)\n")
+	b.WriteString("- **严禁复读 / 鹦鹉学舌**:不要说「刚才 XX 说... 我也这么认为」这种空洞跟话。可以**简短表态后立刻给自己独立观点**(同意/反驳/补充新角度)\n")
+	b.WriteString("- 不要重复你自己之前已经说过的话或论点\n")
+	b.WriteString("- 给买卖建议时**要具体到价位数字**:支撑位/压力位/止损位/目标价,而不是「等回踩」「逢低介入」这种口水话\n")
+	b.WriteString("- 跨人设禁忌:你是一位真实的、知名的国际/国内投资人,**不要表演**或夸张人设,保持你这个人正常的思考节奏\n")
 	return b.String()
 }
 
@@ -105,6 +116,10 @@ func (s *GuestSpeaker) userPrompt(in SpeakInput) string {
 			display = in.FocusName + "(" + in.FocusSymbol + ")"
 		}
 		b.WriteString(fmt.Sprintf("讨论的票:%s\n\n", display))
+	} else {
+		// topic 类话题(无具体个股)— 用主持人最近一条话作为话题指引
+		b.WriteString("本轮是非个股的宏观/行业/国际/政策话题,**不必调 get_quote 拉个股数据**;\n")
+		b.WriteString("可以基于你的人设方法论,结合工具(search_chinese_news / search_global_events / get_industry_money_flow 等)谈大势与判断。\n\n")
 	}
 
 	if len(in.History) > 0 {

@@ -59,10 +59,10 @@ func NewRunner(
 		logger:             l,
 		TickInterval:       60 * time.Second,
 		StaleAfter:         5 * time.Minute,
-		PaceInterval:       18 * time.Second,
-		PaceJitter:         6 * time.Second,
+		PaceInterval:       35 * time.Second, // 平均 35s/条 — 用户能跟上节奏看历史
+		PaceJitter:         10 * time.Second,
 		MaxMessagesPerRoom: 30,
-		SoftCloseAfter:     20,
+		SoftCloseAfter:     22,
 		running:            map[int64]context.CancelFunc{},
 	}
 }
@@ -181,12 +181,13 @@ func (r *Runner) windowHasRoom(ctx context.Context, now time.Time, s slotWindow)
 }
 
 func (r *Runner) createRoom(ctx context.Context, s slotWindow, now time.Time) (*Room, error) {
-	guests := pickGuests(4)
-	title := fmt.Sprintf("%s · %s 主持", s.title, Host.Name)
+	host := PickHost()
+	guests := PickGuests(4)
+	title := fmt.Sprintf("%s · %s 主持", s.title, host.Name)
 	return r.rooms.Create(ctx, CreateInput{
 		Title:         title,
 		Phase:         s.phase,
-		HostPersona:   Host,
+		HostPersona:   host.PersonaRef,
 		GuestPersonas: guests,
 		Origin:        OriginAuto,
 	})
@@ -228,13 +229,14 @@ func (r *Runner) StartManualRoom(ctx context.Context, opts ManualRoomOptions) (*
 		return nil, ErrLiveAlreadyExists
 	}
 
-	guests := pickGuests(4)
-	title := buildManualTitle(opts.FocusName, opts.FocusSymbol, now)
+	host := PickHost()
+	guests := PickGuests(4)
+	title := buildManualTitle(opts.FocusName, opts.FocusSymbol, host.Name, now)
 	endAt := now.Add(ManualRoomDuration).UnixMilli()
 	room, err := r.rooms.Create(ctx, CreateInput{
 		Title:         title,
 		Phase:         phase,
-		HostPersona:   Host,
+		HostPersona:   host.PersonaRef,
 		GuestPersonas: guests,
 		Origin:        OriginManual,
 		AutoEndAtMs:   endAt,
@@ -271,15 +273,15 @@ func guessPhase(t time.Time) string {
 	}
 }
 
-func buildManualTitle(focusName, focusSymbol string, t time.Time) string {
+func buildManualTitle(focusName, focusSymbol, hostName string, t time.Time) string {
 	hm := t.Format("15:04")
 	if focusName != "" {
-		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusName, Host.Name)
+		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusName, hostName)
 	}
 	if focusSymbol != "" {
-		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusSymbol, Host.Name)
+		return fmt.Sprintf("%s · 聚焦 %s · %s 主持", hm, focusSymbol, hostName)
 	}
-	return fmt.Sprintf("%s · 随时直播 · %s 主持", hm, Host.Name)
+	return fmt.Sprintf("%s · 随时直播 · %s 主持", hm, hostName)
 }
 
 // ErrLiveAlreadyExists 由 StartManualRoom 在已有 live 房间时返回;
@@ -311,11 +313,16 @@ func (r *Runner) startLoop(room *Room) {
 // liveLoop 是单场直播的完整生成循环。串行生成消息直到 close 或达到 MaxMessages。
 func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 	rid := room.ID
-	logger := r.logger.With().Int64("room_id", rid).Str("uuid", room.UUID).Logger()
+	logger := r.logger.With().
+		Int64("room_id", rid).Str("uuid", room.UUID).
+		Str("host", room.HostPersonaName).Logger()
 	logger.Info().Msg("live loop: start")
 
 	candidatePool := r.buildCandidatePool(ctx, room.Phase)
 	logger.Info().Int("candidates", len(candidatePool)).Msg("live loop: pool ready")
+
+	// 本场主持人(用 room 字段而非全局 Host —— Host 已废弃,主持人池随机抽取)
+	host := PersonaRef{ID: room.HostPersona, Name: room.HostPersonaName}
 
 	guests := room.DecodeGuestPersonas()
 	if len(guests) == 0 {
@@ -356,8 +363,8 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			_, _ = r.messages.Append(ctx, AppendInput{
 				RoomID:      rid,
 				Role:        RoleHostClose,
-				Persona:     Host.ID,
-				PersonaName: Host.Name,
+				Persona:     host.ID,
+				PersonaName: host.Name,
 				FocusSymbol: focus,
 				FocusName:   focusName,
 				Content:     closing,
@@ -372,6 +379,7 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		history, _ := r.messages.ListRecent(ctx, rid, 12)
 		focus, focusName := currentFocus(history)
 		action, err := r.host.Plan(ctx, PlanInput{
+			Host:             host,
 			Guests:           guests,
 			Phase:            room.Phase,
 			Now:              time.Now(),
@@ -392,6 +400,21 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			r.sleepPace(ctx)
 			continue
 		}
+
+		// 1b. 去重:LLM 偶尔会跟前几轮 host 内容雷同 — 视为失败重试。
+		hostContent := strings.TrimSpace(action.Content)
+		if isDuplicateHost(history, hostContent, host.ID) {
+			failures++
+			logger.Warn().Int("failures", failures).
+				Str("dup_content", snippet(hostContent, 80)).
+				Msg("live loop: host content duplicates recent")
+			if failures >= 3 {
+				_ = r.rooms.MarkAbnormal(ctx, rid, "host duplicated content 3x")
+				return
+			}
+			r.sleepPace(ctx)
+			continue
+		}
 		failures = 0
 
 		// 2. 写 host message
@@ -399,12 +422,12 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		hostMsg, err := r.messages.Append(ctx, AppendInput{
 			RoomID:        rid,
 			Role:          hostRole,
-			Persona:       Host.ID,
-			PersonaName:   Host.Name,
+			Persona:       host.ID,
+			PersonaName:   host.Name,
 			TargetPersona: action.TargetPersona,
 			FocusSymbol:   action.FocusSymbol,
 			FocusName:     action.FocusName,
-			Content:       strings.TrimSpace(action.Content),
+			Content:       hostContent,
 		})
 		if err != nil {
 			logger.Warn().Err(err).Msg("live loop: append host msg")
@@ -608,27 +631,74 @@ func actionToRole(action string) string {
 		return RoleHostSwitch
 	case "react_prompt":
 		return RoleHostAsk // 复用 ask 样式
+	case "topic":
+		return RoleHostAsk // 复用 ask 样式(无 focus 的话题切入)
 	case "close":
 		return RoleHostClose
 	}
 	return RoleHostAsk
 }
 
-// pickGuests 从 Guests 池随机选 n 个(无重复)。
-func pickGuests(n int) []PersonaRef {
-	if n >= len(Guests) {
-		out := make([]PersonaRef, 0, len(Guests))
-		for _, g := range Guests {
-			out = append(out, g.PersonaRef)
+// isDuplicateHost 判断 candidate 是否与最近 3 条 host 消息内容雷同。
+//
+// 雷同定义(任一满足):
+//   * 去空白后完全相等
+//   * 前 40 个字符完全相等(可能 LLM 改了后面但开头几乎一样)
+//
+// 用于过滤 LLM 偶发的"鹦鹉学舌"输出 — 防止直播间出现 2 条几乎一模一样的提问。
+func isDuplicateHost(history []Message, candidate, hostID string) bool {
+	cand := normalizeForDedup(candidate)
+	if cand == "" {
+		return false
+	}
+	checked := 0
+	for i := len(history) - 1; i >= 0 && checked < 3; i-- {
+		m := history[i]
+		if m.Persona != hostID {
+			continue
 		}
-		return out
+		checked++
+		prev := normalizeForDedup(m.Content)
+		if prev == "" {
+			continue
+		}
+		if prev == cand {
+			return true
+		}
+		// 前 40 字符相等也算雷同
+		rsCand := []rune(cand)
+		rsPrev := []rune(prev)
+		n := 40
+		if len(rsCand) < n {
+			n = len(rsCand)
+		}
+		if len(rsPrev) < n {
+			n = len(rsPrev)
+		}
+		if n >= 20 && string(rsCand[:n]) == string(rsPrev[:n]) {
+			return true
+		}
 	}
-	idxs := rand.Perm(len(Guests))[:n]
-	out := make([]PersonaRef, 0, n)
-	for _, i := range idxs {
-		out = append(out, Guests[i].PersonaRef)
+	return false
+}
+
+func normalizeForDedup(s string) string {
+	s = strings.TrimSpace(s)
+	// 把连续空白合并为一个,去掉换行(避免格式差异导致漏判)
+	var b strings.Builder
+	lastSpace := false
+	for _, r := range s {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if !lastSpace {
+				b.WriteRune(' ')
+				lastSpace = true
+			}
+			continue
+		}
+		lastSpace = false
+		b.WriteRune(r)
 	}
-	return out
+	return b.String()
 }
 
 func isWeekend(t time.Time) bool {
