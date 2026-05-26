@@ -31,10 +31,13 @@ type Quote struct {
 	Delayed      bool    `json:"delayed"`      // 延时报价
 }
 
-// FetchSnapshot 拉单标的实时报价。
+// fetchSnapshotEM 拉单标的实时报价（东方财富 push2 实现，保留作为 client.go 公开方法的可选备用）。
 //
 // 端点：https://push2.eastmoney.com/api/qt/stock/get?secid=<m.code>
-func (c *Client) FetchSnapshot(ctx context.Context, symbol string) (*Quote, error) {
+//
+// 当前公开入口 FetchSnapshot 默认走新浪 hq.sinajs.cn（更稳定，详见 sina_stock.go）。
+// 本函数保留是为了后续在新浪不可用 / 字段不齐时可单测切回，不再被默认路径调用。
+func (c *Client) fetchSnapshotEM(ctx context.Context, symbol string) (*Quote, error) {
 	secid := ToSecID(symbol)
 	if secid == "" {
 		// 指数兜底（NormalizeSymbol 已带后缀的指数）
@@ -95,10 +98,12 @@ func (c *Client) FetchSnapshot(ctx context.Context, symbol string) (*Quote, erro
 	return q, nil
 }
 
-// FetchIndexes 批量拉指数实时（沪深300/上证50/中证500/创业板等）。
+// fetchIndexesEM 批量拉指数实时（沪深300/上证50/中证500/创业板等，东方财富 push2 实现）。
 //
 // 端点：ulist.np/get?secids=1.000300,1.000016,...
-func (c *Client) FetchIndexes(ctx context.Context, tsCodes []string) ([]Quote, error) {
+//
+// 当前公开入口 FetchIndexes 默认走新浪 hq.sinajs.cn。
+func (c *Client) fetchIndexesEM(ctx context.Context, tsCodes []string) ([]Quote, error) {
 	secids := make([]string, 0, len(tsCodes))
 	codeBack := map[string]string{} // secid → ts_code
 	for _, ts := range tsCodes {

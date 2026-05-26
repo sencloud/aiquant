@@ -9,13 +9,13 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 )
 
-// registerRealtime 注册东方财富 push2 实时行情工具：
+// registerRealtime 注册实时行情工具：
 //
-//   - get_realtime_quote          单标的实时快照（A 股 / ETF / 指数）
-//   - get_top_movers              涨幅 / 跌幅榜（全 A / 创业板 / 科创 / 行业板块）
-//   - get_market_snapshot         主流指数实时快照
-//   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX）
-//   - get_futures_realtime_batch  批量期货合约实时（并发拉取，最多 30 个）
+//   - get_realtime_quote          单标的实时快照（A 股 / ETF / 指数，新浪 hq.sinajs.cn）
+//   - get_top_movers              涨幅 / 跌幅榜（东方财富 push2 clist；新浪无等价接口）
+//   - get_market_snapshot         主流指数实时快照（新浪 hq.sinajs.cn）
+//   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX，新浪）
+//   - get_futures_realtime_batch  批量期货合约实时（新浪 list= 单次批量拉取，最多 30 个）
 func registerRealtime(r *tool.Registry, c *realtime.Client) {
 	r.MustRegister(&getRealtimeQuoteTool{c: c})
 	r.MustRegister(&getTopMoversTool{c: c})
@@ -74,7 +74,7 @@ func (t *getRealtimeQuoteTool) Run(ctx context.Context, args json.RawMessage) (s
 		"turnover_rate": q.TurnoverRate,
 		"pe_ttm":        q.PE,
 		"delayed":       q.Delayed,
-		"source":        "eastmoney_push2",
+		"source":        "sina_hq",
 	}
 	return tool.EncodeJSON(out), nil
 }
@@ -203,7 +203,7 @@ func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (
 	}
 	return tool.EncodeJSON(map[string]any{
 		"indexes": out,
-		"source":  "eastmoney_push2",
+		"source":  "sina_hq",
 	}), nil
 }
 
@@ -267,7 +267,7 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 		"bid":        q.Bid,
 		"ask":        q.Ask,
 		"delayed":    q.Delayed,
-		"source":     "eastmoney_push2",
+		"source":     "sina_hq",
 	}), nil
 }
 
@@ -341,8 +341,8 @@ func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMess
 		})
 	}
 	return tool.EncodeJSON(map[string]any{
-		"count":   len(out),
-		"quotes":  out,
-		"source":  "eastmoney_push2",
+		"count":  len(out),
+		"quotes": out,
+		"source": "sina_hq",
 	}), nil
 }
