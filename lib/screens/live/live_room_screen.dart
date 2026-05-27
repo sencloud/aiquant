@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
@@ -35,12 +37,26 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
   // 当前 webview 加载的 symbol,用于避免重复 loadHtmlString
   String _loadedSymbol = '';
 
+  // K 线页是否就绪(loadHtmlString 之后 onPageFinished 才能 runJavaScript)
+  bool _kPageReady = false;
+
+  // 已注入的 annotations 序号 — 等于 LiveState.annotationsSeq 就跳过
+  int _lastAnnotSeq = -1;
+
   @override
   void initState() {
     super.initState();
     _webCtl = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF0E0E10))
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          if (!mounted) return;
+          _kPageReady = true;
+          // 页面就绪 → 立刻把当前已积累的 annotations 推一次
+          _injectAnnotationsNow();
+        },
+      ))
       ..loadHtmlString(_placeholderHtml, baseUrl: _kWebBaseUrl);
     _scrollCtl.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -62,6 +78,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     final s = context.watch<LiveState>();
 
     _syncKlineWebView(s);
+    _syncAnnotations(s);
     _autoScrollOnNewMessage(s.messages.length);
 
     final room = s.currentRoom;
@@ -281,7 +298,32 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     if (html == null || html.isEmpty) return;
     if (sym == _loadedSymbol) return;
     _loadedSymbol = sym;
+    // 切焦点:webview 重新加载 → 旧 chart 实例被销毁,需要等 onPageFinished
+    // 再注入新焦点的 annotations。这里 reset 两个标志。
+    _kPageReady = false;
+    _lastAnnotSeq = -1;
     _webCtl.loadHtmlString(html, baseUrl: _kWebBaseUrl);
+  }
+
+  /// 嘉宾发言提到的支撑/压力/止损/目标位通过这里推给主图 ECharts。
+  /// 用 annotationsSeq 做幂等:LiveState 那边变化时 seq++,这里只在变化时推。
+  void _syncAnnotations(LiveState s) {
+    if (!_kPageReady) return; // 页面没就绪先攒着,onPageFinished 会补推
+    if (s.annotationsSeq == _lastAnnotSeq) return;
+    _lastAnnotSeq = s.annotationsSeq;
+    _injectAnnotationsNow();
+  }
+
+  /// 不查缓存直接把当前 LiveState.currentAnnotations 推一次给 webview。
+  void _injectAnnotationsNow() {
+    if (!mounted) return;
+    final s = context.read<LiveState>();
+    final list = s.currentAnnotations.map((a) => a.toWebJson()).toList();
+    final jsArr = jsonEncode(list);
+    // window.__setAnnotations 可能在页面还未完全 load 时不存在 → 用 && 保护
+    _webCtl.runJavaScript(
+        'window.__setAnnotations && window.__setAnnotations($jsArr);');
+    _lastAnnotSeq = s.annotationsSeq;
   }
 
   // ── 聊天消息流 ──────────────────────────────────────────────────────

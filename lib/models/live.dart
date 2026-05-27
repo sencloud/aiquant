@@ -88,6 +88,51 @@ class LiveRoom {
   }
 }
 
+/// LiveAnnotation — 嘉宾发言里提到的 K 线价位标注。
+///
+/// 后端 guest_speaker LLM 返回 `{"type","price","label"}`,Flutter 拿到后会:
+/// 1. 在 LiveState 内按"当前焦点 symbol"维度聚合所有 annotations
+/// 2. 拼上 persona 名,通过 webview.runJavaScript('window.__setAnnotations(...)')
+///    推给主图 ECharts,自动画出对应水平线 + label
+///
+/// type 取值与颜色映射(必须和 kline_html.go 内 ANNOT_STYLE 一致):
+///   support    绿实线  | resistance 红实线
+///   stop       橙虚线  | target     青虚线
+///   note       黄虚线
+class LiveAnnotation {
+  const LiveAnnotation({
+    required this.type,
+    required this.price,
+    required this.label,
+    this.persona = '',
+  });
+
+  final String type;
+  final double price;
+  final String label;
+  final String persona; // 谁说的(本地填,后端不返这个字段)
+
+  factory LiveAnnotation.fromJson(Map<String, dynamic> json) => LiveAnnotation(
+        type: (json['type'] as String?) ?? 'note',
+        price: ((json['price'] as num?) ?? 0).toDouble(),
+        label: (json['label'] as String?) ?? '',
+      );
+
+  Map<String, dynamic> toWebJson() => {
+        'type': type,
+        'price': price,
+        'label': label,
+        if (persona.isNotEmpty) 'persona': persona,
+      };
+
+  LiveAnnotation withPersona(String p) => LiveAnnotation(
+        type: type,
+        price: price,
+        label: label,
+        persona: p,
+      );
+}
+
 class LiveMessage {
   const LiveMessage({
     required this.idx,
@@ -98,6 +143,7 @@ class LiveMessage {
     this.focusSymbol = '',
     this.focusName = '',
     required this.content,
+    this.annotations = const [],
     required this.createdAt,
   });
 
@@ -109,6 +155,7 @@ class LiveMessage {
   final String focusSymbol;
   final String focusName;
   final String content;
+  final List<LiveAnnotation> annotations;
   final int createdAt;
 
   bool get isHost => role.startsWith('host_');
@@ -117,17 +164,24 @@ class LiveMessage {
   bool get isOpen => role == 'host_open';
   bool get isClose => role == 'host_close';
 
-  factory LiveMessage.fromJson(Map<String, dynamic> json) => LiveMessage(
-        idx: ((json['idx'] as num?) ?? 0).toInt(),
-        role: (json['role'] as String?) ?? '',
-        persona: (json['persona'] as String?) ?? '',
-        personaName: (json['persona_name'] as String?) ?? '',
-        targetPersona: (json['target_persona'] as String?) ?? '',
-        focusSymbol: (json['focus_symbol'] as String?) ?? '',
-        focusName: (json['focus_name'] as String?) ?? '',
-        content: (json['content'] as String?) ?? '',
-        createdAt: ((json['created_at'] as num?) ?? 0).toInt(),
-      );
+  factory LiveMessage.fromJson(Map<String, dynamic> json) {
+    final annotsRaw = (json['annotations'] as List?) ?? const [];
+    return LiveMessage(
+      idx: ((json['idx'] as num?) ?? 0).toInt(),
+      role: (json['role'] as String?) ?? '',
+      persona: (json['persona'] as String?) ?? '',
+      personaName: (json['persona_name'] as String?) ?? '',
+      targetPersona: (json['target_persona'] as String?) ?? '',
+      focusSymbol: (json['focus_symbol'] as String?) ?? '',
+      focusName: (json['focus_name'] as String?) ?? '',
+      content: (json['content'] as String?) ?? '',
+      annotations: annotsRaw
+          .cast<Map<String, dynamic>>()
+          .map(LiveAnnotation.fromJson)
+          .toList(),
+      createdAt: ((json['created_at'] as num?) ?? 0).toInt(),
+    );
+  }
 }
 
 class LiveRoomDetail {

@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,12 +39,16 @@ type SpeakInput struct {
 
 // SpeakResult 是 Speak 的返回。
 type SpeakResult struct {
-	Content    string
-	ToolCalls  int
-	DurationMs int64
+	Content     string
+	Annotations []Annotation // 可空 — 嘉宾本次发言提到的 K 线价位标注
+	ToolCalls   int
+	DurationMs  int64
 }
 
 // Speak 生成嘉宾应答。返回的 Content 已 trim。
+//
+// 输出契约:LLM 最终回答必须是 JSON {"content","annotations":[...]};
+// 解析失败时 fallback 把整段当 content,annotations 留空 — 不影响直播继续。
 func (s *GuestSpeaker) Speak(ctx context.Context, in SpeakInput) (*SpeakResult, error) {
 	if s.exec == nil {
 		return nil, errors.New("guest speaker: executor not configured")
@@ -60,19 +65,88 @@ func (s *GuestSpeaker) Speak(ctx context.Context, in SpeakInput) (*SpeakResult, 
 	if err != nil {
 		return nil, fmt.Errorf("guest exec: %w", err)
 	}
-	content := strings.TrimSpace(res.FinalText)
-	if content == "" {
+	raw := strings.TrimSpace(res.FinalText)
+	if raw == "" {
 		return nil, errors.New("guest speaker: empty output")
 	}
-	// 去掉 LLM 偶尔加的 markdown 围栏
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+
+	content, annots := parseGuestOutput(raw)
+	if content == "" {
+		return nil, errors.New("guest speaker: empty content after parse")
+	}
 	return &SpeakResult{
-		Content:    content,
-		ToolCalls:  res.ToolCalls,
-		DurationMs: res.DurationMs,
+		Content:     content,
+		Annotations: annots,
+		ToolCalls:   res.ToolCalls,
+		DurationMs:  res.DurationMs,
 	}, nil
+}
+
+// parseGuestOutput 解析 LLM 输出:
+//
+//	* 期望:JSON {"content": "...", "annotations": [{type,price,label}, ...]}
+//	* 容错 1:外层 ```json ... ``` 围栏 → 剥掉
+//	* 容错 2:JSON 解析失败 → 把整段当 content,annotations 留空(直播继续,只是没有 K 线标注)
+//	* 验证 annotations 每条 type / price / label 合法,过滤掉非法 type
+func parseGuestOutput(raw string) (string, []Annotation) {
+	s := strings.TrimSpace(raw)
+	// 剥 ```json 围栏
+	if strings.HasPrefix(s, "```") {
+		s = strings.TrimPrefix(s, "```json")
+		s = strings.TrimPrefix(s, "```")
+		s = strings.TrimSuffix(s, "```")
+		s = strings.TrimSpace(s)
+	}
+
+	// 截取第一个 { 到最后一个 }
+	l := strings.Index(s, "{")
+	r := strings.LastIndex(s, "}")
+	if l < 0 || r < 0 || r <= l {
+		// 完全不是 JSON — 整段当 content
+		return strings.TrimSpace(raw), nil
+	}
+	body := s[l : r+1]
+
+	var out struct {
+		Content     string       `json:"content"`
+		Annotations []Annotation `json:"annotations"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		// JSON 形似但解析失败 — 整段当 content,标注丢弃
+		return strings.TrimSpace(raw), nil
+	}
+	content := strings.TrimSpace(out.Content)
+	if content == "" {
+		// 字段没有 content — fallback 把整段当 content
+		content = strings.TrimSpace(raw)
+	}
+
+	// 验证 annotations:type 必须合法、price 必须正、label 非空
+	cleaned := make([]Annotation, 0, len(out.Annotations))
+	for _, a := range out.Annotations {
+		t := strings.ToLower(strings.TrimSpace(a.Type))
+		if !AnnotationAllowedTypes[t] {
+			continue
+		}
+		if a.Price <= 0 {
+			continue
+		}
+		lbl := strings.TrimSpace(a.Label)
+		if lbl == "" {
+			continue
+		}
+		// 截断到 8 个 rune,避免 LLM 写长 label
+		rs := []rune(lbl)
+		if len(rs) > 8 {
+			lbl = string(rs[:8])
+		}
+		cleaned = append(cleaned, Annotation{
+			Type:  t,
+			Price: a.Price,
+			Label: lbl,
+		})
+	}
+	return content, cleaned
 }
 
 func (s *GuestSpeaker) systemPrompt(guest PersonaRef, style string) string {
@@ -107,13 +181,43 @@ func (s *GuestSpeaker) systemPrompt(guest PersonaRef, style string) string {
 	b.WriteString("   - 涉及买卖判断:支撑位 / 压力位 / 止损位 / 目标价 都给具体数字\n")
 	b.WriteString("   - 禁止\"等回踩\"\"逢低介入\"\"逢高减仓\"这类零信息量表达\n\n")
 
-	b.WriteString("# 富文本格式(可用,但克制)\n")
+	b.WriteString("# 富文本格式(content 字段内可用,但克制)\n")
 	b.WriteString("- 可以用 `**加粗**` 强调关键数字 / 关键判断,例如:`**PE 23 倍**`、`**短线压力位 1850**`\n")
 	b.WriteString("- 可以用 `- 项目` 列举要点(最多 3-4 项,不要长列表)\n")
 	b.WriteString("- 可适度使用 emoji 表达情绪/方向(如 📈 📉 ⚠️ 💡 🎯),每段最多 1-2 个,不要堆\n")
 	b.WriteString("- **禁止**用 `#` `##` 大标题(这是聊天,不是报告)\n")
 	b.WriteString("- **禁止**用 markdown 表格 / 代码块\n")
-	b.WriteString("- **禁止**输出 JSON、markdown 围栏 ```、前缀「我:」之类的角色标记。直接说话。\n")
+	b.WriteString("- **禁止**在 content 内部加前缀「我:」之类的角色标记。直接说话。\n\n")
+
+	// ── 输出契约(JSON)— 嘉宾发言与 K 线共振的关键 ──
+	b.WriteString("# 输出契约(最终回答必须严格遵守 — 中间 tool calls 不受此约束)\n")
+	b.WriteString("你最后一次回答必须是一个**纯 JSON 对象**,前后无任何说明或 markdown 围栏。结构:\n")
+	b.WriteString("```\n")
+	b.WriteString(`{
+  "content": "<你的发言原文,markdown + emoji 允许,即上面规定的口语化点评>",
+  "annotations": [
+    {"type": "support|resistance|stop|target|note", "price": <number>, "label": "<≤8字短标签>"}
+  ]
+}`)
+	b.WriteString("\n```\n\n")
+
+	b.WriteString("# annotations 字段说明 — 这是「K 线主图共振」的核心\n")
+	b.WriteString("- 你的发言里**只要提到任何具体价位**(支撑位 / 压力位 / 止损位 / 目标价 / 关键位 / 当前价等),\n")
+	b.WriteString("  就必须在 annotations 数组里同时给出对应条目,前端会**自动在 K 线主图画出水平线 + label**\n")
+	b.WriteString("- type 取值:\n")
+	b.WriteString("    `support` 支撑位(K 线主图画绿色实线)\n")
+	b.WriteString("    `resistance` 压力位(画红色实线)\n")
+	b.WriteString("    `stop` 止损位(画橙色虚线)\n")
+	b.WriteString("    `target` 目标位(画青色虚线)\n")
+	b.WriteString("    `note` 其他重要位/关键位(画黄色虚线)\n")
+	b.WriteString("- price 是浮点数,**单位与个股股价一致**(不要给百分比、不要单位字符)\n")
+	b.WriteString("- label ≤ 8 个字,如「短线压力」「中期止损」「TP1」等;前端会自动拼前缀 `<你名字>·<label>`\n")
+	b.WriteString("- 如果本次发言是纯宏观/纯方法论/纯闲聊**没提到具体价位**,annotations 留空数组 `[]`\n")
+	b.WriteString("- annotations 最多 4 条(超出忽略)\n\n")
+
+	b.WriteString("# 关于 content 字段内的「价位口播」\n")
+	b.WriteString("- 你可以照常在 content 里口播价位(例如「**短线支撑 128.5,目标 145**」),\n")
+	b.WriteString("  这样观众既能在文字里看到、又能在 K 线上看到 — 两边对齐是设计目标\n")
 	return b.String()
 }
 
