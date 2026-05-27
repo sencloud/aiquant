@@ -46,6 +46,18 @@ class LiveState extends ChangeNotifier {
   bool _enteringRoom = false;
   Timer? _pollTimer;
 
+  // 当前焦点累积的 K 线标注 — 嘉宾发言时 LLM 返回的支撑/压力/止损/目标位,
+  // 前端聚合后通过 webview.runJavaScript('window.__setAnnotations(...)')
+  // 推给主图 ECharts,在 K 线上画水平线 + label。
+  //
+  // 生命周期:
+  //   * enterRoom:从历史消息里筛 focusSymbol==当前焦点 的所有 annotations 装填
+  //   * 新消息:focusSymbol==当前焦点 且 annotations 非空 → append
+  //   * 焦点切换:清空后重新从历史消息按新焦点装填
+  // 每次内容变化都会触发 _annotationsSeq++(供 UI 检测增量并推 JS)。
+  final List<LiveAnnotation> _currentAnnotations = [];
+  int _annotationsSeq = 0;
+
   LiveRoom? get currentRoom => _currentRoom;
   List<LiveMessage> get messages => List.unmodifiable(_messages);
   int get lastIdx => _lastIdx;
@@ -54,6 +66,9 @@ class LiveState extends ChangeNotifier {
   String? get currentKlineHtml => _currentKlineHtml;
   bool get loadingKline => _loadingKline;
   bool get enteringRoom => _enteringRoom;
+  List<LiveAnnotation> get currentAnnotations =>
+      List.unmodifiable(_currentAnnotations);
+  int get annotationsSeq => _annotationsSeq;
 
   // ── 公开方法 ────────────────────────────────────────────────────────
 
@@ -105,7 +120,11 @@ class LiveState extends ChangeNotifier {
       if (focus.isNotEmpty && focus != _currentFocusSymbol) {
         _currentFocusSymbol = focus;
         _currentFocusName = focusName;
+        _rebuildAnnotationsForFocus();
         await _loadKline(focus);
+      } else {
+        // 焦点没变也要重算一次(可能进的是历史房,焦点本来就有,annotations 没初始化)
+        _rebuildAnnotationsForFocus();
       }
       _lastError = null;
     } catch (e) {
@@ -127,6 +146,8 @@ class LiveState extends ChangeNotifier {
     _currentFocusName = '';
     _currentKlineHtml = null;
     _loadingKline = false;
+    _currentAnnotations.clear();
+    _annotationsSeq = 0;
   }
 
   /// 手动重拉 K 线(下拉刷新主图时用)。
@@ -207,7 +228,9 @@ class LiveState extends ChangeNotifier {
       if (_currentRoom?.uuid != uuid) return;
 
       bool changed = false;
+      List<LiveMessage>? newOnes;
       if (resp.messages.isNotEmpty) {
+        newOnes = resp.messages;
         _messages.addAll(resp.messages);
         _lastIdx = resp.latestIdx;
         changed = true;
@@ -224,21 +247,63 @@ class LiveState extends ChangeNotifier {
         }
       }
 
-      // 焦点变更 → 拉新 K 线
+      // 焦点变更 → 拉新 K 线 + 重算 annotations
       if (resp.currentSymbol.isNotEmpty &&
           resp.currentSymbol != _currentFocusSymbol) {
         _currentFocusSymbol = resp.currentSymbol;
         _currentFocusName = resp.currentName;
+        _rebuildAnnotationsForFocus(); // 焦点变了,从头按新焦点扫一遍
         changed = true;
         notifyListeners();
         await _loadKline(resp.currentSymbol);
         return; // _loadKline 内部会 notify
       }
 
+      // 焦点没变 → 把本批新消息里属于当前焦点的 annotations 增量并入
+      if (newOnes != null && _currentFocusSymbol.isNotEmpty) {
+        if (_appendAnnotationsFrom(newOnes)) changed = true;
+      }
+
       if (changed) notifyListeners();
     } catch (_) {
       // 网络抖动忽略,下一轮再试
     }
+  }
+
+  // ── annotations 累积逻辑 ──────────────────────────────────────────
+
+  /// 从所有 _messages 中扫出 focus==当前焦点 的 annotations,重置 _currentAnnotations。
+  /// 用于焦点切换 / 进房初始化。
+  void _rebuildAnnotationsForFocus() {
+    _currentAnnotations.clear();
+    if (_currentFocusSymbol.isEmpty) {
+      _annotationsSeq++;
+      return;
+    }
+    for (final m in _messages) {
+      if (m.focusSymbol != _currentFocusSymbol) continue;
+      if (m.annotations.isEmpty) continue;
+      for (final a in m.annotations) {
+        _currentAnnotations.add(a.withPersona(m.personaName));
+      }
+    }
+    _annotationsSeq++;
+  }
+
+  /// 增量:从一批新消息里追加属于当前焦点的 annotations,返回是否真的加了。
+  bool _appendAnnotationsFrom(List<LiveMessage> batch) {
+    if (_currentFocusSymbol.isEmpty) return false;
+    var added = false;
+    for (final m in batch) {
+      if (m.focusSymbol != _currentFocusSymbol) continue;
+      if (m.annotations.isEmpty) continue;
+      for (final a in m.annotations) {
+        _currentAnnotations.add(a.withPersona(m.personaName));
+        added = true;
+      }
+    }
+    if (added) _annotationsSeq++;
+    return added;
   }
 
   Future<void> _loadKline(String symbol) async {

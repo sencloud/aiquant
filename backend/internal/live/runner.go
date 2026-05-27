@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -543,6 +544,16 @@ func (r *Runner) handleGuestResponse(
 	if isReact {
 		guestRole = RoleGuestReact
 	}
+
+	// annotations:LLM 返回的 K 线价位标注,marshal 后存 annotations 字段。
+	// 空数组就不写(让 DB 列为 NULL,前端无需展示)。
+	var annotJSON string
+	if len(res.Annotations) > 0 {
+		if buf, err := json.Marshal(res.Annotations); err == nil {
+			annotJSON = string(buf)
+		}
+	}
+
 	_, err = r.messages.Append(ctx, AppendInput{
 		RoomID:      roomID,
 		Role:        guestRole,
@@ -551,6 +562,7 @@ func (r *Runner) handleGuestResponse(
 		FocusSymbol: focus,
 		FocusName:   focusName,
 		Content:     res.Content,
+		Annotations: annotJSON,
 	})
 	if err != nil {
 		return err

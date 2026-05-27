@@ -15,14 +15,17 @@ func NewMessageRepo(st *store.Store) *MessageRepo { return &MessageRepo{st: st} 
 
 // AppendInput 是 Append 的入参。Idx 由 repo 自动取 max+1,调用方不必填。
 type AppendInput struct {
-	RoomID         int64
-	Role           string
-	Persona        string
-	PersonaName    string
-	TargetPersona  string
-	FocusSymbol    string
-	FocusName      string
-	Content        string
+	RoomID        int64
+	Role          string
+	Persona       string
+	PersonaName   string
+	TargetPersona string
+	FocusSymbol   string
+	FocusName     string
+	Content       string
+	// Annotations 是已 marshal 好的 JSON 字符串(由调用方拼好,通常来自
+	// guest_speaker LLM 输出的 annotations 数组)。空字符串表示无标注。
+	Annotations string
 }
 
 // Append 在事务内取 idx = max(idx)+1 后插入新消息,返回完整 Message。
@@ -46,11 +49,11 @@ func (r *MessageRepo) Append(ctx context.Context, in AppendInput) (*Message, err
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO live_messages
 		  (room_id, idx, role, persona, persona_name,
-		   target_persona, focus_symbol, focus_name, content, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		   target_persona, focus_symbol, focus_name, content, annotations, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.RoomID, nextIdx, in.Role, in.Persona, in.PersonaName,
 		nullStr(in.TargetPersona), nullStr(in.FocusSymbol), nullStr(in.FocusName),
-		in.Content, now,
+		in.Content, nullStr(in.Annotations), now,
 	)
 	if err != nil {
 		return nil, err
@@ -79,6 +82,9 @@ func (r *MessageRepo) Append(ctx context.Context, in AppendInput) (*Message, err
 	}
 	if in.FocusName != "" {
 		m.FocusName = sql.NullString{String: in.FocusName, Valid: true}
+	}
+	if in.Annotations != "" {
+		m.Annotations = sql.NullString{String: in.Annotations, Valid: true}
 	}
 	return m, nil
 }

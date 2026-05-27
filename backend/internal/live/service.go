@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -66,15 +67,18 @@ type RoomDetail struct {
 
 // MessageDTO 是单条消息的客户端形态。
 type MessageDTO struct {
-	Idx           int    `json:"idx"`
-	Role          string `json:"role"`
-	Persona       string `json:"persona"`
-	PersonaName   string `json:"persona_name"`
-	TargetPersona string `json:"target_persona,omitempty"`
-	FocusSymbol   string `json:"focus_symbol,omitempty"`
-	FocusName     string `json:"focus_name,omitempty"`
-	Content       string `json:"content"`
-	CreatedAt     int64  `json:"created_at"`
+	Idx           int          `json:"idx"`
+	Role          string       `json:"role"`
+	Persona       string       `json:"persona"`
+	PersonaName   string       `json:"persona_name"`
+	TargetPersona string       `json:"target_persona,omitempty"`
+	FocusSymbol   string       `json:"focus_symbol,omitempty"`
+	FocusName     string       `json:"focus_name,omitempty"`
+	Content       string       `json:"content"`
+	// Annotations 是嘉宾本条发言的 K 线价位标注(已解析为对象数组)。
+	// 前端把当前焦点的所有 annotations 聚合后注入主图 webview 的 markLine。
+	Annotations []Annotation `json:"annotations,omitempty"`
+	CreatedAt   int64        `json:"created_at"`
 }
 
 // MessagesResponse 是增量轮询接口的返回。
@@ -253,6 +257,14 @@ func toMessageDTO(m Message) MessageDTO {
 	}
 	if m.FocusName.Valid {
 		d.FocusName = m.FocusName.String
+	}
+	// Annotations:数据库存 JSON 字符串,反序列化回对象数组给前端
+	// (解析失败时静默忽略,不影响消息文本本身)
+	if m.Annotations.Valid && strings.TrimSpace(m.Annotations.String) != "" {
+		var anns []Annotation
+		if err := json.Unmarshal([]byte(m.Annotations.String), &anns); err == nil {
+			d.Annotations = anns
+		}
 	}
 	return d
 }

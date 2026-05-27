@@ -72,17 +72,37 @@ type Room struct {
 
 // Message 是单条聊天消息数据库行。
 type Message struct {
-	ID             int64          `db:"id"`
-	RoomID         int64          `db:"room_id"`
-	Idx            int            `db:"idx"`
-	Role           string         `db:"role"`
-	Persona        string         `db:"persona"`
-	PersonaName    string         `db:"persona_name"`
-	TargetPersona  sql.NullString `db:"target_persona"`
-	FocusSymbol    sql.NullString `db:"focus_symbol"`
-	FocusName      sql.NullString `db:"focus_name"`
-	Content        string         `db:"content"`
-	CreatedAt      int64          `db:"created_at"`
+	ID            int64          `db:"id"`
+	RoomID        int64          `db:"room_id"`
+	Idx           int            `db:"idx"`
+	Role          string         `db:"role"`
+	Persona       string         `db:"persona"`
+	PersonaName   string         `db:"persona_name"`
+	TargetPersona sql.NullString `db:"target_persona"`
+	FocusSymbol   sql.NullString `db:"focus_symbol"`
+	FocusName     sql.NullString `db:"focus_name"`
+	Content       string         `db:"content"`
+	// Annotations 是嘉宾发言的 K 线结构化标注 JSON 字符串(空表示无标注),
+	// 形如 [{"type":"support","price":128.5,"label":"支撑"}, ...]
+	// 前端拉到后注入 webview 的 ECharts markLine,实现"人话与图形对齐"。
+	Annotations sql.NullString `db:"annotations"`
+	CreatedAt   int64          `db:"created_at"`
+}
+
+// Annotation 是单个 K 线标注。LLM 返回数组,后端 marshal 后存 Message.Annotations。
+type Annotation struct {
+	Type  string  `json:"type"`  // support / resistance / stop / target / note
+	Price float64 `json:"price"` // 价位(必填)
+	Label string  `json:"label"` // ≤ 8 字短标签(必填),前端会拼 "<persona>·<label>"
+}
+
+// AnnotationAllowedTypes 是合法 type 集合,parseAnnotations 用它过滤 LLM 乱填。
+var AnnotationAllowedTypes = map[string]bool{
+	"support":    true,
+	"resistance": true,
+	"stop":       true,
+	"target":     true,
+	"note":       true,
 }
 
 // PersonaRef 是 host/guest 的"轻量名片",用于 LLM prompt 描述 + 入库 JSON。

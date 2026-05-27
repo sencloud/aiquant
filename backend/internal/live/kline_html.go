@@ -363,11 +363,64 @@ func renderKlineHTML(dataJSON string) string {
         name: 'DEA', type: 'line', data: DATA.dea,
         xAxisIndex: 2, yAxisIndex: 2,
         smooth: true, showSymbol: false, lineStyle: { color: '#69C0FF', width: 1 }
+      },
+      // 嘉宾发言标注承载 series — 数据线本身永远空,只用 markLine.data 装价位线。
+      // window.__setAnnotations(...) 调用时只重设这个 series 的 markLine,
+      // 不影响主图其他 series(K 线 / MA / MACD)。
+      {
+        name: '__annotations__',
+        type: 'line',
+        data: [],
+        xAxisIndex: 0, yAxisIndex: 0,
+        silent: true, showSymbol: false,
+        markLine: { silent: true, symbol: ['none','none'], data: [] }
       }
     ]
   };
   chart.setOption(option);
   window.addEventListener('resize', function(){ chart.resize(); });
+
+  // ── 嘉宾发言「与 K 线共振」JS Hook ─────────────────────────────────
+  // 前端拿到嘉宾新消息后聚合当前焦点的所有 annotations,
+  // 通过 webview.runJavaScript("window.__setAnnotations(JSON)") 推过来。
+  //
+  // annot 结构(来自 backend live.Annotation,前端拼上 persona 后传入):
+  //   { type, price, label, persona }
+  // type 颜色映射(必须和 guest_speaker.go 的 prompt 描述一致):
+  var ANNOT_STYLE = {
+    support:    { color: '#16A34A', type: 'solid'  },
+    resistance: { color: '#EF4444', type: 'solid'  },
+    stop:       { color: '#F97316', type: 'dashed' },
+    target:     { color: '#06B6D4', type: 'dashed' },
+    note:       { color: '#FACC15', type: 'dashed' }
+  };
+  window.__setAnnotations = function(arr){
+    if (!Array.isArray(arr)) arr = [];
+    var lines = arr.map(function(a){
+      var st = ANNOT_STYLE[a.type] || ANNOT_STYLE.note;
+      var who = a.persona ? (a.persona + '·') : '';
+      var labelText = who + (a.label || '') + ' ' + Number(a.price).toFixed(2);
+      return {
+        yAxis: Number(a.price),
+        name: labelText,
+        lineStyle: { color: st.color, type: st.type, width: 1 },
+        label: {
+          show: true,
+          formatter: '{b}',
+          color: '#fff',
+          backgroundColor: st.color,
+          padding: [1, 4],
+          borderRadius: 2,
+          position: 'insideEndTop',
+          fontSize: 9,
+          fontWeight: 700
+        }
+      };
+    });
+    chart.setOption({
+      series: [{ name: '__annotations__', markLine: { data: lines } }]
+    });
+  };
 })();
 </script>
 </body>
