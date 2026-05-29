@@ -342,6 +342,65 @@ func (s *Service) refundByTransaction(ctx context.Context, txID string, out *App
 	return nil
 }
 
+// CheckinCredits 是每日签到奖励额度(内部计量,÷10 后展示给用户)。
+// 10 = 用户看到的「1.0 喜点」。
+const CheckinCredits = 10
+
+// cstZone 用于按「自然日(北京时间)」界定签到周期,避免服务器 UTC 让用户
+// 在晚上 8 点后就「跨天」可重复签到。
+var cstZone = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}()
+
+// checkinRefID 生成「每用户每自然日唯一」的幂等键。
+//
+// credit_ledger 的幂等唯一索引是 (reason, ref_type, ref_id) —— 全局唯一,
+// 所以 ref_id 必须带 userID,否则同一天只有一个用户能签到。
+func checkinRefID(userID int64) string {
+	return fmt.Sprintf("%d:%s", userID, time.Now().In(cstZone).Format("2006-01-02"))
+}
+
+// CheckIn 每日签到领喜点。
+//
+// 幂等:同一用户当天重复调用只入账一次(靠 ref_id=<userID>:<日期> + 唯一索引)。
+// 返回:
+//   - balance       最新余额
+//   - awarded=true   本次成功发放(今天第一次签到)
+//   - awarded=false  今天已经签过,余额不变
+func (s *Service) CheckIn(ctx context.Context, userID int64) (balance int64, awarded bool, err error) {
+	_, e := s.ledger.Apply(ctx, ApplyParams{
+		UserID:  userID,
+		Delta:   CheckinCredits,
+		Reason:  ReasonCheckin,
+		RefType: "checkin",
+		RefID:   checkinRefID(userID),
+		Remark:  "每日签到",
+	})
+	if e != nil {
+		if errors.Is(e, ErrLedgerDuplicate) {
+			bal, _ := s.GetBalance(ctx, userID)
+			return bal, false, nil
+		}
+		return 0, false, platform.ErrInternal("BILLING.CHECKIN", e)
+	}
+	bal, _ := s.GetBalance(ctx, userID)
+	return bal, true, nil
+}
+
+// CheckInStatus 查询「今天是否已签到」+ 当前余额。
+func (s *Service) CheckInStatus(ctx context.Context, userID int64) (checkedToday bool, balance int64, err error) {
+	entry, e := s.ledger.FindByRef(ctx, ReasonCheckin, "checkin", checkinRefID(userID))
+	if e != nil {
+		return false, 0, platform.ErrInternal("BILLING.CHECKIN_STATUS", e)
+	}
+	bal, _ := s.GetBalance(ctx, userID)
+	return entry != nil, bal, nil
+}
+
 // DevTopup 仅 env=dev 启用：直冲，不经过 IAP。
 func (s *Service) DevTopup(ctx context.Context, userID int64, credits int64, remark string) (int64, error) {
 	if s.cfg.Env != "dev" {

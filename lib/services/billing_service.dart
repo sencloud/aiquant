@@ -66,6 +66,27 @@ class BillingService {
     return (r.data!['balance'] as num).toInt();
   }
 
+  /// 每日签到领喜点。返回 (最新余额, 本次是否发放成功)。
+  /// awarded=false 表示今天已经签过(余额不变)。
+  Future<({int balance, bool awarded})> checkIn() async {
+    final r = await _dio.post<Map<String, dynamic>>('/v1/credits/checkin');
+    final body = r.data!;
+    return (
+      balance: (body['balance'] as num).toInt(),
+      awarded: (body['awarded'] as bool?) ?? false,
+    );
+  }
+
+  /// 查询今天是否已签到 + 当前余额。
+  Future<({int balance, bool checkedToday})> checkInStatus() async {
+    final r = await _dio.get<Map<String, dynamic>>('/v1/credits/checkin');
+    final body = r.data!;
+    return (
+      balance: (body['balance'] as num).toInt(),
+      checkedToday: (body['checked_today'] as bool?) ?? false,
+    );
+  }
+
   Future<({List<CreditLedgerItem> items, int nextCursor})> listLedger({
     int cursor = 0,
     int limit = 30,

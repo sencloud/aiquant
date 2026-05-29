@@ -20,6 +20,7 @@ const (
 	ReasonRefund      = "refund"         // Apple 退款 / 客服处理
 	ReasonAdminAdjust = "admin_adjust"   // 后台手动调账
 	ReasonSignupGift  = "signup_gift"    // 注册赠送
+	ReasonCheckin     = "checkin"        // 每日签到奖励
 	ReasonConsumeAI   = "consume_ai"     // AI 助理消费
 	ReasonConsumeDing = "consume_ding"   // DING 任务消费
 	ReasonDevTopup    = "dev_topup"      // dev 模式直充（仅 env=dev 启用）

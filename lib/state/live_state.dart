@@ -89,6 +89,24 @@ class LiveState extends ChangeNotifier {
     }
   }
 
+  /// 删除一个已结束的直播间(连同聊天记录),成功后从本地列表移除。
+  ///
+  /// 返回 true=删除成功;false=失败(_lastError 已写好,UI 可提示)。
+  /// 正在直播的房间后端会拒绝(409),这里直接把错误抛回给调用方处理。
+  Future<bool> deleteRoom(String uuid) async {
+    try {
+      await _service.deleteRoom(uuid);
+      _rooms.removeWhere((r) => r.uuid == uuid);
+      _lastError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _lastError = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   /// 进入房间:重置状态,加载 detail + 启动轮询。
   ///
   /// 调用方应保证同一时刻只 enter 一个 room;LiveRoomScreen 离开时调 leaveRoom。

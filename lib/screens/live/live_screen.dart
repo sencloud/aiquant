@@ -116,9 +116,74 @@ class _LiveScreenState extends State<LiveScreen> {
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
         itemCount: s.rooms.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _RoomCard(room: s.rooms[i]),
+        itemBuilder: (context, i) {
+          final room = s.rooms[i];
+          final card = _RoomCard(
+            room: room,
+            // 已结束的房间才给删除入口(直播中不允许删)
+            onDelete: room.isLive ? null : () => _confirmDelete(context, room),
+          );
+          if (room.isLive) return card;
+          // 已结束:支持左滑删除(再加二次确认)
+          return Dismissible(
+            key: ValueKey('live_room_${room.uuid}'),
+            direction: DismissDirection.endToStart,
+            confirmDismiss: (_) => _confirmDelete(context, room),
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.delete_outline,
+                  color: AppColors.danger, size: 22),
+            ),
+            child: card,
+          );
+        },
       ),
     );
+  }
+
+  /// 删除已结束直播间的二次确认。返回是否真的删除了(供 Dismissible 用)。
+  Future<bool> _confirmDelete(BuildContext context, LiveRoom room) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgRaised,
+        title: const Text('删除这场直播?'),
+        content: Text(
+          '将永久删除「${room.title}」及其全部聊天记录,无法恢复。',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return false;
+    final state = context.read<LiveState>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await state.deleteRoom(room.uuid);
+      messenger.showSnackBar(const SnackBar(content: Text('已删除')));
+      return true;
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('删除失败:$e',
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+      ));
+      return false;
+    }
   }
 }
 
@@ -230,8 +295,11 @@ class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
 }
 
 class _RoomCard extends StatelessWidget {
-  const _RoomCard({required this.room});
+  const _RoomCard({required this.room, this.onDelete});
   final LiveRoom room;
+
+  /// 非空时在卡片右上角显示删除按钮(仅已结束房间)。
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -321,6 +389,16 @@ class _RoomCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (onDelete != null)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: onDelete,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Icon(Icons.delete_outline,
+                            color: AppColors.textTertiary, size: 16),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
