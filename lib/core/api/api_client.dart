@@ -140,6 +140,22 @@ class ApiClient {
     }
   }
 
+  /// 确保返回一个仍然有效的 access token（必要时自动用 refresh_token 续签）。
+  ///
+  /// 返回 null 表示 refresh 也失效（或刷新失败），调用方应提示"重新登录"。
+  ///
+  /// 用途：给**绕过 dio 拦截器**的原生请求（如 SSE 流式 `/v1/ai/chat`）复用
+  /// 同一套续签逻辑。否则那些请求会一直拿存储里可能已过期的 access token，
+  /// 聊到 access TTL（15 分钟）之后必然 401 `AUTH.TOKEN_INVALID: token is expired`。
+  Future<String?> ensureFreshAccessToken() async {
+    final pair = await _storage.loadTokens();
+    if (pair == null || pair.refreshExpired) return null;
+    final ok = await _ensureFreshAccess(pair);
+    if (!ok) return null;
+    final fresh = await _storage.loadTokens();
+    return fresh?.accessToken;
+  }
+
   /// 主动触发登出事件（业务层显式登出后调用，先 clear 再广播）。
   Future<void> notifyLogout() async {
     await _storage.clearAll();
