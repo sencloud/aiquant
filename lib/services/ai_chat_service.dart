@@ -33,8 +33,11 @@ class AiChatService {
     Map<String, dynamic>? portfolioContext,
   }) async* {
     final cfg = AppConfig.instance;
-    final tokens = await ApiClient.instance.storage.loadTokens();
-    if (tokens == null || tokens.refreshExpired) {
+    // SSE 走裸 http 绕过了 dio 拦截器，必须在这里主动续签：
+    // access TTL 仅 15 分钟，多聊几轮后若不刷新就会带着过期 token 发出，
+    // 后端 JWTMiddleware 返回 401 AUTH.TOKEN_INVALID: token is expired。
+    final accessToken = await ApiClient.instance.ensureFreshAccessToken();
+    if (accessToken == null) {
       yield AiChatEvent.error('AUTH.EXPIRED', '登录已过期，请重新登录');
       return;
     }
@@ -56,7 +59,7 @@ class AiChatService {
       HttpClient()..findProxy = (uri) => 'DIRECT',
     );
     final req = http.Request('POST', uri)
-      ..headers['Authorization'] = 'Bearer ${tokens.accessToken}'
+      ..headers['Authorization'] = 'Bearer $accessToken'
       ..headers['Content-Type'] = 'application/json'
       ..headers['Accept'] = 'text/event-stream'
       ..body = jsonEncode(body);
