@@ -5,6 +5,7 @@ import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../ding/ding_screen.dart';
+import '../live/live_screen.dart';
 import '../portfolio/portfolio_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -17,7 +18,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  int _index = 0; // 0 = 助理, 1 = 组合, 2 = DING, 3 = 我的
+  // 0 = 助理, 1 = 组合, 2 = AI 直播(中间凸起), 3 = DING, 4 = 我的
+  int _index = 0;
 
   @override
   void initState() {
@@ -44,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen>
     const pages = [
       AssistantScreen(),
       PortfolioScreen(),
+      LiveScreen(),
       DingScreen(),
       SettingsScreen(),
     ];
@@ -60,8 +63,9 @@ class _HomeScreenState extends State<HomeScreen>
           top: false,
           minimum: const EdgeInsets.only(bottom: 4),
           child: SizedBox(
-            height: 44,
+            height: 56,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _NavItem(
                   icon: Icons.psychology_outlined,
@@ -77,24 +81,100 @@ class _HomeScreenState extends State<HomeScreen>
                   active: _index == 1,
                   onTap: () => setState(() => _index = 1),
                 ),
+                _LiveCenterButton(
+                  active: _index == 2,
+                  onTap: () => setState(() => _index = 2),
+                ),
                 _NavItem(
                   icon: Icons.notifications_none,
                   activeIcon: Icons.notifications_active,
                   label: 'DING',
-                  active: _index == 2,
+                  active: _index == 3,
                   badge: unread,
-                  onTap: () => setState(() => _index = 2),
+                  onTap: () => setState(() => _index = 3),
                 ),
                 _NavItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: '我的',
-                  active: _index == 3,
-                  onTap: () => setState(() => _index = 3),
+                  active: _index == 4,
+                  onTap: () => setState(() => _index = 4),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 底部中间「AI 直播」凸起按钮 —— 圆形金黄渐变 + 直播红点,
+/// 比普通 tab 更突出,强调"实时直播"的核心入口地位。
+class _LiveCenterButton extends StatelessWidget {
+  const _LiveCenterButton({required this.active, required this.onTap});
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.amber, AppColors.amberDim],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.amber.withValues(alpha: active ? 0.55 : 0.3),
+                    blurRadius: active ? 12 : 6,
+                    spreadRadius: active ? 1 : 0,
+                  ),
+                ],
+                border: Border.all(color: AppColors.bgSurface, width: 2),
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.live_tv, color: Colors.white, size: 20),
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFef4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              '直播',
+              style: TextStyle(
+                color: active ? AppColors.amber : AppColors.textSecondary,
+                fontSize: 10,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );

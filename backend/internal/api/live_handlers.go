@@ -22,6 +22,7 @@ func mountLive(r chi.Router, d *Deps) {
 		r.Get("/rooms", handleLiveListRooms(d))
 		r.Post("/rooms", handleLiveCreateRoom(d))
 		r.Get("/rooms/{uuid}", handleLiveGetRoom(d))
+		r.Delete("/rooms/{uuid}", handleLiveDeleteRoom(d))
 		r.Get("/rooms/{uuid}/messages", handleLiveListMessages(d))
 		r.Get("/kline", handleLiveKline(d))
 	})
@@ -101,6 +102,33 @@ func handleLiveGetRoom(d *Deps) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, detail)
+	}
+}
+
+// DELETE /v1/live/rooms/{uuid}
+//
+// 删除一个已结束的直播间(连同聊天记录)。正在直播的房间不允许删除。
+func handleLiveDeleteRoom(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uuid := strings.TrimSpace(chi.URLParam(r, "uuid"))
+		if uuid == "" {
+			WriteError(w, r, platform.ErrBadRequest("LIVE.UUID_REQUIRED", "uuid required", nil))
+			return
+		}
+		err := d.Live.DeleteRoom(r.Context(), uuid)
+		if err != nil {
+			switch {
+			case errors.Is(err, live.ErrRoomNotFound):
+				WriteError(w, r, platform.ErrNotFound("LIVE.ROOM_NOT_FOUND", "room not found"))
+			case errors.Is(err, live.ErrCannotDeleteLive):
+				WriteError(w, r, platform.ErrConflict(
+					"LIVE.ROOM_IS_LIVE", "直播进行中,无法删除,请等待结束后再删"))
+			default:
+				WriteError(w, r, platform.ErrInternal("LIVE.DELETE_ROOM", err))
+			}
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{"deleted": true})
 	}
 }
 

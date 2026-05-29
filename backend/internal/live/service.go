@@ -33,6 +33,12 @@ func (s *Service) SetRunner(r *Runner) { s.runner = r }
 // ErrManualNotEnabled 表示当前进程没有挂载 Runner,无法处理手动开播。
 var ErrManualNotEnabled = errors.New("manual live not enabled in this process")
 
+// ErrRoomNotFound 删除/查询时房间不存在。
+var ErrRoomNotFound = errors.New("live room not found")
+
+// ErrCannotDeleteLive 不允许删除正在直播中的房间。
+var ErrCannotDeleteLive = errors.New("cannot delete a live room")
+
 // ── DTO ────────────────────────────────────────────────────────────────
 
 // RoomBrief 是房间列表项。
@@ -194,6 +200,29 @@ func (s *Service) CreateManualRoom(ctx context.Context, in CreateManualInput) (*
 	}
 	b := toRoomBrief(*room)
 	return &b, nil
+}
+
+// DeleteRoom 删除一个**已结束**的直播间(连同其全部聊天消息)。
+//
+// 约束:正在直播(status='live')的房间不允许删除 → ErrCannotDeleteLive。
+// 找不到房间 → ErrRoomNotFound。
+//
+// 删除顺序:先删消息再删房间(live_messages 无 FK 级联,需手动清)。
+func (s *Service) DeleteRoom(ctx context.Context, uuid string) error {
+	room, err := s.rooms.GetByUUID(ctx, uuid)
+	if err != nil {
+		return err
+	}
+	if room == nil {
+		return ErrRoomNotFound
+	}
+	if room.Status == RoomLive {
+		return ErrCannotDeleteLive
+	}
+	if err := s.messages.DeleteByRoomID(ctx, room.ID); err != nil {
+		return err
+	}
+	return s.rooms.DeleteByUUID(ctx, uuid)
 }
 
 // KlineHTML 拼装主图 K 线 HTML,返回 self-contained 字符串。

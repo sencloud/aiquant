@@ -29,6 +29,8 @@ func mountBillingPrivate(r chi.Router, d *Deps) {
 	r.Post("/credits/orders", handleCreateOrder(d))
 	r.Post("/credits/iap/verify", handleVerifyIAP(d))
 	r.Get("/credits/ledger", handleListLedger(d))
+	r.Get("/credits/checkin", handleCheckinStatus(d))
+	r.Post("/credits/checkin", handleCheckin(d))
 	if d.Config.Env == "dev" {
 		r.Post("/credits/dev/topup", handleDevTopup(d))
 	}
@@ -205,6 +207,41 @@ func handleDevTopup(d *Deps) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{"balance": bal})
+	}
+}
+
+// POST /v1/credits/checkin —— 每日签到领喜点(幂等,当天重复只发一次)。
+func handleCheckin(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uc := MustUser(r)
+		balance, awarded, err := d.Billing.CheckIn(r.Context(), uc.UserID)
+		if err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"balance":        balance,
+			"awarded":        awarded,
+			"checked_today":  true,
+			"reward_credits": billing.CheckinCredits,
+		})
+	}
+}
+
+// GET /v1/credits/checkin —— 查询今天是否已签到 + 当前余额。
+func handleCheckinStatus(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uc := MustUser(r)
+		checked, balance, err := d.Billing.CheckInStatus(r.Context(), uc.UserID)
+		if err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"balance":        balance,
+			"checked_today":  checked,
+			"reward_credits": billing.CheckinCredits,
+		})
 	}
 }
 

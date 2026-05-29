@@ -9,7 +9,6 @@ import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../ding/widgets/ding_task_editor.dart';
-import '../live/live_screen.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
@@ -54,6 +53,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
   /// 序列化进 SSE body 的 portfolio_context 字段。
   bool _attachPortfolio = false;
   bool _launchHandled = false;
+
+  /// 已经为哪个会话做过「进入即定位到最新消息」的初始滚动。
+  /// 切换会话 / 首次进入聊天区时,自动跳到底部展示最新消息(而不是停在最老)。
+  String? _scrolledSessionId;
 
   @override
   void dispose() {
@@ -204,6 +207,14 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
     if (chat.streaming) _scrollToBottom(animate: false);
 
+    // 进入聊天区 / 切换会话:首帧后定位到最新消息(底部),而非停在最老。
+    if (session != null &&
+        session.messages.isNotEmpty &&
+        session.id != _scrolledSessionId) {
+      _scrolledSessionId = session.id;
+      _scrollToBottom(animate: false);
+    }
+
     final issue = chat.chargeIssue;
     if (issue != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -299,12 +310,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
           StrategyPicker(
             disabled: chat.streaming,
             onRun: (s) => _runStrategy(s),
-          ),
-          const Spacer(),
-          _LiveEntryButton(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LiveScreen()),
-            ),
           ),
         ],
       ),
@@ -563,58 +568,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
             width: 36,
             height: 36,
             child: Icon(Icons.arrow_upward, color: Colors.white, size: 18),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 直播入口按钮：靠右排在策略之王旁边。
-///
-/// 用一个轻量"直播中"的红点 + 金色描边胶囊形 chip，与左侧两个下拉 tag
-/// 保持视觉一致，但通过红点 + Icons.live_tv 强调"实时性"。
-class _LiveEntryButton extends StatelessWidget {
-  const _LiveEntryButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.amber.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.amber.withValues(alpha: 0.6)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFef4444),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.live_tv, size: 14, color: AppColors.amber),
-              const SizedBox(width: 4),
-              const Text(
-                '直播',
-                style: TextStyle(
-                  color: AppColors.amber,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
           ),
         ),
       ),

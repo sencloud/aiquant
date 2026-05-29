@@ -41,6 +41,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _onCheckin(BillingState b) async {
+    final r = await b.checkIn();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r.message),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
   Future<void> _onPackageTap(BillingState b, CreditSku sku) async {
     final ok = await b.purchase(sku);
     if (!mounted) return;
@@ -113,6 +122,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _AccountTile(nickname: user.nickname, uuid: user.uuid),
             if (user != null) const SizedBox(height: 16),
             _BalanceCard(balance: balance, loading: billing.loadingBalance),
+            const SizedBox(height: 12),
+            _CheckinCard(
+              checkedIn: billing.checkedInToday,
+              loading: billing.checkingIn,
+              onTap: () => _onCheckin(billing),
+            ),
             const SizedBox(height: 24),
             _section('充值喜点'),
             const SizedBox(height: 8),
@@ -295,6 +310,139 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
+/// 每日签到卡片 —— 签到领 1 喜点。今天已签到则显示禁用态 + 勾选。
+class _CheckinCard extends StatelessWidget {
+  const _CheckinCard({
+    required this.checkedIn,
+    required this.loading,
+    required this.onTap,
+  });
+  final bool checkedIn;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = checkedIn;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.bgRaised,
+        border: Border.all(color: AppColors.borderDim),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: (done ? AppColors.positive : AppColors.amber)
+                  .withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              done ? Icons.event_available : Icons.card_giftcard,
+              color: done ? AppColors.positive : AppColors.amber,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '每日签到',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  done ? '今天已签到,明天再来领' : '每天签到免费领 1.0 喜点',
+                  style: TextStyle(
+                      color: AppColors.textTertiary, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _CheckinButton(done: done, loading: loading, onTap: onTap),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckinButton extends StatelessWidget {
+  const _CheckinButton({
+    required this.done,
+    required this.loading,
+    required this.onTap,
+  });
+  final bool done;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    if (done) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderDim),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check, color: AppColors.positive, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              '已签到',
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Material(
+      color: AppColors.amber,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          child: Text(
+            '签到',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PackageTile extends StatelessWidget {
   const _PackageTile({
     required this.sku,
@@ -425,20 +573,41 @@ class _AccountTile extends StatelessWidget {
     final shortId = uuid.length > 8 ? uuid.substring(0, 8) : uuid;
     final display = nickname.isEmpty ? 'Apple 用户' : nickname;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: AppColors.bgRaised,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgRaised,
+            AppColors.amber.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
         border: Border.all(color: AppColors.borderDim),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.amber.withValues(alpha: 0.18),
-            child: const Icon(Icons.apple, color: AppColors.amber, size: 22),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [AppColors.amber, AppColors.amberDim],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.amber.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.apple, color: Colors.white, size: 26),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,12 +615,23 @@ class _AccountTile extends StatelessWidget {
                 Text(display,
                     style: TextStyle(
                         color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text('账号 ID · $shortId',
-                    style: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 11)),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.borderDim),
+                  ),
+                  child: Text('ID · $shortId',
+                      style: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
           ),

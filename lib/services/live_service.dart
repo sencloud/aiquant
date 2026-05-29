@@ -31,6 +31,14 @@ class LiveService {
     return LiveRoom.fromJson(r.data!);
   }
 
+  /// 删除一个已结束的直播间(连同聊天记录)。
+  ///
+  /// 服务端约束:正在直播(status='live')的房间不允许删除,会抛 ApiException
+  /// (statusCode=409, code='LIVE.ROOM_IS_LIVE')。
+  Future<void> deleteRoom(String uuid) async {
+    await _client.dio.delete<Map<String, dynamic>>('/v1/live/rooms/$uuid');
+  }
+
   /// 列直播间(最近 N 场,含 live + ended,按 started_at desc)。
   Future<List<LiveRoom>> listRooms({int limit = 20}) async {
     final r = await _client.dio.get<Map<String, dynamic>>(

@@ -158,6 +158,12 @@ func (r *RoomRepo) MarkAbnormal(ctx context.Context, id int64, errMsg string) er
 	return err
 }
 
+// DeleteByUUID 删除单个房间行(仅房间本身;消息由 Service 层先删)。
+func (r *RoomRepo) DeleteByUUID(ctx context.Context, u string) error {
+	_, err := r.st.DB.ExecContext(ctx, `DELETE FROM live_rooms WHERE uuid=?`, u)
+	return err
+}
+
 // DecodeGuestPersonas 把 guest_personas JSON 解为 PersonaRef 数组。
 // 解析失败返回空数组(便于上层渲染)。
 func (rm *Room) DecodeGuestPersonas() []PersonaRef {

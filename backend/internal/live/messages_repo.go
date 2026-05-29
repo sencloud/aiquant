@@ -129,3 +129,10 @@ func (r *MessageRepo) CountByRoom(ctx context.Context, roomID int64) (int, error
 		SELECT COUNT(*) FROM live_messages WHERE room_id=?`, roomID)
 	return n, err
 }
+
+// DeleteByRoomID 删除某房间的全部消息。用于删除已结束直播间(连同其聊天记录)。
+func (r *MessageRepo) DeleteByRoomID(ctx context.Context, roomID int64) error {
+	_, err := r.st.DB.ExecContext(ctx,
+		`DELETE FROM live_messages WHERE room_id=?`, roomID)
+	return err
+}

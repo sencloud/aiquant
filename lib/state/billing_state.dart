@@ -67,6 +67,12 @@ class BillingState extends ChangeNotifier {
   int _restoredCount = 0;
   int get restoredCount => _restoredCount;
 
+  // ── 每日签到 ──────────────────────────────────────────────────────────
+  bool _checkedInToday = false;
+  bool get checkedInToday => _checkedInToday;
+  bool _checkingIn = false;
+  bool get checkingIn => _checkingIn;
+
   final List<CreditLedgerItem> _ledger = [];
   List<CreditLedgerItem> get ledger => List.unmodifiable(_ledger);
   int _ledgerCursor = 0;
@@ -78,9 +84,48 @@ class BillingState extends ChangeNotifier {
   // ── 操作 ──────────────────────────────────────────────────────────────
 
   Future<void> refreshAll() async {
-    await Future.wait([refreshBalance(), refreshSkus()]);
+    await Future.wait([refreshBalance(), refreshSkus(), refreshCheckinStatus()]);
     // 顺手补一次未到账订单。失败会保留在 prefsBox 等下次再投。
     unawaited(restoreUnverifiedPurchases());
+  }
+
+  /// 拉「今天是否已签到」状态(顺带刷新余额)。
+  Future<void> refreshCheckinStatus() async {
+    try {
+      final r = await _service.checkInStatus();
+      _checkedInToday = r.checkedToday;
+      _balance = r.balance;
+      notifyListeners();
+    } catch (_) {
+      // 状态查询失败不阻塞页面,保持上一次值即可。
+    }
+  }
+
+  /// 每日签到领喜点。返回 (本次是否成功发放, 提示文案)。
+  /// awarded=false 且无异常表示今天已经签过。
+  Future<({bool awarded, String message})> checkIn() async {
+    if (_checkingIn) return (awarded: false, message: '正在签到…');
+    _checkingIn = true;
+    notifyListeners();
+    try {
+      final r = await _service.checkIn();
+      _balance = r.balance;
+      _checkedInToday = true;
+      _lastError = null;
+      notifyListeners();
+      if (r.awarded) {
+        unawaited(refreshLedger(reset: true));
+        return (awarded: true, message: '签到成功 +1.0 喜点');
+      }
+      return (awarded: false, message: '今天已经签到过啦');
+    } catch (e) {
+      _lastError = _msg(e);
+      notifyListeners();
+      return (awarded: false, message: _msg(e));
+    } finally {
+      _checkingIn = false;
+      notifyListeners();
+    }
   }
 
   Future<void> refreshSkus() async {
@@ -340,6 +385,7 @@ class BillingState extends ChangeNotifier {
     _ledgerCursor = 0;
     _ledgerHasMore = true;
     _restoredCount = 0;
+    _checkedInToday = false;
     // 清掉本地待补 receipt：它们都属于上一个账号，到新账号下重投只会 403。
     final stale = prefsBox.keys
         .where((k) => k is String && k.startsWith(_kPendingReceiptPrefix))
