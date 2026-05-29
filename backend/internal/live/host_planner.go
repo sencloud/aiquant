@@ -49,6 +49,10 @@ type PlanInput struct {
 	History          []Message        // 最近 N 条消息(给上下文)
 	CurrentFocus     string           // 当前焦点(可空)
 	CurrentFocusName string
+	// PinnedSymbol 非空表示本场是"指定个股专场"(用户手动建的房间):
+	// 主持人必须全程锁定这只票,禁止 switch 到候选池其它股票,候选池也不展示。
+	PinnedSymbol     string
+	PinnedName       string
 	MessageCount     int             // 房间至今总消息数(用于判断该不该收尾)
 	SoftCloseAfterN  int             // 软上限:超过这个数主持人会倾向 close
 }
@@ -132,6 +136,14 @@ func (p *HostPlanner) systemPrompt(in PlanInput) string {
 	b.WriteString("- 不要长篇大论自我表达\n")
 	b.WriteString("- 不要一直问同一只票超过 4 轮,要主动 switch 或 topic\n\n")
 
+	if in.PinnedSymbol != "" {
+		b.WriteString("\n# 本场是「指定个股专场」(重要)\n")
+		b.WriteString(fmt.Sprintf("- 本场全程锁定 %s(%s)。所有 ask/switch/react_prompt 的 focus 都必须是这只票。\n",
+			in.PinnedName, in.PinnedSymbol))
+		b.WriteString("- **严禁 switch 到其它股票**,也不要谈与它无关的个股。\n")
+		b.WriteString("- 可以用 `topic` 穿插与它强相关的宏观 / 行业 / 政策话题(如所在行业景气、上下游、对标公司),但聊完要拉回这只票。\n\n")
+	}
+
 	b.WriteString("# 嘉宾列表(target_persona 只能用以下 id)\n")
 	for _, g := range in.Guests {
 		b.WriteString(fmt.Sprintf("- `%s` (%s)\n", g.ID, g.Name))
@@ -159,7 +171,7 @@ func (p *HostPlanner) userPrompt(in PlanInput) string {
 		b.WriteString("当前焦点股票:无\n\n")
 	}
 
-	if len(in.CandidatePool) > 0 {
+	if len(in.CandidatePool) > 0 && in.PinnedSymbol == "" {
 		b.WriteString("候选股票池(可切换 focus 时从中选,优先选还没聊过的):\n")
 		for _, c := range in.CandidatePool {
 			reason := c.Reason
@@ -200,7 +212,15 @@ func (p *HostPlanner) userPrompt(in PlanInput) string {
 		}
 		b.WriteString("\n")
 	} else {
-		b.WriteString("# 当前是开场第一条,请用 open action 开场。\n")
+		if in.PinnedSymbol != "" {
+			b.WriteString(fmt.Sprintf(
+				"# 当前是开场第一条。本场为用户**指定股票【%s(%s)】的专场**:\n"+
+					"请用 open action 开场,focus_symbol 必须填 \"%s\"、focus_name 填 \"%s\","+
+					"开场即点名第一位嘉宾针对这只票发言,整场围绕它展开。\n",
+				in.PinnedName, in.PinnedSymbol, in.PinnedSymbol, in.PinnedName))
+		} else {
+			b.WriteString("# 当前是开场第一条,请用 open action 开场。\n")
+		}
 	}
 	b.WriteString("\n请给出你下一条主持人发言的 JSON。")
 	return b.String()

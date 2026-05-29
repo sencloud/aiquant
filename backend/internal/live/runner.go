@@ -62,8 +62,8 @@ func NewRunner(
 		StaleAfter:         5 * time.Minute,
 		PaceInterval:       35 * time.Second, // 平均 35s/条 — 用户能跟上节奏看历史
 		PaceJitter:         10 * time.Second,
-		MaxMessagesPerRoom: 30,
-		SoftCloseAfter:     22,
+		MaxMessagesPerRoom: 60,
+		SoftCloseAfter:     50,
 		running:            map[int64]context.CancelFunc{},
 	}
 }
@@ -331,6 +331,19 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		return
 	}
 
+	// 手动房间且用户指定了个股 → 锁定焦点:主持人全程围绕这只票,禁止 switch 到别的票
+	// (修复"自己创建直播指定的股票,直播过程里没讨论")。
+	pinnedSym, pinnedName := "", ""
+	if room.Origin == OriginManual &&
+		room.CurrentFocusSymbol.Valid && room.CurrentFocusSymbol.String != "" {
+		pinnedSym = room.CurrentFocusSymbol.String
+		if room.CurrentFocusName.Valid && room.CurrentFocusName.String != "" {
+			pinnedName = room.CurrentFocusName.String
+		} else {
+			pinnedName = pinnedSym
+		}
+	}
+
 	failures := 0
 	for {
 		select {
@@ -379,6 +392,10 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		// 1. host 决策
 		history, _ := r.messages.ListRecent(ctx, rid, 12)
 		focus, focusName := currentFocus(history)
+		// 开场/历史里还没出现焦点时,用房间预设焦点兜底(手动房间用户指定的票)。
+		if focus == "" && pinnedSym != "" {
+			focus, focusName = pinnedSym, pinnedName
+		}
 		action, err := r.host.Plan(ctx, PlanInput{
 			Host:             host,
 			Guests:           guests,
@@ -388,6 +405,8 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			History:          history,
 			CurrentFocus:     focus,
 			CurrentFocusName: focusName,
+			PinnedSymbol:     pinnedSym,
+			PinnedName:       pinnedName,
 			MessageCount:     cnt,
 			SoftCloseAfterN:  r.SoftCloseAfter,
 		})
@@ -417,6 +436,17 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			continue
 		}
 		failures = 0
+
+		// 指定个股专场:即使 LLM 违规想 switch 到别的票,也强制把焦点锁回指定股。
+		if pinnedSym != "" {
+			if action.Action == "switch" {
+				action.Action = "ask"
+			}
+			if action.FocusSymbol != "" && !strings.EqualFold(action.FocusSymbol, pinnedSym) {
+				action.FocusSymbol = pinnedSym
+				action.FocusName = pinnedName
+			}
+		}
 
 		// 2. 写 host message
 		hostRole := actionToRole(action.Action)
