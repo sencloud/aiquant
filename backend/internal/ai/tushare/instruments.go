@@ -1,6 +1,65 @@
 package tushare
 
-import "context"
+import (
+	"context"
+	"strings"
+)
+
+// ResolveEquity 把用户自由输入(代码 / 名称 / 已迁移的旧代码)解析为**当前有效**的
+// ts_code + 名称。命中顺序:
+//
+//	1) ts_code 精确(对输入做 NormalizeSymbol 后比对)
+//	2) 6 位 symbol 精确
+//	3) 名称精确(先用 nameInput,再用 codeInput 当名称)
+//	4) 名称包含
+//
+// 主要解决:北交所大量股票已从 8xxxxx 迁移到 920xxx(如 贝特瑞 835185→920185),
+// 用户输入旧码 / 直接输名称时,据此映射到当前 daily 接口能查到的 ts_code。
+// 未命中返回 ("","",false),调用方保留原输入即可。
+func (c *Client) ResolveEquity(ctx context.Context, codeInput, nameInput string) (tsCode, name string, ok bool) {
+	list, err := c.StockBasic(ctx)
+	if err != nil || len(list) == 0 {
+		return "", "", false
+	}
+	code := strings.ToUpper(strings.TrimSpace(codeInput))
+
+	// 1) ts_code 精确
+	norm := NormalizeSymbol(code)
+	for _, it := range list {
+		if strings.EqualFold(it.TsCode, norm) || strings.EqualFold(it.TsCode, code) {
+			return it.TsCode, it.Name, true
+		}
+	}
+	// 2) 6 位 symbol 精确(去掉可能的 .XX 后缀)
+	bare := code
+	if i := strings.IndexByte(bare, '.'); i > 0 {
+		bare = bare[:i]
+	}
+	if bare != "" {
+		for _, it := range list {
+			if it.Symbol == bare {
+				return it.TsCode, it.Name, true
+			}
+		}
+	}
+	// 3) / 4) 名称精确 → 名称包含(优先 nameInput,其次把 codeInput 当名称)
+	for _, cand := range []string{strings.TrimSpace(nameInput), strings.TrimSpace(codeInput)} {
+		if cand == "" {
+			continue
+		}
+		for _, it := range list {
+			if it.Name == cand {
+				return it.TsCode, it.Name, true
+			}
+		}
+		for _, it := range list {
+			if strings.Contains(it.Name, cand) {
+				return it.TsCode, it.Name, true
+			}
+		}
+	}
+	return "", "", false
+}
 
 // StockBasic 返回 A 股 basic 全集，缓存到 c.cache。
 func (c *Client) StockBasic(ctx context.Context) ([]Instrument, error) {

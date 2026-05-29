@@ -95,7 +95,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
   ///   打断旧动画造成抖动闪烁）。
   /// - [animate]=true：用 animateTo（首次发送 / 接收完毕调用一次）。
   void _scrollToBottom({bool animate = true}) {
-    if (!_scroll.hasClients) return;
+    // 注意:首帧 build 时 ScrollController 尚未 attach(hasClients=false),
+    // 所以 hasClients 判断必须放进 postFrame 回调里,否则进入会话首次定位会被直接 return 掉。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
       final target = _scroll.position.maxScrollExtent;
@@ -108,6 +109,21 @@ class _AssistantScreenState extends State<AssistantScreen> {
       } else {
         _scroll.jumpTo(target);
       }
+    });
+  }
+
+  /// 进入 / 切换会话时的「定位到最新」。markdown / 图片会在首帧后继续撑开高度,
+  /// 单次 jump 到首帧的 maxScrollExtent 往往偏短,这里首帧 + 延迟各跳一次,确保贴底。
+  void _scrollToBottomInitial() {
+    void jump() {
+      if (!_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      jump();
+      Future.delayed(const Duration(milliseconds: 180), jump);
+      Future.delayed(const Duration(milliseconds: 420), jump);
     });
   }
 
@@ -212,7 +228,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         session.messages.isNotEmpty &&
         session.id != _scrolledSessionId) {
       _scrolledSessionId = session.id;
-      _scrollToBottom(animate: false);
+      _scrollToBottomInitial();
     }
 
     final issue = chat.chargeIssue;

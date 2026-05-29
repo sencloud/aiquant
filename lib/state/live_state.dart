@@ -115,7 +115,7 @@ class LiveState extends ChangeNotifier {
     _enteringRoom = true;
     notifyListeners();
     try {
-      final detail = await _service.getRoomDetail(uuid, recent: 50);
+      final detail = await _service.getRoomDetail(uuid, recent: 200);
       _currentRoom = detail.room;
       _messages
         ..clear()

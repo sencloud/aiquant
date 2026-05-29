@@ -191,9 +191,19 @@ func (s *Service) CreateManualRoom(ctx context.Context, in CreateManualInput) (*
 	if s.runner == nil {
 		return nil, ErrManualNotEnabled
 	}
+	focusSym := strings.ToUpper(strings.TrimSpace(in.FocusSymbol))
+	focusName := strings.TrimSpace(in.FocusName)
+	// 把用户自由输入(代码 / 名称 / 北交所旧码)解析为当前有效 ts_code,
+	// 否则 daily 查不到数据 → K 线空白,且主持人也拿不到正确焦点。
+	if (focusSym != "" || focusName != "") && s.kline != nil && s.kline.tu != nil {
+		if code, name, found := s.kline.tu.ResolveEquity(ctx, focusSym, focusName); found {
+			focusSym = code
+			focusName = name
+		}
+	}
 	room, err := s.runner.StartManualRoom(ctx, ManualRoomOptions{
-		FocusSymbol: strings.ToUpper(strings.TrimSpace(in.FocusSymbol)),
-		FocusName:   strings.TrimSpace(in.FocusName),
+		FocusSymbol: focusSym,
+		FocusName:   focusName,
 	})
 	if err != nil {
 		return nil, err
