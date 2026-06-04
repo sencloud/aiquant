@@ -149,24 +149,13 @@ class _ImportScreenshotDialogState extends State<ImportScreenshotDialog> {
             ),
           ],
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _pick(ImageSource.gallery),
-                  icon: const Icon(Icons.image_outlined, size: 16),
-                  label: const Text('从相册选择'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _pick(ImageSource.camera),
-                  icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                  label: const Text('立即拍照'),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _pick(ImageSource.gallery),
+              icon: const Icon(Icons.image_outlined, size: 16),
+              label: const Text('从相册选择'),
+            ),
           ),
         ],
       ),
@@ -339,7 +328,7 @@ class _ImportScreenshotDialogState extends State<ImportScreenshotDialog> {
         maxWidth: 2400,
       );
     } catch (e) {
-      setState(() => _error = '调起相册/相机失败：$e');
+      setState(() => _error = '调起相册失败：$e');
       return;
     }
     if (file == null) return;
