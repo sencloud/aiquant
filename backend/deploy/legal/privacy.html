@@ -103,7 +103,7 @@
 <h2>四、信息存储与安全</h2>
 <ul>
   <li><strong>位置</strong>：服务端数据库与日志托管于阿里云中国大陆地区（华东 2 上海）。</li>
-  <li><strong>加密</strong>：传输层使用 HTTPS / TLS 1.2+；服务端敏感字段使用 AES-256 加密；密码相关字段（如短信验证码）使用 Argon2id 哈希。</li>
+  <li><strong>加密</strong>：传输层使用 HTTPS / TLS 1.2+；服务端敏感字段使用 AES-256 加密。</li>
   <li><strong>访问控制</strong>：服务端密钥仅运维人员持有；JWT 双 token 机制限制接口访问。</li>
   <li><strong>保留期</strong>：账户身份信息仅在账号有效期内保留；订单流水按金融监管要求保留 5 年；安全审计日志 30 天。</li>
 </ul>
