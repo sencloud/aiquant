@@ -416,7 +416,7 @@ class _ShareCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Text(
-              'xikuan.ai',
+              'singzquant.com',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 10,

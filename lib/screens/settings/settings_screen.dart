@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _section('喜点说明'),
             const SizedBox(height: 6),
             _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理与行情分析。'),
-            _bulletText('• 每次回答消耗 0.6 喜点，含行情查询则按次再加 0.1 喜点。'),
+            _bulletText('• 每次回答消耗 6 喜点，含行情查询则按次再加 1 喜点。'),
             _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
             if (user != null) ...[
               const SizedBox(height: 24),
@@ -310,7 +310,7 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-/// 每日签到卡片 —— 签到领 1 喜点。今天已签到则显示禁用态 + 勾选。
+/// 每日签到卡片 —— 签到领 10 喜点。今天已签到则显示禁用态 + 勾选。
 class _CheckinCard extends StatelessWidget {
   const _CheckinCard({
     required this.checkedIn,
@@ -362,7 +362,7 @@ class _CheckinCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  done ? '今天已签到,明天再来领' : '每天签到免费领 1.0 喜点',
+                  done ? '今天已签到,明天再来领' : '每天签到免费领 10 喜点',
                   style: TextStyle(
                       color: AppColors.textTertiary, fontSize: 11),
                 ),
@@ -571,7 +571,7 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shortId = uuid.length > 8 ? uuid.substring(0, 8) : uuid;
-    final display = nickname.isEmpty ? 'Apple 用户' : nickname;
+    final display = nickname.isEmpty ? '宽友' : nickname;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
@@ -612,11 +612,25 @@ class _AccountTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(display,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(display,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900)),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => _editNickname(context),
+                      child: Icon(Icons.edit_outlined,
+                          color: AppColors.textTertiary, size: 16),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -638,6 +652,55 @@ class _AccountTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _editNickname(BuildContext context) async {
+    final ctrl = TextEditingController(text: nickname);
+    final newNick = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgRaised,
+        title: const Text('修改昵称'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 20,
+          style: TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            hintText: '输入新昵称',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.amber,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (newNick == null || newNick.isEmpty || newNick == nickname) return;
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context.read<AuthState>().updateNickname(newNick);
+      messenger.showSnackBar(const SnackBar(content: Text('昵称已更新')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('修改失败:$e',
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+      ));
+    }
   }
 }
 

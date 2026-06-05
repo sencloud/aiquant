@@ -43,6 +43,9 @@ func ErrNotFound(code, msg string) *APIError {
 func ErrConflict(code, msg string) *APIError {
 	return NewAPIError(http.StatusConflict, code, msg, nil)
 }
+func ErrPaymentRequired(code, msg string) *APIError {
+	return NewAPIError(http.StatusPaymentRequired, code, msg, nil)
+}
 func ErrTooManyRequests(code, msg string) *APIError {
 	return NewAPIError(http.StatusTooManyRequests, code, msg, nil)
 }

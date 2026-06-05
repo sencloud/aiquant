@@ -80,11 +80,12 @@ class _LiveScreenState extends State<LiveScreen> {
       final res = await state.createManualRoom(
         focusSymbol: input.symbol,
         focusName: input.name,
+        visibility: input.visibility,
       );
       if (!navigator.mounted) return;
       if (!res.isNew) {
         messenger.showSnackBar(const SnackBar(
-          content: Text('已有直播间正在进行,直接进入查看'),
+          content: Text('你已有直播间正在进行,直接进入查看'),
         ));
       }
       await navigator.push(
@@ -93,11 +94,26 @@ class _LiveScreenState extends State<LiveScreen> {
         ),
       );
     } catch (e) {
+      // 余额不足:引导去充值
+      final code = _apiCode(e);
+      if (code == 'LIVE.INSUFFICIENT_BALANCE') {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('喜点不足,创建直播间需要 1 喜点,请先到「我的」充值'),
+        ));
+        return;
+      }
       messenger.showSnackBar(SnackBar(
         content: Text('新建直播间失败:$e',
             maxLines: 2, overflow: TextOverflow.ellipsis),
       ));
     }
+  }
+
+  /// 从异常里抠出后端 error code(用于区分余额不足等)。
+  String _apiCode(Object e) {
+    final s = e.toString();
+    final m = RegExp(r'LIVE\.[A-Z_]+').firstMatch(s);
+    return m?.group(0) ?? '';
   }
 
   Widget _buildBody(BuildContext context, LiveState s) {
@@ -107,7 +123,8 @@ class _LiveScreenState extends State<LiveScreen> {
     if (s.rooms.isEmpty) {
       return _emptyHint(
         '还没有直播间',
-        '工作日 9:30/11:30/14:30/15:30 各开一场,主持人会带嘉宾实时聊大盘和热点票。',
+        '工作日 9:30/11:30/14:30/15:30 各开一场。你也可以点右下角「新建直播间」,'
+            '指定一只票开专场,还能在自己的房间里参与讨论。',
       );
     }
     return RefreshIndicator(
@@ -118,13 +135,14 @@ class _LiveScreenState extends State<LiveScreen> {
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, i) {
           final room = s.rooms[i];
+          // 只能删除自己创建的、已结束的房间(后端同样限制本人)
+          final canDelete = room.mine && !room.isLive;
           final card = _RoomCard(
             room: room,
-            // 已结束的房间才给删除入口(直播中不允许删)
-            onDelete: room.isLive ? null : () => _confirmDelete(context, room),
+            onDelete: canDelete ? () => _confirmDelete(context, room) : null,
           );
-          if (room.isLive) return card;
-          // 已结束:支持左滑删除(再加二次确认)
+          if (!canDelete) return card;
+          // 已结束 + 本人:支持左滑删除(再加二次确认)
           return Dismissible(
             key: ValueKey('live_room_${room.uuid}'),
             direction: DismissDirection.endToStart,
@@ -188,9 +206,10 @@ class _LiveScreenState extends State<LiveScreen> {
 }
 
 class _ManualRoomInput {
-  const _ManualRoomInput({this.symbol, this.name});
+  const _ManualRoomInput({this.symbol, this.name, this.visibility = 'public'});
   final String? symbol;
   final String? name;
+  final String visibility; // public / private
 }
 
 /// 新建直播间对话框:可选填一只票作为开场焦点(留空则由主持人自挑)。
@@ -208,6 +227,7 @@ class _NewManualRoomDialog extends StatefulWidget {
 class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
   final _symbolCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  bool _private = false;
 
   @override
   void dispose() {
@@ -267,6 +287,43 @@ class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
           ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _visChoice(
+                  label: '公开',
+                  desc: '所有人可见',
+                  icon: Icons.public,
+                  selected: !_private,
+                  onTap: () => setState(() => _private = false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _visChoice(
+                  label: '私密',
+                  desc: '仅自己可见',
+                  icon: Icons.lock_outline,
+                  selected: _private,
+                  onTap: () => setState(() => _private = true),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.toll, color: AppColors.amber, size: 14),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '创建将消耗 1 喜点;开播后你可以在房间里参与讨论。',
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       actions: [
@@ -286,10 +343,57 @@ class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
     );
   }
 
+  Widget _visChoice({
+    required String label,
+    required String desc,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final color = selected ? AppColors.amber : AppColors.textTertiary;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.amber.withValues(alpha: 0.12)
+              : AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? AppColors.amber : AppColors.borderDim,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+                Text(desc,
+                    style: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 10)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _submit() {
     Navigator.of(context).pop(_ManualRoomInput(
       symbol: _symbolCtrl.text.trim().isEmpty ? null : _symbolCtrl.text.trim(),
       name: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
+      visibility: _private ? 'private' : 'public',
     ));
   }
 }
@@ -353,6 +457,14 @@ class _RoomCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   if (room.isManual) ...[
                     _manualChip(),
+                    const SizedBox(width: 6),
+                  ],
+                  if (room.mine) ...[
+                    _tagChip('我的', const Color(0xFF38bdf8)),
+                    const SizedBox(width: 6),
+                  ],
+                  if (room.isPrivate) ...[
+                    _tagChip('私密', AppColors.textSecondary, icon: Icons.lock_outline),
                     const SizedBox(width: 6),
                   ],
                   Text(
@@ -495,6 +607,30 @@ class _RoomCard extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+
+  Widget _tagChip(String label, Color color, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: color, size: 10),
+            const SizedBox(width: 2),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+                color: color, fontSize: 10, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

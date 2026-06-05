@@ -115,7 +115,7 @@ class BillingState extends ChangeNotifier {
       notifyListeners();
       if (r.awarded) {
         unawaited(refreshLedger(reset: true));
-        return (awarded: true, message: '签到成功 +1.0 喜点');
+        return (awarded: true, message: '签到成功 +10 喜点');
       }
       return (awarded: false, message: '今天已经签到过啦');
     } catch (e) {
