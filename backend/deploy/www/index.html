@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>喜宽 · AI 投研助理｜聊行情、管组合、做日报</title>
+<meta name="description" content="喜宽是一款轻量的 AI 投资助手：多位 AI 分析师在「直播间」实时聊盘、K 线随讨论联动，你也能随时提问、管理组合、生成每日日报。仅供学习参考，不构成投资建议。">
+<meta name="theme-color" content="#0A0A0A">
+<meta property="og:title" content="喜宽 · AI 投研助理">
+<meta property="og:description" content="多位 AI 分析师实时聊盘，K 线随讨论联动。聊行情、管组合、做日报。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://singzquant.com">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A0A0A'/><rect x='8' y='10' width='3' height='12' rx='1' fill='%23D97706'/><rect x='14.5' y='6' width='3' height='20' rx='1' fill='%23E5E5E5'/><rect x='21' y='13' width='3' height='9' rx='1' fill='%23D97706'/></svg>">
+<style>
+  :root{
+    --bg:#0A0A0A; --surface:#141414; --raised:#1C1C1C; --hover:#222;
+    --border:#2A2A2A; --border-med:#3A3A3A;
+    --tx:#E5E5E5; --tx2:#9E9E9E; --tx3:#6B6B6B;
+    --amber:#D97706; --amber-dim:#B35B05; --amber-soft:rgba(217,118,6,.12);
+    --up:#DC2626; --down:#16A34A;
+    --maxw:1100px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;
+    background:var(--bg); color:var(--tx); line-height:1.6;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .amber{color:var(--amber)}
+
+  /* glow backdrop */
+  .glow{position:fixed;inset:0;z-index:-1;pointer-events:none}
+  .glow::before{content:"";position:absolute;top:-180px;left:50%;transform:translateX(-50%);
+    width:760px;height:540px;border-radius:50%;
+    background:radial-gradient(circle,rgba(217,118,6,.20),transparent 62%);filter:blur(30px)}
+  .glow::after{content:"";position:absolute;bottom:-220px;right:-120px;width:520px;height:520px;border-radius:50%;
+    background:radial-gradient(circle,rgba(220,38,38,.10),transparent 60%);filter:blur(40px)}
+
+  /* nav */
+  header{position:sticky;top:0;z-index:50;backdrop-filter:saturate(160%) blur(12px);
+    background:rgba(10,10,10,.72);border-bottom:1px solid var(--border)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.5px}
+  .brand svg{display:block}
+  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--tx2)}
+  .nav-links a:hover{color:var(--tx)}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;font-weight:700;
+    font-size:14px;padding:10px 20px;transition:.18s;border:1px solid transparent;white-space:nowrap}
+  .btn-primary{background:linear-gradient(135deg,var(--amber),var(--amber-dim));color:#1a1206;
+    box-shadow:0 6px 20px rgba(217,118,6,.28)}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(217,118,6,.4)}
+  .btn-ghost{border-color:var(--border-med);color:var(--tx)}
+  .btn-ghost:hover{background:var(--hover);border-color:var(--amber)}
+  @media(max-width:720px){.nav-links{display:none}}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;
+    padding:72px 0 64px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
+    color:var(--amber);background:var(--amber-soft);border:1px solid rgba(217,118,6,.3);
+    padding:6px 13px;border-radius:999px;letter-spacing:.5px}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 0 4px rgba(217,118,6,.25);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  h1{font-size:clamp(32px,5vw,52px);line-height:1.18;font-weight:850;margin:20px 0 18px;letter-spacing:-.5px}
+  .lead{font-size:clamp(15px,1.6vw,17.5px);color:var(--tx2);max-width:520px}
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+  .hero-note{margin-top:18px;font-size:12.5px;color:var(--tx3)}
+  @media(max-width:860px){.hero{grid-template-columns:1fr;gap:36px;padding:48px 0}}
+
+  /* phone mock */
+  .device{justify-self:center;width:280px;max-width:78vw;aspect-ratio:9/19;
+    background:var(--surface);border:1px solid var(--border-med);border-radius:38px;
+    padding:11px;box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px rgba(217,118,6,.06);
+    position:relative;animation:float 6s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+  .screen{height:100%;background:var(--bg);border-radius:28px;overflow:hidden;
+    display:flex;flex-direction:column}
+  .scr-top{display:flex;align-items:center;gap:8px;padding:13px 14px 10px;border-bottom:1px solid var(--border)}
+  .live-badge{font-size:9.5px;font-weight:800;color:#fff;background:var(--up);
+    padding:2px 7px;border-radius:5px;letter-spacing:.5px}
+  .scr-top .t{font-size:11.5px;font-weight:700}
+  .scr-top .t span{color:var(--tx3);font-weight:500}
+  .kline{height:96px;margin:10px;border:1px solid var(--border);border-radius:10px;
+    background:linear-gradient(180deg,#101010,#0c0c0c);position:relative;overflow:hidden}
+  .chat{flex:1;padding:4px 11px 12px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+  .msg{font-size:10.5px;line-height:1.45}
+  .msg .who{font-weight:700;font-size:9.5px;color:var(--amber);display:block;margin-bottom:2px}
+  .msg.you .who{color:#7db0ff}
+  .bub{background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:7px 9px;color:var(--tx2)}
+  .msg.you .bub{background:rgba(40,70,120,.22);border-color:rgba(120,160,220,.3)}
+  .tag-ai{font-size:8px;font-weight:700;color:var(--amber);border:1px solid rgba(217,118,6,.4);
+    border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle}
+
+  /* sections */
+  section{padding:64px 0}
+  .sec-head{text-align:center;max-width:640px;margin:0 auto 44px}
+  .sec-head h2{font-size:clamp(24px,3.4vw,34px);font-weight:820;letter-spacing:-.3px}
+  .sec-head p{color:var(--tx2);margin-top:12px;font-size:15px}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:860px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:24px 22px;transition:.2s}
+  .card:hover{border-color:var(--border-med);transform:translateY(-3px);background:var(--raised)}
+  .ic{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    background:var(--amber-soft);border:1px solid rgba(217,118,6,.25);margin-bottom:15px}
+  .card h3{font-size:16.5px;font-weight:750;margin-bottom:7px}
+  .card p{font-size:13.5px;color:var(--tx2)}
+
+  /* highlight (live) */
+  .hl{background:linear-gradient(135deg,#171210,#121212);border:1px solid var(--border);
+    border-radius:22px;padding:clamp(28px,4vw,48px);display:grid;grid-template-columns:1fr 1fr;
+    gap:40px;align-items:center}
+  @media(max-width:820px){.hl{grid-template-columns:1fr;gap:26px}}
+  .hl h2{font-size:clamp(23px,3.2vw,32px);font-weight:820;margin:14px 0}
+  .feat-list{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:6px}
+  .feat-list li{display:flex;gap:12px;font-size:14.5px;color:var(--tx)}
+  .feat-list .chk{flex:none;width:22px;height:22px;border-radius:7px;background:var(--amber-soft);
+    border:1px solid rgba(217,118,6,.35);display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .feat-list b{font-weight:750}
+  .feat-list span{color:var(--tx2)}
+
+  /* disclaimer band */
+  .band{border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    background:var(--surface)}
+  .band .wrap{padding:26px 22px;display:flex;gap:14px;align-items:flex-start;font-size:13.5px;color:var(--tx2)}
+  .band .ic-w{flex:none;color:var(--amber);margin-top:1px}
+
+  /* faq */
+  .faq{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+  details{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:4px 18px}
+  details[open]{border-color:var(--border-med)}
+  summary{cursor:pointer;list-style:none;padding:15px 0;font-weight:650;font-size:15px;
+    display:flex;justify-content:space-between;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary .pm{color:var(--amber);font-size:20px;font-weight:400;transition:.2s}
+  details[open] summary .pm{transform:rotate(45deg)}
+  details p{padding:0 0 16px;color:var(--tx2);font-size:13.5px}
+
+  /* final cta */
+  .final{text-align:center;padding:72px 0}
+  .final h2{font-size:clamp(26px,4vw,40px);font-weight:840}
+  .final p{color:var(--tx2);margin:14px auto 28px;max-width:480px}
+
+  /* footer */
+  footer{border-top:1px solid var(--border);padding:44px 0 30px;color:var(--tx3);font-size:13px}
+  .foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:26px}
+  .foot-links{display:flex;gap:24px;flex-wrap:wrap}
+  .foot-links a{color:var(--tx2)}
+  .foot-links a:hover{color:var(--amber)}
+  .foot-bottom{border-top:1px solid var(--border);padding-top:18px;display:flex;
+    justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12px}
+  .foot-bottom a:hover{color:var(--tx2)}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#1C1C1C" stroke="#2A2A2A"/>
+        <rect x="8" y="11" width="3" height="11" rx="1" fill="#D97706"/>
+        <rect x="14.5" y="6" width="3" height="20" rx="1" fill="#E5E5E5"/>
+        <rect x="21" y="14" width="3" height="8" rx="1" fill="#D97706"/>
+      </svg>
+      喜宽
+    </a>
+    <nav class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#live">AI 直播间</a>
+      <a href="#faq">常见问题</a>
+      <a href="https://api.singzquant.com/legal/support.html">支持</a>
+    </nav>
+    <!-- TODO: 替换为真实 App Store 链接 -->
+    <a class="btn btn-primary" href="https://apps.apple.com/app/id000000000">App Store 下载</a>
+  </div>
+</header>
+
+<a id="top"></a>
+<main class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <span class="eyebrow"><span class="dot"></span>AI 投研助理</span>
+      <h1>聊行情、管组合、做日报，<br>看盘从此更<span class="amber">轻松</span></h1>
+      <p class="lead">喜宽是一款轻量的 AI 投资助手。多位 AI 分析师在「直播间」实时聊盘，K 线随讨论联动；你也能随时提问、管理组合、生成每日盘面复盘。</p>
+      <div class="cta-row">
+        <!-- TODO: 替换为真实 App Store 链接 -->
+        <a class="btn btn-primary" href="https://apps.apple.com/app/id000000000">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 1.6c.1 1-.3 2-1 2.8-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.7.8-.8 2-1.4 2.8-1.4ZM19 8.3c-1.2.1-2 .9-2.6.9-.6 0-1.6-.8-2.7-.8-1.4 0-2.7.8-3.4 2-1.5 2.5-.4 6.2 1 8.3.7 1 1.5 2.2 2.6 2.1 1-.04 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.6 1.1-.02 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4-.02-.01-2.1-.8-2.1-3.2 0-2 1.6-2.9 1.7-3-.9-1.4-2.4-1.6-2.9-1.7Z"/></svg>
+          App Store 下载
+        </a>
+        <a class="btn btn-ghost" href="#features">了解功能</a>
+      </div>
+      <p class="hero-note">仅支持 iOS · 使用 Apple 账号登录 · 内容仅供学习参考，不构成投资建议</p>
+    </div>
+
+    <!-- phone mock -->
+    <div class="device" aria-hidden="true">
+      <div class="screen">
+        <div class="scr-top">
+          <span class="live-badge">LIVE</span>
+          <div class="t">早盘开盘观察 · <span>晓宽 主持</span></div>
+        </div>
+        <div class="kline">
+          <svg width="100%" height="100%" viewBox="0 0 240 96" preserveAspectRatio="none">
+            <polyline points="0,70 30,60 60,66 90,48 120,52 150,36 180,42 210,26 240,32"
+              fill="none" stroke="#D97706" stroke-width="1.5" opacity=".85"/>
+            <g>
+              <rect x="26" y="52" width="6" height="20" fill="#16A34A"/><line x1="29" y1="46" x2="29" y2="74" stroke="#16A34A"/>
+              <rect x="86" y="40" width="6" height="16" fill="#DC2626"/><line x1="89" y1="34" x2="89" y2="60" stroke="#DC2626"/>
+              <rect x="146" y="30" width="6" height="14" fill="#DC2626"/><line x1="149" y1="24" x2="149" y2="48" stroke="#DC2626"/>
+              <rect x="206" y="22" width="6" height="13" fill="#DC2626"/><line x1="209" y1="16" x2="209" y2="40" stroke="#DC2626"/>
+            </g>
+            <line x1="0" y1="36" x2="240" y2="36" stroke="#3A3A3A" stroke-dasharray="3 4" opacity=".7"/>
+            <text x="4" y="33" fill="#D97706" font-size="8">压力 32.1</text>
+          </svg>
+        </div>
+        <div class="chat">
+          <div class="msg">
+            <span class="who">晓宽 主持<span class="tag-ai">AI 虚拟角色</span></span>
+            <div class="bub">这只票放量突破前高，老周你怎么看上方空间？</div>
+          </div>
+          <div class="msg">
+            <span class="who">价值老周<span class="tag-ai">AI 虚拟角色</span></span>
+            <div class="bub">量能配合，看 32.1 压力位，站稳可看一波。</div>
+          </div>
+          <div class="msg you">
+            <span class="who">我</span>
+            <div class="bub">那如果回踩不破支撑呢？</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>一个 App，覆盖看盘全流程</h2>
+      <p>从实时行情到 AI 分析，从组合管理到每日复盘，喜宽把投研工作流装进口袋。</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3>AI 直播间</h3>
+        <p>主持人 + 多位嘉宾实时聊盘，价位标注与 K 线实时共振，像看一场专业路演。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>AI 对话助手</h3>
+        <p>用自然语言问行情、查财报、做分析，AI 调用真实数据工具，给出有据可循的回答。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg></div>
+        <h3>组合管理</h3>
+        <p>截图导入券商持仓，自动识别成本与数量，盈亏与仓位结构一目了然。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M12 2v6m0 0 3-3m-3 3L9 5"/><rect x="4" y="9" width="16" height="12" rx="2"/></svg></div>
+        <h3>每日日报（DING）</h3>
+        <p>设定你关心的标的与组合，定时自动生成盘面/复盘日报，收盘后推送到手机。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>实时行情</h3>
+        <p>A股 / ETF / 指数 / 期货 / 期权实时快照，主图 K 线 + 技术指标一站查看。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5h5M9.5 12h5M11 7.5l1 9"/></svg></div>
+        <h3>喜点体系</h3>
+        <p>注册即赠喜点，每日签到再领，按需消耗 AI 算力——用多少花多少，清清楚楚。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE HIGHLIGHT -->
+<section id="live">
+  <div class="wrap">
+    <div class="hl">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>全新升级</span>
+        <h2>AI 直播间，<span class="amber">社交化</span>了</h2>
+        <p class="lead">不再只是旁观。开一间属于你的直播间，邀请 AI 分析师一起聊你关心的票。</p>
+      </div>
+      <ul class="feat-list">
+        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>自建直播间</b>：随时创建，公开或仅自己可见，随心选。</span></li>
+        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>开口提问</b>：在自己房间发言，AI 主持人会优先回应你的问题。</span></li>
+        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>K 线随讨论联动</b>：主图可折叠，多只标的一键切换，也能跟随当前焦点。</span></li>
+        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>透明可信</b>：每个 AI 角色均标注「AI 虚拟角色」，内容仅供参考。</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- DISCLAIMER -->
+<div class="band">
+  <div class="wrap">
+    <span class="ic-w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+    <p>风险提示：喜宽内的行情与财务数据来自第三方数据服务，AI 分析与直播内容均由大模型生成，<b style="color:var(--tx)">仅供学习与参考，不构成任何投资建议</b>。市场有风险，投资需谨慎，请独立判断并自行承担投资决策的风险与后果。</p>
+  </div>
+</div>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><h2>常见问题</h2></div>
+    <div class="faq">
+      <details open>
+        <summary>如何登录？<span class="pm">+</span></summary>
+        <p>喜宽通过「使用 Apple 账号登录（Sign in with Apple）」完成登录，无需手机号或密码。首次登录会自动为你生成一个昵称（使用 Apple 登录时优先采用你的 Apple 姓名），可随时在「我的」页修改。</p>
+      </details>
+      <details>
+        <summary>什么是「喜点」？<span class="pm">+</span></summary>
+        <p>喜点是 App 内的虚拟代币，用于支付 AI 对话与深度分析所消耗的算力。新用户注册即获赠喜点，也可通过每日签到获取，或在 App 内购买充值。喜点为虚拟商品，购买后不支持转让。</p>
+      </details>
+      <details>
+        <summary>在哪里下载？<span class="pm">+</span></summary>
+        <p>喜宽是一款 iOS 应用，请在 App Store 搜索「喜宽」下载安装。</p>
+      </details>
+      <details>
+        <summary>如何联系我们？<span class="pm">+</span></summary>
+        <p>客服邮箱：<a class="amber" href="mailto:plan9@qq.com">plan9@qq.com</a>，我们会在 1~2 个工作日内回复。更多帮助见 <a class="amber" href="https://api.singzquant.com/legal/support.html">支持与帮助</a> 页面。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final">
+  <div class="wrap">
+    <h2>把 AI 投研助理装进口袋</h2>
+    <p>聊行情、管组合、做日报——现在就开始。</p>
+    <!-- TODO: 替换为真实 App Store 链接 -->
+    <a class="btn btn-primary" href="https://apps.apple.com/app/id000000000" style="padding:14px 30px;font-size:15px">App Store 下载喜宽</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div>
+        <div class="brand" style="font-size:17px;margin-bottom:8px">
+          <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="7" fill="#1C1C1C" stroke="#2A2A2A"/>
+            <rect x="8" y="11" width="3" height="11" rx="1" fill="#D97706"/>
+            <rect x="14.5" y="6" width="3" height="20" rx="1" fill="#E5E5E5"/>
+            <rect x="21" y="14" width="3" height="8" rx="1" fill="#D97706"/>
+          </svg>
+          喜宽
+        </div>
+        <div style="color:var(--tx3);max-width:280px">轻量的 AI 投资助手 · 聊行情、管组合、做日报</div>
+      </div>
+      <div class="foot-links">
+        <a href="https://api.singzquant.com/legal/privacy.html">隐私政策</a>
+        <a href="https://api.singzquant.com/legal/terms.html">用户协议</a>
+        <a href="https://api.singzquant.com/legal/support.html">支持与帮助</a>
+        <a href="mailto:plan9@qq.com">联系我们</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 喜宽（com.aiquant.app）· 内容仅供学习参考，不构成投资建议</span>
+      <!-- TODO: 替换为真实 ICP 备案号；大陆服务器对外提供网站服务需完成 ICP 备案 -->
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">沪ICP备XXXXXXXX号</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
