@@ -26,6 +26,8 @@ type AppendInput struct {
 	// Annotations 是已 marshal 好的 JSON 字符串(由调用方拼好,通常来自
 	// guest_speaker LLM 输出的 annotations 数组)。空字符串表示无标注。
 	Annotations string
+	// UserID 仅 role='user'(观众发言)时 > 0;AI 发言留 0(写入 NULL)。
+	UserID int64
 }
 
 // Append 在事务内取 idx = max(idx)+1 后插入新消息,返回完整 Message。
@@ -46,14 +48,18 @@ func (r *MessageRepo) Append(ctx context.Context, in AppendInput) (*Message, err
 	}
 
 	now := nowMs()
+	var userID any
+	if in.UserID > 0 {
+		userID = in.UserID
+	}
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO live_messages
 		  (room_id, idx, role, persona, persona_name,
-		   target_persona, focus_symbol, focus_name, content, annotations, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		   target_persona, focus_symbol, focus_name, content, annotations, created_at, user_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.RoomID, nextIdx, in.Role, in.Persona, in.PersonaName,
 		nullStr(in.TargetPersona), nullStr(in.FocusSymbol), nullStr(in.FocusName),
-		in.Content, nullStr(in.Annotations), now,
+		in.Content, nullStr(in.Annotations), now, userID,
 	)
 	if err != nil {
 		return nil, err
@@ -85,6 +91,9 @@ func (r *MessageRepo) Append(ctx context.Context, in AppendInput) (*Message, err
 	}
 	if in.Annotations != "" {
 		m.Annotations = sql.NullString{String: in.Annotations, Valid: true}
+	}
+	if in.UserID > 0 {
+		m.UserID = sql.NullInt64{Int64: in.UserID, Valid: true}
 	}
 	return m, nil
 }
@@ -127,6 +136,16 @@ func (r *MessageRepo) CountByRoom(ctx context.Context, roomID int64) (int, error
 	var n int
 	err := r.st.DB.GetContext(ctx, &n, `
 		SELECT COUNT(*) FROM live_messages WHERE room_id=?`, roomID)
+	return n, err
+}
+
+// CountNonUserByRoom 返回房间内非观众(role<>'user')的消息数,
+// 即主持人/嘉宾/系统消息数。用于"单场硬上限"判定,避免观众频繁发言
+// 把 AI 对话条数挤占、提前触顶结束。
+func (r *MessageRepo) CountNonUserByRoom(ctx context.Context, roomID int64) (int, error) {
+	var n int
+	err := r.st.DB.GetContext(ctx, &n, `
+		SELECT COUNT(*) FROM live_messages WHERE room_id=? AND role<>'user'`, roomID)
 	return n, err
 }
 

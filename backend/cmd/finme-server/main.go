@@ -127,6 +127,9 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		liveMsgRepo,
 		live.NewKlineBuilder(liveTu, liveRt),
 	)
+	// 计费:创建直播间 / 观众发言扣喜点。
+	liveSvc.SetBilling(billing.NewLedgerRepo(st),
+		cfg.AI.LiveRoomCreateCredits, cfg.AI.LivePostCredits)
 	if cfg.LLM.Configured() {
 		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
 			cfg.LLM.ChatModel, cfg.LLM.ReasonModel,

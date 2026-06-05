@@ -35,6 +35,8 @@ class LiveRoom {
     this.endedAt,
     this.origin = 'auto',
     this.autoEndAt,
+    this.visibility = 'public',
+    this.mine = false,
   });
 
   final String uuid;
@@ -51,11 +53,14 @@ class LiveRoom {
   final int? endedAt;
   final String origin;                 // auto / manual
   final int? autoEndAt;                // unix ms;非空时房间到点自动结束(manual 房专用)
+  final String visibility;             // public / private
+  final bool mine;                     // 是否当前用户创建
 
   bool get isLive => status == 'live';
   bool get isEnded => status == 'ended';
   bool get isEndedAbnormal => status == 'ended_abnormal';
   bool get isManual => origin == 'manual';
+  bool get isPrivate => visibility == 'private';
 
   String get phaseLabel => switch (phase) {
         'pre' => '盘前',
@@ -84,6 +89,8 @@ class LiveRoom {
       endedAt: (json['ended_at'] as num?)?.toInt(),
       origin: (json['origin'] as String?) ?? 'auto',
       autoEndAt: (json['auto_end_at'] as num?)?.toInt(),
+      visibility: (json['visibility'] as String?) ?? 'public',
+      mine: (json['mine'] as bool?) ?? false,
     );
   }
 }
@@ -161,6 +168,7 @@ class LiveMessage {
   bool get isHost => role.startsWith('host_');
   bool get isGuest => role.startsWith('guest_');
   bool get isSystem => role == 'system';
+  bool get isUser => role == 'user';
   bool get isOpen => role == 'host_open';
   bool get isClose => role == 'host_close';
 

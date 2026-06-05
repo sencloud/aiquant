@@ -47,6 +47,13 @@ const (
 	RoleGuestAnswer = "guest_answer" // 嘉宾正式应答 host 的提问
 	RoleGuestReact  = "guest_react"  // 嘉宾自发对前一条插话/反驳
 	RoleSystem      = "system"       // 系统消息(异常 / 提示)
+	RoleUser        = "user"         // 观众(房间创建者)参与发言
+)
+
+// 直播间可见性。
+const (
+	VisibilityPublic  = "public"  // 公开:所有登录用户可见(自动场次恒为此)
+	VisibilityPrivate = "private" // 私密:仅创建者本人可见
 )
 
 // Room 是单场直播间数据库行。
@@ -68,6 +75,8 @@ type Room struct {
 	CreatedAt           int64          `db:"created_at"`
 	Origin              string         `db:"origin"`
 	AutoEndAt           sql.NullInt64  `db:"auto_end_at"`
+	CreatorUserID       sql.NullInt64  `db:"creator_user_id"` // 自动场次为 NULL
+	Visibility          string         `db:"visibility"`      // public / private
 }
 
 // Message 是单条聊天消息数据库行。
@@ -87,6 +96,8 @@ type Message struct {
 	// 前端拉到后注入 webview 的 ECharts markLine,实现"人话与图形对齐"。
 	Annotations sql.NullString `db:"annotations"`
 	CreatedAt   int64          `db:"created_at"`
+	// UserID 仅 role='user'(观众发言)时非空,记录发言用户 id。
+	UserID sql.NullInt64 `db:"user_id"`
 }
 
 // Annotation 是单个 K 线标注。LLM 返回数组,后端 marshal 后存 Message.Annotations。

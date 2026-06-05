@@ -43,6 +43,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
   // 已注入的 annotations 序号 — 等于 LiveState.annotationsSeq 就跳过
   int _lastAnnotSeq = -1;
 
+  // K 线主图是否折叠(用户可手动收起,腾出更多聊天空间)
+  bool _klineCollapsed = false;
+
+  // 发言输入框
+  final TextEditingController _composerCtl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +76,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     context.read<LiveState>().leaveRoom();
     _scrollCtl.removeListener(_onScroll);
     _scrollCtl.dispose();
+    _composerCtl.dispose();
     super.dispose();
   }
 
@@ -95,9 +102,97 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                   _buildChatList(s),
                   if (_pendingNewCount > 0) _buildNewMessageBadge(),
                 ])),
+                if (s.canPost) _buildComposer(s),
               ],
             ),
     );
+  }
+
+  // ── 观众发言输入框(仅本人房间 + 直播中) ──────────────────────────
+
+  Widget _buildComposer(LiveState s) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: AppColors.bgRaised,
+          border: Border(top: BorderSide(color: AppColors.borderDim)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _composerCtl,
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendComposer(s),
+                decoration: InputDecoration(
+                  hintText: '参与讨论(每条 1 喜点)…',
+                  hintStyle:
+                      TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.bgSurface,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Material(
+              color: AppColors.amber,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: s.posting ? null : () => _sendComposer(s),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: s.posting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.send, size: 18, color: Colors.black),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendComposer(LiveState s) async {
+    final text = _composerCtl.text.trim();
+    if (text.isEmpty || s.posting) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await s.postMessage(text);
+      _composerCtl.clear();
+      _userPinnedToBottom = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToBottom());
+    } catch (e) {
+      final code = RegExp(r'LIVE\.[A-Z_]+').firstMatch(e.toString())?.group(0);
+      if (code == 'LIVE.INSUFFICIENT_BALANCE') {
+        messenger.showSnackBar(const SnackBar(
+            content: Text('喜点不足,发言需要 1 喜点,请先到「我的」充值')));
+      } else {
+        messenger.showSnackBar(SnackBar(
+          content: Text('发言失败:$e',
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        ));
+      }
+    }
   }
 
   Widget _buildNewMessageBadge() {
@@ -238,48 +333,164 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
 
   Widget _buildKlineSection(LiveState s) {
     final h = MediaQuery.of(context).size.height * 0.35;
-    return SizedBox(
-      height: h,
-      child: Stack(
-        children: [
-          Container(
-            color: const Color(0xFF0E0E10),
-            child: WebViewWidget(controller: _webCtl),
-          ),
-          if (s.loadingKline)
-            const Positioned(
-              top: 8,
-              right: 8,
-              child: SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  valueColor: AlwaysStoppedAnimation(AppColors.amber),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildKlineHeader(s),
+        // 折叠时高度收为 0;展开时显示 webview。webview 始终保留在树里
+        // (Offstage),避免折叠/展开反复重建 + 重新加载 K 线。
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          child: SizedBox(
+            height: _klineCollapsed ? 0 : h,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                Container(
+                  color: const Color(0xFF0E0E10),
+                  child: WebViewWidget(controller: _webCtl),
                 ),
-              ),
-            ),
-          if (s.currentFocusSymbol.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.show_chart,
-                        color: AppColors.amber, size: 36),
-                    const SizedBox(height: 8),
-                    Text(
-                      '等待主持人选股…',
-                      style: TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
+                if (s.loadingKline)
+                  const Positioned(
+                    top: 8,
+                    right: 8,
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        valueColor: AlwaysStoppedAnimation(AppColors.amber),
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                if (s.currentFocusSymbol.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.show_chart,
+                              color: AppColors.amber, size: 36),
+                          const SizedBox(height: 8),
+                          Text(
+                            '等待主持人选股…',
+                            style: TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// K 线标题栏:品种切换器(横向 chips)+ 折叠/展开按钮。
+  /// 主图上方的品种切换 chip(含「跟随」)。
+  Widget _klineSymbolChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.amber.withValues(alpha: 0.18)
+              : AppColors.bgRaised,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(
+            color: selected ? AppColors.amber : AppColors.borderDim,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.amber : AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKlineHeader(LiveState s) {
+    final symbols = s.discussedSymbols;
+    return Container(
+      color: const Color(0xFF0E0E10),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      child: Row(
+        children: [
+          const Icon(Icons.candlestick_chart, color: AppColors.amber, size: 16),
+          const SizedBox(width: 6),
+          Expanded(
+            child: symbols.isEmpty
+                ? Text(
+                    s.currentFocusName.isEmpty
+                        ? (s.currentFocusSymbol.isEmpty
+                            ? '主图 K 线'
+                            : s.currentFocusSymbol)
+                        : s.currentFocusName,
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : SizedBox(
+                    height: 26,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      // index 0 = 「跟随」(回到直播当前焦点),其余为讨论过的品种。
+                      itemCount: symbols.length + 1,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (context, i) {
+                        if (i == 0) {
+                          final following = s.manualSymbolOverride.isEmpty;
+                          return _klineSymbolChip(
+                            label: '跟随',
+                            selected: following,
+                            onTap: () =>
+                                context.read<LiveState>().selectSymbol('', ''),
+                          );
+                        }
+                        final item = symbols[i - 1];
+                        final selected = s.manualSymbolOverride.isNotEmpty &&
+                            item.symbol == s.currentFocusSymbol;
+                        return _klineSymbolChip(
+                          label: item.name,
+                          selected: selected,
+                          onTap: () => context
+                              .read<LiveState>()
+                              .selectSymbol(item.symbol, item.name),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+          IconButton(
+            tooltip: _klineCollapsed ? '展开 K 线' : '折叠 K 线',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              _klineCollapsed ? Icons.expand_more : Icons.expand_less,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
+            onPressed: () => setState(() => _klineCollapsed = !_klineCollapsed),
+          ),
         ],
       ),
     );
@@ -443,13 +654,17 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    final avatarColor = _avatarColorFor(message);
-    final bubbleBg = message.isHost
-        ? AppColors.amber.withValues(alpha: 0.10)
-        : AppColors.bgRaised;
-    final nameColor = message.isHost
-        ? AppColors.amber
-        : AppColors.textPrimary;
+    const userColor = Color(0xFF38bdf8);
+    final isUser = message.isUser;
+    final avatarColor = isUser ? userColor : _avatarColorFor(message);
+    final bubbleBg = isUser
+        ? userColor.withValues(alpha: 0.12)
+        : (message.isHost
+            ? AppColors.amber.withValues(alpha: 0.10)
+            : AppColors.bgRaised);
+    final nameColor = isUser
+        ? userColor
+        : (message.isHost ? AppColors.amber : AppColors.textPrimary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -462,14 +677,23 @@ class _MessageBubble extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    message.personaName,
-                    style: TextStyle(
-                      color: nameColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                  Flexible(
+                    child: Text(
+                      message.personaName,
+                      style: TextStyle(
+                        color: nameColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  if (isUser)
+                    _miniTag('观众', userColor)
+                  else
+                    _aiRoleTag(context),
                   const SizedBox(width: 6),
                   Text(
                     _roleBadge(message.role),
@@ -531,9 +755,119 @@ class _MessageBubble extends StatelessWidget {
         return '应答';
       case 'guest_react':
         return '插话';
+      case 'user':
+        return '发言';
     }
     return '';
   }
+
+  /// 「AI 虚拟角色」标签 + 信息图标,点击弹免责说明(规避侵权/法律风险)。
+  Widget _aiRoleTag(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showAiDisclaimer(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: const Color(0xFF8b5cf6).withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'AI 虚拟角色',
+              style: TextStyle(
+                color: Color(0xFFc4b5fd),
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(width: 2),
+            Icon(Icons.info_outline, color: Color(0xFFc4b5fd), size: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            color: color, fontSize: 9, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+/// AI 虚拟角色免责声明(规避侵权与投资建议法律风险)。
+const String kAiPersonaDisclaimer =
+    '本直播间所有发言均由 AI 生成的虚拟角色演绎。角色名称与风格仅为模拟,'
+    '不代表任何真实人物的真实言论、观点或立场,与相关人物本人无关。'
+    '全部内容由人工智能自动生成,仅供娱乐与学习参考,不构成任何投资建议,'
+    '据此操作风险自负。';
+
+void _showAiDisclaimer(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: AppColors.bgRaised,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.smart_toy_outlined,
+                    color: Color(0xFFc4b5fd), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'AI 虚拟角色说明',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              kAiPersonaDisclaimer,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.amber,
+                  foregroundColor: Colors.black,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('我知道了'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _Avatar extends StatelessWidget {

@@ -23,6 +23,7 @@ const (
 	ReasonCheckin     = "checkin"        // 每日签到奖励
 	ReasonConsumeAI   = "consume_ai"     // AI 助理消费
 	ReasonConsumeDing = "consume_ding"   // DING 任务消费
+	ReasonConsumeLive = "consume_live"   // 直播间消费(创建房间 / 观众发言)
 	ReasonDevTopup    = "dev_topup"      // dev 模式直充（仅 env=dev 启用）
 )
 

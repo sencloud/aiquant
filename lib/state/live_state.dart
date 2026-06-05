@@ -166,6 +166,7 @@ class LiveState extends ChangeNotifier {
     _loadingKline = false;
     _currentAnnotations.clear();
     _annotationsSeq = 0;
+    _manualSymbolOverride = '';
   }
 
   /// 手动重拉 K 线(下拉刷新主图时用)。
@@ -190,6 +191,7 @@ class LiveState extends ChangeNotifier {
   Future<({String uuid, bool isNew})> createManualRoom({
     String? focusSymbol,
     String? focusName,
+    String visibility = 'public',
   }) async {
     _creatingRoom = true;
     notifyListeners();
@@ -197,6 +199,7 @@ class LiveState extends ChangeNotifier {
       final room = await _service.createManualRoom(
         focusSymbol: focusSymbol,
         focusName: focusName,
+        visibility: visibility,
       );
       // 插到列表头,UI 立刻能看到
       _rooms.insert(0, room);
@@ -220,6 +223,88 @@ class LiveState extends ChangeNotifier {
       _creatingRoom = false;
       notifyListeners();
     }
+  }
+
+  // ── 观众发言(仅自己房间) ──────────────────────────────────────────
+
+  bool _posting = false;
+  bool get posting => _posting;
+
+  /// 当前用户是否可在此房间发言:本人创建 + 直播中。
+  bool get canPost =>
+      _currentRoom != null && _currentRoom!.mine && _currentRoom!.isLive;
+
+  /// 观众在自己房间发言。成功后本地立即追加,主持人会很快回应。
+  /// 失败抛出,UI 用 SnackBar / 弹窗提示(含余额不足)。
+  Future<void> postMessage(String content) async {
+    final room = _currentRoom;
+    if (room == null || _posting) return;
+    final text = content.trim();
+    if (text.isEmpty) return;
+    _posting = true;
+    notifyListeners();
+    try {
+      final msg = await _service.postMessage(room.uuid, text);
+      // 去重:可能轮询已先拉到
+      if (!_messages.any((m) => m.idx == msg.idx)) {
+        _messages.add(msg);
+        if (msg.idx > _lastIdx) _lastIdx = msg.idx;
+      }
+      _lastError = null;
+    } finally {
+      _posting = false;
+      notifyListeners();
+    }
+  }
+
+  // ── 品种切换(手动选择主图 K 线) ──────────────────────────────────
+
+  // 非空时:用户手动选了某个品种看 K 线,_pollOnce 不再自动跟随房间焦点,
+  // 直到用户清除(选回"跟随"或离开房间)。
+  String _manualSymbolOverride = '';
+  String get manualSymbolOverride => _manualSymbolOverride;
+
+  /// 房间里讨论过的所有品种(去重,保序),供主图上方品种切换器使用。
+  List<({String symbol, String name})> get discussedSymbols {
+    final seen = <String>{};
+    final out = <({String symbol, String name})>[];
+    for (final m in _messages) {
+      if (m.focusSymbol.isEmpty || seen.contains(m.focusSymbol)) continue;
+      seen.add(m.focusSymbol);
+      out.add((symbol: m.focusSymbol, name: m.focusName.isEmpty ? m.focusSymbol : m.focusName));
+    }
+    return out;
+  }
+
+  /// 用户手动切换主图品种。symbol 为空表示"跟随直播焦点"。
+  Future<void> selectSymbol(String symbol, String name) async {
+    final sym = symbol.trim().toUpperCase();
+    if (sym.isEmpty) {
+      // 恢复跟随:回到房间当前焦点
+      _manualSymbolOverride = '';
+      final room = _currentRoom;
+      final follow = room?.currentFocusSymbol ?? '';
+      if (follow.isNotEmpty && follow != _currentFocusSymbol) {
+        _currentFocusSymbol = follow;
+        _currentFocusName = room?.currentFocusName ?? '';
+        _rebuildAnnotationsForFocus();
+        notifyListeners();
+        await _loadKline(follow);
+      } else {
+        notifyListeners();
+      }
+      return;
+    }
+    _manualSymbolOverride = sym;
+    if (sym == _currentFocusSymbol) {
+      notifyListeners();
+      return;
+    }
+    _currentFocusSymbol = sym;
+    _currentFocusName = name;
+    _rebuildAnnotationsForFocus();
+    notifyListeners();
+    await _loadKline(sym);
   }
 
   // ── 内部:轮询 ──────────────────────────────────────────────────────
@@ -266,7 +351,9 @@ class LiveState extends ChangeNotifier {
       }
 
       // 焦点变更 → 拉新 K 线 + 重算 annotations
-      if (resp.currentSymbol.isNotEmpty &&
+      // 用户手动选定了品种时不自动跟随(_manualSymbolOverride 非空)。
+      if (_manualSymbolOverride.isEmpty &&
+          resp.currentSymbol.isNotEmpty &&
           resp.currentSymbol != _currentFocusSymbol) {
         _currentFocusSymbol = resp.currentSymbol;
         _currentFocusName = resp.currentName;
@@ -363,6 +450,8 @@ class LiveState extends ChangeNotifier {
       endedAt: r.endedAt,
       origin: r.origin,
       autoEndAt: r.autoEndAt,
+      visibility: r.visibility,
+      mine: r.mine,
     );
   }
 

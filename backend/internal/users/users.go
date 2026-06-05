@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -14,6 +16,18 @@ import (
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
 )
+
+// nickPrefixes 随机昵称词库。生成形如「掘金3823」的友好默认昵称,
+// 避免所有 Apple 用户显示成同一个「Apple 用户」。
+var nickPrefixes = []string{
+	"宽友", "牛友", "量友", "掘金", "趋势", "价投", "龙头", "阿尔法",
+	"小宽", "盈盈", "操盘手", "策略师", "看多", "稳健", "复利", "弄潮儿",
+}
+
+// genRandomNickname 生成「词 + 4 位数」随机昵称。
+func genRandomNickname() string {
+	return fmt.Sprintf("%s%04d", nickPrefixes[rand.Intn(len(nickPrefixes))], 1000+rand.Intn(9000))
+}
 
 type Status string
 
@@ -173,9 +187,26 @@ func (s *Service) EnsureByPhone(ctx context.Context, phone string) (*User, error
 }
 
 // EnsureByApple：Sign in with Apple 登录。sub 是 Apple 的稳定用户标识。
+//
+// 昵称策略:
+//   - 新用户:优先用 Apple 首次授权返回的姓名;为空则随机生成,避免「Apple 用户」。
+//   - 已存在用户:若昵称为空(历史遗留),本次登录顺手回填(Apple 姓名 / 随机)。
 func (s *Service) EnsureByApple(ctx context.Context, sub, nickname string) (*User, error) {
+	nickname = strings.TrimSpace(nickname)
 	if u, err := s.FindByAppleSub(ctx, sub); err != nil || u != nil {
+		if u != nil && (!u.Nickname.Valid || strings.TrimSpace(u.Nickname.String) == "") {
+			nn := nickname
+			if nn == "" {
+				nn = genRandomNickname()
+			}
+			if uerr := s.UpdateNickname(ctx, u.ID, nn); uerr == nil {
+				u.Nickname = sql.NullString{String: nn, Valid: true}
+			}
+		}
 		return u, err
+	}
+	if nickname == "" {
+		nickname = genRandomNickname()
 	}
 	now := time.Now().UnixMilli()
 	uuid := platform.NewUUID()

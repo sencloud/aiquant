@@ -53,6 +53,10 @@ type PlanInput struct {
 	// 主持人必须全程锁定这只票,禁止 switch 到候选池其它股票,候选池也不展示。
 	PinnedSymbol     string
 	PinnedName       string
+	// PendingUserText 非空表示观众(房间创建者)刚发了一条尚未被回应的话,
+	// 主持人本轮必须优先回应它(点名嘉宾或自己接话)。
+	PendingUserText  string
+	PendingUserName  string
 	MessageCount     int             // 房间至今总消息数(用于判断该不该收尾)
 	SoftCloseAfterN  int             // 软上限:超过这个数主持人会倾向 close
 }
@@ -144,6 +148,12 @@ func (p *HostPlanner) systemPrompt(in PlanInput) string {
 		b.WriteString("- 可以用 `topic` 穿插与它强相关的宏观 / 行业 / 政策话题(如所在行业景气、上下游、对标公司),但聊完要拉回这只票。\n\n")
 	}
 
+	if in.PendingUserText != "" {
+		b.WriteString("\n# 有观众提问(最高优先级)\n")
+		b.WriteString("- 直播间的观众刚发言提问,本轮你**必须优先回应**:用 `ask`(或 `react_prompt`)点名一位最合适的嘉宾,针对观众的问题作答;content 里先简短转述/承接观众的问题再点名。\n")
+		b.WriteString("- **不要无视观众**,也不要在有未回应观众提问时 close。\n\n")
+	}
+
 	b.WriteString("# 嘉宾列表(target_persona 只能用以下 id)\n")
 	for _, g := range in.Guests {
 		b.WriteString(fmt.Sprintf("- `%s` (%s)\n", g.ID, g.Name))
@@ -169,6 +179,15 @@ func (p *HostPlanner) userPrompt(in PlanInput) string {
 			in.CurrentFocusName, in.CurrentFocus))
 	} else {
 		b.WriteString("当前焦点股票:无\n\n")
+	}
+
+	if in.PendingUserText != "" {
+		name := in.PendingUserName
+		if name == "" {
+			name = "观众"
+		}
+		b.WriteString(fmt.Sprintf("‼️ 观众【%s】刚提问(请本轮优先回应,点名嘉宾作答):\n  「%s」\n\n",
+			name, condense(in.PendingUserText, 200)))
 	}
 
 	if len(in.CandidatePool) > 0 && in.PinnedSymbol == "" {
@@ -279,6 +298,8 @@ func roleLabel(role string) string {
 		return "应答"
 	case RoleGuestReact:
 		return "插话"
+	case RoleUser:
+		return "观众提问"
 	}
 	return role
 }

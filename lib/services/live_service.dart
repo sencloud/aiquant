@@ -18,17 +18,30 @@ class LiveService {
   Future<LiveRoom> createManualRoom({
     String? focusSymbol,
     String? focusName,
+    String visibility = 'public',
   }) async {
-    final body = <String, dynamic>{};
+    final body = <String, dynamic>{'visibility': visibility};
     final s = focusSymbol?.trim();
     final n = focusName?.trim();
     if (s != null && s.isNotEmpty) body['focus_symbol'] = s;
     if (n != null && n.isNotEmpty) body['focus_name'] = n;
     final r = await _client.dio.post<Map<String, dynamic>>(
       '/v1/live/rooms',
-      data: body.isEmpty ? null : body,
+      data: body,
     );
     return LiveRoom.fromJson(r.data!);
+  }
+
+  /// 观众(房间创建者)在自己的直播间发言。返回写入的消息。
+  ///
+  /// 服务端按喜点扣费,余额不足抛 ApiException(statusCode=402,
+  /// code='LIVE.INSUFFICIENT_BALANCE')。
+  Future<LiveMessage> postMessage(String uuid, String content) async {
+    final r = await _client.dio.post<Map<String, dynamic>>(
+      '/v1/live/rooms/$uuid/messages',
+      data: {'content': content},
+    );
+    return LiveMessage.fromJson(r.data!);
   }
 
   /// 删除一个已结束的直播间(连同聊天记录)。

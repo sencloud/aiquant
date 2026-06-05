@@ -41,6 +41,9 @@ type Runner struct {
 	// 内部:已启动 loop 的房间 id → 取消函数(防止 tick 重复启动)
 	mu      sync.Mutex
 	running map[int64]context.CancelFunc
+	// nudges:房间 id → 唤醒通道。用户在房间发言后 Nudge 一下,
+	// liveLoop 立即结束当前 sleepPace 进入下一轮优先回应,不必等 35s。
+	nudges map[int64]chan struct{}
 }
 
 func NewRunner(
@@ -65,6 +68,22 @@ func NewRunner(
 		MaxMessagesPerRoom: 60,
 		SoftCloseAfter:     50,
 		running:            map[int64]context.CancelFunc{},
+		nudges:             map[int64]chan struct{}{},
+	}
+}
+
+// Nudge 唤醒指定房间的 liveLoop(用户发言后调用)。非阻塞:
+// 通道满 / 房间没在本进程跑都直接返回,不报错。
+func (r *Runner) Nudge(roomID int64) {
+	r.mu.Lock()
+	ch := r.nudges[roomID]
+	r.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
 	}
 }
 
@@ -80,6 +99,10 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	if err := r.SweepStale(ctx, now); err != nil {
 		r.logger.Warn().Err(err).Msg("live: sweep stale")
+	}
+
+	if err := r.EndExpiredManualRooms(ctx, now); err != nil {
+		r.logger.Warn().Err(err).Msg("live: end expired manual rooms")
 	}
 
 	if err := r.SeedRooms(ctx, now); err != nil {
@@ -116,6 +139,43 @@ func (r *Runner) SweepStale(ctx context.Context, now time.Time) error {
 			r.logger.Info().Int64("room_id", room.ID).Str("uuid", room.UUID).
 				Msg("live: marked abnormal (stale)")
 		}
+	}
+	return nil
+}
+
+// EndExpiredManualRooms 兜底强制结束已到硬截止(auto_end_at)却仍 live 的手动房间。
+//
+// 为什么需要:手动房的 liveLoop goroutine 跑在 api 进程,正常会在到点时自己写
+// host_close 并 MarkEnded。但若 api 进程在 15min 内重启/卡死,该 goroutine 丢失,
+// 房间会一直挂 live 直到 SweepStale 的 5min stale 才清 —— 最坏会超过 15min。
+// scheduler 每 tick 调用本方法,保证"个人自建直播间最长 15 分钟"这一硬约束。
+//
+// 仍在本进程跑 loop 的房间交给 loop 自己优雅收尾(跳过),避免重复写收尾语。
+func (r *Runner) EndExpiredManualRooms(ctx context.Context, now time.Time) error {
+	rooms, err := r.rooms.ListExpiredManualLive(ctx, now.UnixMilli())
+	if err != nil {
+		return err
+	}
+	for _, room := range rooms {
+		r.mu.Lock()
+		_, inflight := r.running[room.ID]
+		r.mu.Unlock()
+		if inflight {
+			continue
+		}
+		closing := fmt.Sprintf("时间到了,这场 %d 分钟的临时直播就到这,感谢各位嘉宾,我们后会有期。",
+			int(ManualRoomDuration.Minutes()))
+		_, _ = r.messages.Append(ctx, AppendInput{
+			RoomID:      room.ID,
+			Role:        RoleHostClose,
+			Persona:     room.HostPersona,
+			PersonaName: room.HostPersonaName,
+			Content:     closing,
+		})
+		_ = r.rooms.IncMessageCount(ctx, room.ID)
+		_ = r.rooms.MarkEnded(ctx, room.ID)
+		r.logger.Info().Int64("room_id", room.ID).Str("uuid", room.UUID).
+			Msg("live: manual room force-ended (auto_end_at reached, swept by scheduler)")
 	}
 	return nil
 }
@@ -201,12 +261,17 @@ type ManualRoomOptions struct {
 	FocusName   string
 	// Phase 自动按当下时间推断,调用方一般不传。
 	Phase string
+	// CreatorUserID 创建者 user id(必填,用于"每用户至多 1 个进行中房间")。
+	CreatorUserID int64
+	// Visibility 'public' / 'private';空按 public。
+	Visibility string
 }
 
 // StartManualRoom 创建一个用户手动触发的直播间并立即启动 goroutine。
 //
-// 约束:全局任一时刻只允许 1 个 status='live' 房间(无论 auto / manual);
-// 已有 live → 返回 ErrLiveAlreadyExists,HTTP 层映射为 409。
+// 约束:每个用户同时只允许 1 个本人创建的 status='live' 房间;
+// 已有 → 返回 ErrLiveAlreadyExists,HTTP 层映射为 409。
+// (应用层 CountLiveByCreator 前置检查 + DB 部分唯一索引双重兜底并发。)
 //
 // 行为:
 //   * Origin=OriginManual,AutoEndAt=now+ManualRoomDuration(15min)
@@ -219,10 +284,9 @@ func (r *Runner) StartManualRoom(ctx context.Context, opts ManualRoomOptions) (*
 		phase = guessPhase(now)
 	}
 
-	// 唯一性前置:CountLive 非事务但配合"立刻 Create + scheduler 60s tick"已足够安全
-	// (并发同秒内两个 manual 请求最坏会创建 2 个房间,SweepStale 不会清,
-	//  但概率极低,且本应用单用户场景,暂不引入 DB unique index)。
-	n, err := r.rooms.CountLive(ctx)
+	// 唯一性前置:每个用户同时只允许 1 个本人创建的进行中房间。
+	// 非事务但配合"立刻 Create + scheduler 60s tick"已足够安全。
+	n, err := r.rooms.CountLiveByCreator(ctx, opts.CreatorUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +298,10 @@ func (r *Runner) StartManualRoom(ctx context.Context, opts ManualRoomOptions) (*
 	guests := PickGuests(4)
 	title := buildManualTitle(opts.FocusName, opts.FocusSymbol, host.Name, now)
 	endAt := now.Add(ManualRoomDuration).UnixMilli()
+	visibility := opts.Visibility
+	if visibility == "" {
+		visibility = VisibilityPublic
+	}
 	room, err := r.rooms.Create(ctx, CreateInput{
 		Title:         title,
 		Phase:         phase,
@@ -241,6 +309,8 @@ func (r *Runner) StartManualRoom(ctx context.Context, opts ManualRoomOptions) (*
 		GuestPersonas: guests,
 		Origin:        OriginManual,
 		AutoEndAtMs:   endAt,
+		CreatorUserID: opts.CreatorUserID,
+		Visibility:    visibility,
 	})
 	if err != nil {
 		return nil, err
@@ -299,12 +369,14 @@ func (r *Runner) startLoop(room *Room) {
 	}
 	loopCtx, cancel := context.WithCancel(context.Background())
 	r.running[room.ID] = cancel
+	r.nudges[room.ID] = make(chan struct{}, 1)
 	r.mu.Unlock()
 
 	go func() {
 		defer func() {
 			r.mu.Lock()
 			delete(r.running, room.ID)
+			delete(r.nudges, room.ID)
 			r.mu.Unlock()
 		}()
 		r.liveLoop(loopCtx, room)
@@ -358,8 +430,15 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		if err != nil {
 			logger.Warn().Err(err).Msg("live loop: count messages")
 		}
-		if cnt >= r.MaxMessagesPerRoom {
-			logger.Info().Int("count", cnt).Msg("live loop: max messages reached")
+		// 硬上限只数 AI(主持人/嘉宾/系统)消息,不含观众发言:
+		// 避免观众频繁参与把 AI 对话条数挤占、提前触顶结束。
+		aiCnt, err := r.messages.CountNonUserByRoom(ctx, rid)
+		if err != nil {
+			logger.Warn().Err(err).Msg("live loop: count non-user messages")
+			aiCnt = cnt
+		}
+		if aiCnt >= r.MaxMessagesPerRoom {
+			logger.Info().Int("ai_count", aiCnt).Msg("live loop: max messages reached")
 			break
 		}
 
@@ -396,6 +475,8 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 		if focus == "" && pinnedSym != "" {
 			focus, focusName = pinnedSym, pinnedName
 		}
+		// 观众(房间创建者)若有"尚未被回应"的提问,主持人应优先处理。
+		pendingUserText, pendingUserName := pendingUserQuestion(history)
 		action, err := r.host.Plan(ctx, PlanInput{
 			Host:             host,
 			Guests:           guests,
@@ -407,6 +488,8 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			CurrentFocusName: focusName,
 			PinnedSymbol:     pinnedSym,
 			PinnedName:       pinnedName,
+			PendingUserText:  pendingUserText,
+			PendingUserName:  pendingUserName,
 			MessageCount:     cnt,
 			SoftCloseAfterN:  r.SoftCloseAfter,
 		})
@@ -482,7 +565,7 @@ func (r *Runner) liveLoop(ctx context.Context, room *Room) {
 			// 嘉宾失败不算 fatal,继续下一轮
 		}
 
-		r.sleepPace(ctx)
+		r.sleepPaceOrNudge(ctx, rid)
 	}
 
 	_ = r.rooms.MarkEnded(ctx, rid)
@@ -646,6 +729,59 @@ func (r *Runner) sleepPace(ctx context.Context) {
 	case <-ctx.Done():
 	case <-time.After(dur):
 	}
+}
+
+// sleepPaceOrNudge 与 sleepPace 相同,但额外监听该房间的 nudge 通道:
+// 用户发言后 Nudge 会立即结束等待,让主持人尽快回应。
+func (r *Runner) sleepPaceOrNudge(ctx context.Context, roomID int64) {
+	r.mu.Lock()
+	ch := r.nudges[roomID]
+	r.mu.Unlock()
+	if ch == nil {
+		r.sleepPace(ctx)
+		return
+	}
+	dur := r.PaceInterval
+	if r.PaceJitter > 0 {
+		j := time.Duration(rand.Int63n(int64(r.PaceJitter * 2))) - r.PaceJitter
+		dur += j
+	}
+	if dur < time.Second {
+		dur = time.Second
+	}
+	select {
+	case <-ctx.Done():
+	case <-ch:
+		// 用户发言唤醒:略等一下让发言完全落库,再进入下一轮
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
+	case <-time.After(dur):
+	}
+}
+
+// pendingUserQuestion 返回"最新一条观众发言"的内容与昵称(若它比任何主持人
+// 发言都新,说明还没被回应)。没有则返回空串。
+func pendingUserQuestion(history []Message) (text, name string) {
+	lastUserIdx, lastHostIdx := -1, -1
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if lastUserIdx < 0 && m.Role == RoleUser {
+			lastUserIdx = i
+		}
+		if lastHostIdx < 0 && strings.HasPrefix(m.Role, "host_") {
+			lastHostIdx = i
+		}
+	}
+	if lastUserIdx < 0 {
+		return "", ""
+	}
+	if lastUserIdx > lastHostIdx {
+		m := history[lastUserIdx]
+		return m.Content, m.PersonaName
+	}
+	return "", ""
 }
 
 // currentFocus 从历史里反向查最近一条非空 focus_symbol。

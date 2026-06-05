@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -13,6 +14,13 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/chat"
 	"github.com/sencloud/finme-backend/internal/platform"
 )
+
+// sseHeartbeatInterval 是 SSE 流上的心跳间隔。DeepSeek 思考阶段 / 慢工具
+// Dispatch 期间后端会"沉默"不发字节,移动端 NAT / 中间网络会把看似空闲的
+// 长连接回收,导致前端 `Connection closed while receiving data`。每隔这个
+// 间隔写一行 SSE 注释 `: ping`(前端 LineSplitter 见 ':' 开头即忽略,不破坏
+// 协议),让连接始终有字节流动。
+const sseHeartbeatInterval = 12 * time.Second
 
 // mountAIChat 挂载 /v1/ai/* 路由（受 JWT 保护）。
 func mountAIChat(r chi.Router, d *Deps) {
@@ -88,18 +96,50 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
+		// writeMu 串行化对 ResponseWriter 的写:emit(业务事件)与心跳
+		// goroutine 并发写同一个 w 不安全,必须加锁。
+		var writeMu sync.Mutex
+
 		emit := func(event string, data any) error {
 			raw, err := json.Marshal(data)
 			if err != nil {
 				return err
 			}
 			line := fmt.Sprintf("event: %s\ndata: %s\n\n", event, string(raw))
+			writeMu.Lock()
+			defer writeMu.Unlock()
 			if _, err := w.Write([]byte(line)); err != nil {
 				return err
 			}
 			flusher.Flush()
 			return nil
 		}
+
+		// 心跳 goroutine:在 chat.Run 期间周期性写 `: ping`,run 结束或客户端
+		// 断连(r.Context() 取消)时退出。
+		stopHeartbeat := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(sseHeartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopHeartbeat:
+					return
+				case <-r.Context().Done():
+					return
+				case <-ticker.C:
+					writeMu.Lock()
+					_, err := w.Write([]byte(": ping\n\n"))
+					if err == nil {
+						flusher.Flush()
+					}
+					writeMu.Unlock()
+					if err != nil {
+						return
+					}
+				}
+			}
+		}()
 
 		_ = d.Chat.Run(r.Context(), chat.ChatInput{
 			UserID:           uc.UserID,
@@ -110,5 +150,6 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			SystemHint:       body.SystemHint,
 			PortfolioContext: body.PortfolioContext,
 		}, emit)
+		close(stopHeartbeat)
 	}
 }
