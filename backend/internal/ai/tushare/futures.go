@@ -97,11 +97,11 @@ func (c *Client) FuturesDailyBatch(ctx context.Context, p FutDailyParams) ([]Fut
 // 示例：
 //
 //	"RB2510.SHF" → ("RB", "SHFE")
-//	"IF2506.CFE" → ("IF", "CFFEX")
+//	"IF2506.CFX" → ("IF", "CFFEX")
 //	"CU2507.SHF" → ("CU", "SHFE")
 //	"SC2507.INE" → ("SC", "INE")
 //	"M2509.DCE"  → ("M",  "DCE")
-//	"FG506.CZC"  → ("FG", "CZCE")
+//	"ZC2705.ZCE" → ("ZC", "CZCE")
 //
 // 规则：合约代码 = 字母品种前缀 + 数字（4 位完整年月，或郑商所 3 位短月）。
 // 后缀映射回交易所全称。
@@ -150,9 +150,9 @@ func expandFuturesExchange(suffix string) string {
 		return "SHFE"
 	case "DCE":
 		return "DCE"
-	case "CZC", "CZCE":
+	case "ZCE", "CZC", "CZCE":
 		return "CZCE"
-	case "CFE", "CFFEX":
+	case "CFX", "CFE", "CFFEX":
 		return "CFFEX"
 	case "INE":
 		return "INE"
