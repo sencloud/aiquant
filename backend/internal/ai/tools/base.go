@@ -4,7 +4,8 @@
 //
 // 数据源分工：
 //   - Tushare：A 股 / 期货历史日线、分钟、财报、行业资金、北向、两融
-//   - Realtime（东财 push2）：交易日实时快照、涨跌幅榜、指数实时
+//   - Realtime（腾讯 + 东财 push2delay）：A 股/期货实时快照、涨跌幅榜，
+//     以及美股 / 全球指数 / 外汇实时（均走东财 push2delay stock/get）
 //   - CNNews（财联社+东财快讯+新浪滚动）：国内中文财经/期货/政策电报
 //   - News（GDELT+FIRMS）：海外议题、卫星火点
 package tools
@@ -37,6 +38,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerMacro(r, d.Tushare)
 	registerEvent(r, d.News, d.CNNews)
 	registerRealtime(r, d.Realtime)
+	registerGlobal(r, d.Realtime)
 	registerBacktest(r, d.Tushare)
 	registerOptions(r, d.Tushare)
 	registerDominant(r, d.Tushare)
