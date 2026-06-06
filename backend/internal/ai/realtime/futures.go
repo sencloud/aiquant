@@ -41,10 +41,12 @@ type FuturesQuote struct {
 
 // fetchFuturesSnapshotEM 拉单期货合约实时行情（东方财富 push2 实现）。
 //
-// 当前公开入口 FetchFuturesSnapshot 默认走新浪 hq.sinajs.cn（更稳定，详见 sina_futures.go）。
-// 本函数保留为可切回的备用实现。
+// host 用 push2delay.eastmoney.com 而非 push2.eastmoney.com：后者 CNAME 到
+// Azure trafficmanager 的一组节点，在阿里云生产出口 TLS 握手会被重置
+// （unexpected eof），push2delay 解析到另一组可达 IP，同一套 API、字段一致，
+// 数据为延迟行情（期货实时快照场景可接受，f1 延迟标记仍会回填 Delayed）。
 //
-// 端点：https://push2.eastmoney.com/api/qt/stock/get?secid=<m.code>
+// 端点：https://push2delay.eastmoney.com/api/qt/stock/get?secid=<m.code>
 // 字段：f43 最新 f44 高 f45 低 f46 开 f47 成交量 f48 成交额 f49 持仓量
 //
 //	f50 买一 f51 卖一 f57 代码 f58 名称 f59 价格小数位
@@ -62,7 +64,7 @@ func (c *Client) fetchFuturesSnapshotEM(ctx context.Context, tsCode string) (*Fu
 		"f1", "f43", "f44", "f45", "f46", "f47", "f48", "f49",
 		"f50", "f51", "f57", "f58", "f59", "f60", "f161", "f169", "f170",
 	}
-	u := "https://push2.eastmoney.com/api/qt/stock/get" +
+	u := "https://push2delay.eastmoney.com/api/qt/stock/get" +
 		"?secid=" + secid +
 		"&fields=" + strings.Join(fields, ",")
 	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
@@ -131,8 +133,6 @@ func (c *Client) fetchFuturesSnapshotEM(ctx context.Context, tsCode string) (*Fu
 }
 
 // fetchFuturesBatchEM 并发批量拉多个合约实时行情（东方财富 push2 实现）。
-//
-// 当前公开入口 FetchFuturesBatch 默认走新浪 hq.sinajs.cn 的 list= 单次批量调用。
 //
 // push2 期货 ulist 不返回 f59（价格小数位），无法正确还原各品种价格，
 // 因此走"并发调 fetchFuturesSnapshotEM"路径。并发上限 8，避免触发限流。

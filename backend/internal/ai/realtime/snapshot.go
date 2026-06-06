@@ -33,7 +33,7 @@ type Quote struct {
 
 // fetchSnapshotEM 拉单标的实时报价（东方财富 push2 实现，保留作为 client.go 公开方法的可选备用）。
 //
-// 端点：https://push2.eastmoney.com/api/qt/stock/get?secid=<m.code>
+// 端点：https://push2delay.eastmoney.com/api/qt/stock/get?secid=<m.code>
 //
 // 当前公开入口 FetchSnapshot 默认走新浪 hq.sinajs.cn（更稳定，详见 sina_stock.go）。
 // 本函数保留是为了后续在新浪不可用 / 字段不齐时可单测切回，不再被默认路径调用。
@@ -46,7 +46,7 @@ func (c *Client) fetchSnapshotEM(ctx context.Context, symbol string) (*Quote, er
 	if secid == "" {
 		return nil, fmt.Errorf("unsupported symbol for realtime: %s", symbol)
 	}
-	u := "https://push2.eastmoney.com/api/qt/stock/get" +
+	u := "https://push2delay.eastmoney.com/api/qt/stock/get" +
 		"?secid=" + secid +
 		"&fields=" + strings.Join([]string{
 			"f43", "f44", "f45", "f46", "f47", "f48",
@@ -119,7 +119,7 @@ func (c *Client) fetchIndexesEM(ctx context.Context, tsCodes []string) ([]Quote,
 	if len(secids) == 0 {
 		return nil, fmt.Errorf("no valid secid")
 	}
-	u := "https://push2.eastmoney.com/api/qt/ulist.np/get" +
+	u := "https://push2delay.eastmoney.com/api/qt/ulist.np/get" +
 		"?secids=" + strings.Join(secids, ",") +
 		"&fields=f1,f2,f3,f4,f12,f13,f14,f15,f16,f17,f18"
 	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
