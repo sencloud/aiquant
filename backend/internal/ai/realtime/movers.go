@@ -75,7 +75,7 @@ func fsForScope(scope, board string) string {
 
 // FetchTopMovers 拉涨幅 / 跌幅榜。
 //
-// 端点：https://push2.eastmoney.com/api/qt/clist/get
+// 端点：https://push2delay.eastmoney.com/api/qt/clist/get
 // 关键参数 po：1=desc 2=asc；fid=f3 按涨跌幅排。
 func (c *Client) FetchTopMovers(ctx context.Context, opt MoversOptions) ([]Mover, error) {
 	limit := opt.Limit
@@ -91,7 +91,7 @@ func (c *Client) FetchTopMovers(ctx context.Context, opt MoversOptions) ([]Mover
 		return nil, fmt.Errorf("invalid scope/board")
 	}
 	u := fmt.Sprintf(
-		"https://push2.eastmoney.com/api/qt/clist/get"+
+		"https://push2delay.eastmoney.com/api/qt/clist/get"+
 			"?pn=1&pz=%d&po=%s&np=1&fid=f3"+
 			"&fs=%s"+
 			"&fields=f2,f3,f4,f5,f6,f8,f12,f13,f14",
