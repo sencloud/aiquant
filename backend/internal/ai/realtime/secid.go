@@ -67,7 +67,7 @@ func FuturesSecID(tsCode string) string {
 	}
 	body, suf := s[:dot], strings.ToUpper(s[dot+1:])
 	switch suf {
-	case "CFE", "CFFEX":
+	case "CFX", "CFE", "CFFEX":
 		return "8." + strings.ToUpper(body)
 	case "SHF", "SHFE":
 		return "113." + strings.ToLower(body)
@@ -75,7 +75,7 @@ func FuturesSecID(tsCode string) string {
 		return "142." + strings.ToLower(body)
 	case "DCE":
 		return "114." + strings.ToLower(body)
-	case "CZC", "CZCE", "ZCE":
+	case "ZCE", "CZC", "CZCE":
 		return "115." + czceCompressMonth(strings.ToUpper(body))
 	case "GFE", "GFEX":
 		return "225." + strings.ToLower(body)

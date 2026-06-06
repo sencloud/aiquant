@@ -11,21 +11,31 @@ import (
 var sixDigit = regexp.MustCompile(`^\d{6}$`)
 var letterPrefix = regexp.MustCompile(`^[A-Z]+`)
 
+// futureSuffixes 列出所有可能出现的期货交易所后缀（含 Tushare 原生与东财/akshare 变体）。
+//
+// Tushare fut_daily 原生后缀：CFFEX=.CFX、CZCE=.ZCE、SHFE=.SHF、DCE=.DCE、INE=.INE、GFEX=.GFE。
+// 这里把东财风格的 .CFE / .CZC 也保留，便于 IsFuture 在归一前后都能识别。
 var futureSuffixes = []string{
-	".CZC", ".CZCE",
+	".ZCE", ".CZC", ".CZCE",
 	".DCE",
 	".SHF", ".SHFE",
 	".INE",
 	".GFE", ".GFEX",
-	".CFE", ".CFFEX",
+	".CFX", ".CFE", ".CFFEX",
 }
 
 // NormalizeSymbol 把用户输入的代码转成 Tushare 可识别形态。
 //
-// 规则：
-//   - 已含 ".XXXX" 的，CZCE → CZC，SHFE → SHF，CFFEX → CFE，GFEX → GFE
+// 期货后缀一律归一到 **Tushare fut_daily 原生形态**（这是 get_dominant_contract
+// 的输出形态，也是历史/财务接口要求的形态），消除「东财 .CFE/.CZC」与
+// 「Tushare .CFX/.ZCE」两套约定导致的路由错配：
+//   - CFFEX：.CFFEX / .CFE → .CFX
+//   - CZCE ：.CZCE  / .CZC → .ZCE
+//   - SHFE ：.SHFE → .SHF；GFEX：.GFEX → .GFE
+//   - DCE / INE / .SHF / .CFX / .ZCE / .GFE 已是原生，原样透传
+//
+// 股票/ETF/指数规则不变：
 //   - 6 位纯数字：6/900 → .SH；0/3/200 → .SZ；4/8/920 → .BJ
-//   - 否则原样返回
 func NormalizeSymbol(input string) string {
 	s := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(input), " ", ""))
 	if s == "" {
@@ -33,14 +43,18 @@ func NormalizeSymbol(input string) string {
 	}
 	if strings.Contains(s, ".") {
 		switch {
+		case strings.HasSuffix(s, ".CFFEX"):
+			return s[:len(s)-6] + ".CFX"
+		case strings.HasSuffix(s, ".CFE"):
+			return s[:len(s)-4] + ".CFX"
 		case strings.HasSuffix(s, ".CZCE"):
-			return s[:len(s)-1]
+			return s[:len(s)-5] + ".ZCE"
+		case strings.HasSuffix(s, ".CZC"):
+			return s[:len(s)-4] + ".ZCE"
 		case strings.HasSuffix(s, ".SHFE"):
 			return s[:len(s)-5] + ".SHF"
 		case strings.HasSuffix(s, ".GFEX"):
 			return s[:len(s)-5] + ".GFE"
-		case strings.HasSuffix(s, ".CFFEX"):
-			return s[:len(s)-6] + ".CFE"
 		}
 		return s
 	}
@@ -111,7 +125,7 @@ func ExchangeOf(s string) string {
 		return "SZSE"
 	case strings.HasSuffix(u, ".BJ"):
 		return "BSE"
-	case strings.HasSuffix(u, ".CZC") || strings.HasSuffix(u, ".CZCE"):
+	case strings.HasSuffix(u, ".ZCE") || strings.HasSuffix(u, ".CZC") || strings.HasSuffix(u, ".CZCE"):
 		return "郑商所"
 	case strings.HasSuffix(u, ".DCE"):
 		return "大商所"
@@ -121,7 +135,7 @@ func ExchangeOf(s string) string {
 		return "上海能源"
 	case strings.HasSuffix(u, ".GFE") || strings.HasSuffix(u, ".GFEX"):
 		return "广期所"
-	case strings.HasSuffix(u, ".CFE") || strings.HasSuffix(u, ".CFFEX"):
+	case strings.HasSuffix(u, ".CFX") || strings.HasSuffix(u, ".CFE") || strings.HasSuffix(u, ".CFFEX"):
 		return "中金所"
 	}
 	return ""

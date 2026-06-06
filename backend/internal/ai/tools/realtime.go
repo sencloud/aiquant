@@ -223,9 +223,9 @@ func (t *getFuturesRealtimeTool) Spec() tool.Spec {
 			Properties: map[string]tool.ParameterProperty{
 				"ts_code": {
 					Type: "string",
-					Description: "完整期货合约 ts_code，必须带交易所后缀：" +
+					Description: "完整期货合约 ts_code，必须带交易所后缀（用 get_dominant_contract 返回的原生形态）：" +
 						"沪铜 CU2510.SHF、螺纹 RB2510.SHF、原油 SC2509.INE、" +
-						"豆粕 M2509.DCE、白糖 SR509.CZC、IF2509.CFE、工业硅 SI2510.GFE",
+						"豆粕 M2509.DCE、白糖 SR509.ZCE、股指 IF2509.CFX、工业硅 SI2510.GFE",
 				},
 			},
 			Required: []string{"ts_code"},
@@ -285,7 +285,7 @@ func (t *getFuturesRealtimeBatchTool) Spec() tool.Spec {
 			Properties: map[string]tool.ParameterProperty{
 				"ts_codes": {
 					Type:        "array",
-					Description: "期货合约 ts_code 数组，必须带交易所后缀，例如 [\"RB2510.SHF\",\"HC2510.SHF\",\"I2509.DCE\"]",
+					Description: "期货合约 ts_code 数组，必须带交易所后缀（get_dominant_contract 的原生形态），例如 [\"RB2510.SHF\",\"HC2510.SHF\",\"I2509.DCE\",\"IF2509.CFX\",\"SR509.ZCE\"]",
 					Items: &tool.ParameterProperty{
 						Type: "string",
 					},
