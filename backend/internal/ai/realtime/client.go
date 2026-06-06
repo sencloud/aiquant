@@ -40,6 +40,11 @@ import (
 // push2delay 解析到另一组可达 IP,同一套 API、字段一致(延迟行情,可接受)。
 type Client struct {
 	httpc *http.Client
+
+	// quoteCache：全球行情快照短期缓存（TTL 12s），吸收同一标的的高频重复请求。
+	// secidCache：美股 symbol→secid 解析缓存（TTL 6h），符号映射基本不变。
+	quoteCache *ttlCache[*GlobalQuote]
+	secidCache *ttlCache[secMeta]
 }
 
 // New 默认 timeout 8s(国内接口 < 200ms,留余量)。
@@ -48,7 +53,9 @@ func New(timeoutSec int) *Client {
 		timeoutSec = 8
 	}
 	return &Client{
-		httpc: &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
+		httpc:      &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
+		quoteCache: newTTLCache[*GlobalQuote](12 * time.Second),
+		secidCache: newTTLCache[secMeta](6 * time.Hour),
 	}
 }
 
