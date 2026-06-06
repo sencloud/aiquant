@@ -11,6 +11,7 @@
 package tools
 
 import (
+	"github.com/sencloud/finme-backend/internal/ai/calendar"
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
@@ -24,6 +25,7 @@ type Deps struct {
 	News     *news.Client
 	CNNews   *cnnews.Client
 	Realtime *realtime.Client
+	Calendar *calendar.Client
 }
 
 // BuildAll 注册全部工具到一个新的 Registry。
@@ -39,6 +41,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerEvent(r, d.News, d.CNNews)
 	registerRealtime(r, d.Realtime)
 	registerGlobal(r, d.Realtime)
+	registerCalendar(r, d.Calendar)
 	registerBacktest(r, d.Tushare)
 	registerOptions(r, d.Tushare)
 	registerDominant(r, d.Tushare)

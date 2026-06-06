@@ -20,6 +20,7 @@ import (
 
 	"github.com/sencloud/finme-backend/internal/ai/chat"
 	"github.com/sencloud/finme-backend/internal/ai/qwen"
+	"github.com/sencloud/finme-backend/internal/ai/calendar"
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
@@ -139,8 +140,9 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		} else {
 			liveNw := news.New(cfg.News)
 			liveCn := cnnews.New(cfg.News.TimeoutSec)
+			liveCal := calendar.New(cfg.News.TimeoutSec)
 			liveReg := aitools.BuildAll(aitools.Deps{
-				Tushare: liveTu, News: liveNw, CNNews: liveCn, Realtime: liveRt,
+				Tushare: liveTu, News: liveNw, CNNews: liveCn, Realtime: liveRt, Calendar: liveCal,
 			})
 			liveExec := live.NewExecutor(ds, liveReg)
 			liveHost := live.NewHostPlanner(ds)
@@ -251,11 +253,13 @@ func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
 	nw := news.New(cfg.News)
 	cn := cnnews.New(cfg.News.TimeoutSec)
 	rt := realtime.New(0)
+	cal := calendar.New(cfg.News.TimeoutSec)
 	reg := aitools.BuildAll(aitools.Deps{
 		Tushare:  tu,
 		News:     nw,
 		CNNews:   cn,
 		Realtime: rt,
+		Calendar: cal,
 	})
 	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
 	return reg
@@ -300,8 +304,9 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 			nw := news.New(cfg.News)
 			cn := cnnews.New(cfg.News.TimeoutSec)
 			rt := realtime.New(0)
+			cal := calendar.New(cfg.News.TimeoutSec)
 			reg := aitools.BuildAll(aitools.Deps{
-				Tushare: tu, News: nw, CNNews: cn, Realtime: rt,
+				Tushare: tu, News: nw, CNNews: cn, Realtime: rt, Calendar: cal,
 			})
 			// Live v2 调度器:host_planner(无 tools) + guest_speaker(有 tools 走 executor)。
 			exec := live.NewExecutor(ds, reg)
