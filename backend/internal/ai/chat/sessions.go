@@ -3,7 +3,7 @@
 // 1. 会话上下文：客户端只发"本轮 user 消息 + session_id"，后端拼齐 history。
 // 2. tool calling loop：循环调用 LLM；遇到 tool_calls 由 ToolRegistry 派发，
 //    把结果作为新的 role=tool 消息送回，直到 LLM 给出最终 stop。
-// 3. 喜点扣费：开 stream 前预检余额；done 之前按 (基础 + 深度 + 工具数) 一次性扣。
+// 3. 喜点扣费：开 stream 前预检余额；done 之前按 (基础 + 深度) 一次性扣，工具调用不计费。
 package chat
 
 import (
