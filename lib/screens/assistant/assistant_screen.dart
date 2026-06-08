@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/auth/require_login.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../models/chat.dart';
 import '../../models/persona.dart';
@@ -131,6 +132,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final raw = override ?? _input.text;
     final text = raw.trim();
     if (text.isEmpty) return;
+    // 发送是需鉴权功能：未登录先弹登录，放弃则不发送（保留输入内容）。
+    if (!await requireLogin(context)) return;
+    if (!mounted) return;
     _input.clear();
     // 发送即收起键盘 + 失焦，让聊天区视野最大化
     _focus.unfocus();
@@ -337,6 +341,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
   /// 若用户已开启「@组合」，则把组合快照也带上，让 AI 在策略报告里参考
   /// 当前持仓做换仓建议。
   Future<void> _runStrategy(Strategy s) async {
+    if (!await requireLogin(context)) return;
+    if (!mounted) return;
     Map<String, dynamic>? ctxJson;
     if (_attachPortfolio) {
       final ps = context.read<PortfolioState>();
@@ -349,6 +355,15 @@ class _AssistantScreenState extends State<AssistantScreen> {
         .read<ChatState>()
         .sendMessage(s.prompt, portfolioContext: ctxJson);
     _scrollToBottom();
+  }
+
+  /// 福利中心（= 我的页）属需登录入口：未登录先弹登录，再进充值页。
+  Future<void> _openCreditCenter() async {
+    if (!await requireLogin(context)) return;
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
   }
 
   /// 空会话时的欢迎面板：参考"元宝"截图布局——上半部分留白让视线聚焦，
@@ -372,9 +387,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ),
           const SizedBox(height: 14),
           _CreditAdBanner(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onTap: _openCreditCenter,
           ),
           const SizedBox(height: 14),
           for (final q in persona.welcomeSuggestions.take(3)) _suggestion(q),

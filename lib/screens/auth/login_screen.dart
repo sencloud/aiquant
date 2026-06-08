@@ -13,10 +13,15 @@ import '../../widgets/legal_links.dart';
 
 /// 登录页：仅 Apple Sign In（个人开发者完全免费、TestFlight 审核必须支持）。
 ///
-/// 进入条件：AuthState.isAuthenticated == false。
-/// 成功后由 AuthGate 切换到 HomeScreen。
+/// 两种进入方式：
+/// - 根级（[modal] = false）：以前的整页登录（现已不作为默认启动页）。
+/// - 模态（[modal] = true）：由 requireLogin 在「我的」/ 发送消息等触点弹出，
+///   左上角显示关闭按钮，登录成功后自动 pop 回原页面。
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.modal = false});
+
+  /// 是否以模态弹窗形式打开（显示关闭按钮 + 成功后自动关闭）。
+  final bool modal;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -38,6 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await context.read<AuthState>().signInWithApple();
+      // 模态登录成功后自动关闭，回到触发登录的页面。
+      if (mounted && widget.modal && context.read<AuthState>().isAuthenticated) {
+        Navigator.of(context).maybePop();
+        return;
+      }
     } on SignInWithAppleAuthorizationException catch (e) {
       // 用户主动取消
       if (e.code == AuthorizationErrorCode.canceled) {
@@ -61,7 +71,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       body: SafeArea(
-        child: Padding(
+        child: Stack(
+          children: [
+            if (widget.modal)
+              Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  icon: Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+            Padding(
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
           child: Column(
             children: [
@@ -117,6 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
+            ],
+          ),
       ),
     );
   }

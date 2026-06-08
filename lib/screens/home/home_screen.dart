@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/auth/require_login.dart';
+import '../../state/auth_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
@@ -41,6 +43,18 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// 需要登录才能进入的 tab：DING(3) / 我的(4)。
+  static const _gatedTabs = {3, 4};
+
+  /// 切换 tab；命中需鉴权的 tab 时先弹登录，放弃登录则停留原 tab。
+  Future<void> _selectTab(int i) async {
+    if (_gatedTabs.contains(i) && !context.read<AuthState>().isAuthenticated) {
+      final ok = await requireLogin(context);
+      if (!ok || !mounted) return;
+    }
+    setState(() => _index = i);
+  }
+
   @override
   Widget build(BuildContext context) {
     const pages = [
@@ -51,6 +65,16 @@ class _HomeScreenState extends State<HomeScreen>
       SettingsScreen(),
     ];
     final unread = context.watch<DingState>().unreadCount;
+
+    // 登出 / 强制下线后若仍停在需登录的 tab，退回助理首页，避免展示空白个人页。
+    final authed = context.watch<AuthState>().isAuthenticated;
+    if (!authed && _gatedTabs.contains(_index)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !context.read<AuthState>().isAuthenticated) {
+          setState(() => _index = 0);
+        }
+      });
+    }
 
     return Scaffold(
       body: IndexedStack(index: _index, children: pages),
@@ -72,18 +96,18 @@ class _HomeScreenState extends State<HomeScreen>
                   activeIcon: Icons.psychology,
                   label: '助理',
                   active: _index == 0,
-                  onTap: () => setState(() => _index = 0),
+                  onTap: () => _selectTab(0),
                 ),
                 _NavItem(
                   icon: Icons.pie_chart_outline,
                   activeIcon: Icons.pie_chart,
                   label: '组合',
                   active: _index == 1,
-                  onTap: () => setState(() => _index = 1),
+                  onTap: () => _selectTab(1),
                 ),
                 _LiveCenterButton(
                   active: _index == 2,
-                  onTap: () => setState(() => _index = 2),
+                  onTap: () => _selectTab(2),
                 ),
                 _NavItem(
                   icon: Icons.notifications_none,
@@ -91,14 +115,14 @@ class _HomeScreenState extends State<HomeScreen>
                   label: 'DING',
                   active: _index == 3,
                   badge: unread,
-                  onTap: () => setState(() => _index = 3),
+                  onTap: () => _selectTab(3),
                 ),
                 _NavItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: '我的',
                   active: _index == 4,
-                  onTap: () => setState(() => _index = 4),
+                  onTap: () => _selectTab(4),
                 ),
               ],
             ),
