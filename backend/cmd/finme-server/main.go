@@ -38,6 +38,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/push"
 	"github.com/sencloud/finme-backend/internal/scheduler"
+	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
 
@@ -179,6 +180,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Onboarding: onboardSvc,
 		Chat:       chatSvc,
 		Qwen:       qwenVision,
+		Share:      share.NewRepo(st),
 	}
 	router := api.NewRouter(deps)
 
