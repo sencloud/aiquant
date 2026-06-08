@@ -23,7 +23,7 @@ const (
 	demoTaskCost       = 5
 	welcomeTopic       = "system.welcome"
 	welcomeTitle       = "欢迎使用喜宽"
-	welcomeBrief       = "已为你赠送 10 喜点。点开 DING 看一个示例任务，或在「助理」里直接提问"
+	welcomeBrief       = "已为你赠送 100 喜点。点开 DING 看一个示例任务，或在「助理」里直接提问"
 )
 
 // Service 把 onboarding 工作打包成一个接口给 auth handler 调用。
@@ -128,14 +128,14 @@ func (s *Service) ensureWelcomeNotification(ctx context.Context, userID int64) e
 
 我是你的 AI 投资助手，可以帮你：
 
-- 查 A 股 / ETF / 指数 / 期货的实时行情
-- 看财报、估值、资金流等数据，帮你做研究
+- 查 A 股 / ETF / 指数 / 期货 / 美股 / 外汇的实时行情
+- 看财报、估值、资金流、经济日历等数据，帮你做研究
 - 在「DING」里设个定时任务，每天/每周自动给你发研究报告
 
-我们已经为你送上 **10 喜点**：
+我们已经为你送上 **100 喜点**：
 
-- 每次回答消耗 **0.6 喜点**
-- 含行情查询，则按次再加 **0.1 喜点**
+- 每次回答消耗 **6 喜点**
+- 调用行情、新闻等数据工具不再额外计费
 
 试试在「助理」里问一句"今日大盘怎么样？"，或者打开「DING」体验示例任务。`,
 	})
