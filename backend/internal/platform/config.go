@@ -183,7 +183,6 @@ type AIConfig struct {
 	MaxContextMsgs  int   `toml:"max_context_msgs"`
 	BaseChatCredits int64 `toml:"base_chat_credits"`     // 一次普通 chat 基础消耗
 	DeepBonusCredits int64 `toml:"deep_bonus_credits"`   // 深度模式额外
-	PerToolCredits  int64 `toml:"per_tool_credits"`      // 每个 tool call 增加
 	LiveRoomCreateCredits int64 `toml:"live_room_create_credits"` // 创建一个直播间消耗
 	LivePostCredits       int64 `toml:"live_post_credits"`        // 观众在直播间发一条言消耗
 }
@@ -291,7 +290,6 @@ func defaultConfig() *Config {
 			MaxContextMsgs:   60,
 			BaseChatCredits:  1,
 			DeepBonusCredits: 5,
-			PerToolCredits:   1,
 			LiveRoomCreateCredits: 1,
 			LivePostCredits:       1,
 		},

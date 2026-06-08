@@ -162,7 +162,7 @@ func (s *Service) RunCollect(ctx context.Context, in ChatInput) (*CollectResult,
 //   3. 把 user 消息落库；
 //   4. 进入 tool calling loop（每轮 ChatStream 流式输出文本/工具调用）；
 //   5. 每个 tool 调用 → emit tool_call / 调度 / emit tool_result / 落库；
-//   6. 累计 tool 数 → 在 done 之前一次性扣费；
+//   6. 在 done 之前一次性按 base(+deep) 扣费（工具调用不计费）；
 //   7. emit session/done/error 事件。
 func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 	if !s.Configured() {
@@ -180,30 +180,20 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		_ = emit("error", map[string]any{"code": "AI.BALANCE_READ", "message": err.Error()})
 		return err
 	}
-	// 预扣费乐观估算 = base + deep + perTool * estTools。
-	// estTools 取一个能覆盖大部分对话的常见上限（默认 6），避免出现「跑完 N 个
-	// tool call 才报喜点不足」的体验问题。即使最终实际工具数少于 estTools，
-	// 真实扣费在 LOOPS 结束后按 totalToolCalls 计算，不会多扣。
-	const estimatedToolCalls = 6
-	estCost := cfg.BaseChatCredits
+	// 扣费 = base（+ deep）。工具调用一律不计费，多调工具不会增加消耗。
+	cost := cfg.BaseChatCredits
 	if in.DeepMode {
-		estCost += cfg.DeepBonusCredits
+		cost += cfg.DeepBonusCredits
 	}
-	estCost += cfg.PerToolCredits * int64(estimatedToolCalls)
-	minCost := cfg.BaseChatCredits
-	if in.DeepMode {
-		minCost += cfg.DeepBonusCredits
-	}
-	if balance < estCost {
+	if balance < cost {
 		_ = emit("error", map[string]any{
 			"code": "AI.INSUFFICIENT_BALANCE",
 			"message": fmt.Sprintf(
-				"喜点不足，当前余额 %d，本次对话预估最多需要 %d（基础 %d + 工具 %d × %d）。请先充值再继续。",
-				balance, estCost, minCost,
-				cfg.PerToolCredits, estimatedToolCalls,
+				"喜点不足，当前余额 %d，本次对话需要 %d 喜点。请先充值再继续。",
+				balance, cost,
 			),
 			"balance":  balance,
-			"estimate": estCost,
+			"estimate": cost,
 		})
 		return ErrInsufficientBalance
 	}
@@ -335,11 +325,8 @@ LOOPS:
 		}
 	}
 
-	totalCredits := cfg.BaseChatCredits
-	if in.DeepMode {
-		totalCredits += cfg.DeepBonusCredits
-	}
-	totalCredits += cfg.PerToolCredits * int64(totalToolCalls)
+	// 实际扣费 = 预检时算好的 cost（base + deep）。工具数仅用于日志 / 展示。
+	totalCredits := cost
 
 	reason := billing.ReasonConsumeAI
 	refType := "ai_session"
