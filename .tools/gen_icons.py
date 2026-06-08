@@ -74,9 +74,12 @@ def main():
     for d, sz in android.items():
         save(master, sz, os.path.join(ROOT, "android", "app", "src", "main", "res", d, "ic_launcher.png"))
 
+    # 源图：登录页 Image.asset + flutter_launcher_icons 都用这一张，必须同步更新。
+    save(master, 1024, os.path.join(ROOT, "assets", "branding", "app_icon.png"))
+
     # 预览图(给落地页 / 自查)
     save(master, 512, os.path.join(ROOT, ".tools", "_icon_preview.png"))
-    print("ICONS_DONE: iOS", len(ios), "Android", len(android))
+    print("ICONS_DONE: iOS", len(ios), "Android", len(android), "+ branding source")
 
 
 if __name__ == "__main__":
