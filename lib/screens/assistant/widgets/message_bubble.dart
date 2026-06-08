@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../models/chat.dart';
+import '../../../services/share_service.dart';
+import '../../../state/chat_state.dart';
 import '../../../theme/app_theme.dart';
 import 'reasoning_block.dart';
 import 'share_card_screen.dart';
 import 'tool_call_card.dart';
+
+/// 复制文本到剪贴板并轻提示。聊天区"长按复制"与操作栏"复制"共用。
+Future<void> _copyText(BuildContext context, String text) async {
+  await Clipboard.setData(ClipboardData(text: text));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('已复制到剪贴板'),
+      duration: Duration(seconds: 1),
+    ),
+  );
+}
 
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
@@ -91,6 +107,11 @@ class MessageBubble extends StatelessWidget {
                 timestamp: message.timestamp,
               ),
             ),
+          if (isUser && hasContent)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, right: 2),
+              child: _UserActionsBar(text: message.content),
+            ),
           if (message.streaming &&
               !hasReasoning &&
               !hasContent &&
@@ -129,9 +150,13 @@ class MessageBubble extends StatelessWidget {
 
   Widget _content(BuildContext context, Color fg) {
     if (message.role == 'user') {
-      return Text(
-        message.content,
-        style: TextStyle(color: fg, fontSize: 13, height: 1.4),
+      // 用户气泡用纯 Text（非 selectable），长按整段复制。
+      return GestureDetector(
+        onLongPress: () => _copyText(context, message.content),
+        child: Text(
+          message.content,
+          style: TextStyle(color: fg, fontSize: 13, height: 1.4),
+        ),
       );
     }
     // 流式输出时把内容末尾追加一个零宽 marker，再用一个底部光标动画
@@ -189,7 +214,7 @@ class MessageBubble extends StatelessWidget {
 /// 「长图分享」先 push 到 [ShareCardScreen] 让用户预览，再调系统分享面板
 /// （iOS 装了微信会出现「微信 / 朋友圈」入口）。比直接 text 分享更"成图友好"，
 /// 接收方在微信里看是一张完整的品牌长图。
-class _MessageActionsBar extends StatelessWidget {
+class _MessageActionsBar extends StatefulWidget {
   const _MessageActionsBar({
     required this.text,
     required this.timestamp,
@@ -199,28 +224,55 @@ class _MessageActionsBar extends StatelessWidget {
   final String text;
   final DateTime timestamp;
 
-  /// 触发这条 assistant 回答的上一条 user 提问；长图卡片里会同时渲染。
+  /// 触发这条 assistant 回答的上一条 user 提问；长图 / 分享页里会同时渲染。
   final String? question;
 
-  Future<void> _copy(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已复制到剪贴板'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
+  @override
+  State<_MessageActionsBar> createState() => _MessageActionsBarState();
+}
 
-  void _shareAsImage(BuildContext context) {
+class _MessageActionsBarState extends State<_MessageActionsBar> {
+  bool _sharingLink = false;
+
+  void _shareAsImage() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ShareCardScreen(
-        question: question,
-        text: text,
-        timestamp: timestamp,
+        question: widget.question,
+        text: widget.text,
+        timestamp: widget.timestamp,
       ),
     ));
+  }
+
+  /// 生成可分享的网页链接：先把问答存到服务端换回短链，再走系统分享面板
+  /// 发送 URL（微信里点开是一张品牌网页）。
+  Future<void> _shareAsLink() async {
+    if (_sharingLink) return;
+    setState(() => _sharingLink = true);
+    try {
+      final url = await ShareService().createShare(
+        question: widget.question,
+        answer: widget.text,
+      );
+      if (!mounted) return;
+      Rect? origin;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        origin = box.localToGlobal(Offset.zero) & box.size;
+      }
+      await Share.share(
+        '我用喜宽 AI 助理聊了点投资，分享给你看看：\n$url',
+        subject: '来自喜宽 AI 助理',
+        sharePositionOrigin: origin,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('生成分享链接失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sharingLink = false);
+    }
   }
 
   @override
@@ -231,13 +283,63 @@ class _MessageActionsBar extends StatelessWidget {
         _ActionChip(
           icon: Icons.copy_outlined,
           label: '复制',
-          onTap: () => _copy(context),
+          onTap: () => _copyText(context, widget.text),
         ),
         const SizedBox(width: 6),
         _ActionChip(
           icon: Icons.ios_share,
-          label: '生成长图分享',
-          onTap: () => _shareAsImage(context),
+          label: '长图分享',
+          onTap: _shareAsImage,
+        ),
+        const SizedBox(width: 6),
+        _ActionChip(
+          icon: _sharingLink ? Icons.hourglass_top : Icons.link,
+          label: _sharingLink ? '生成中…' : '链接分享',
+          onTap: _sharingLink ? null : _shareAsLink,
+        ),
+      ],
+    );
+  }
+}
+
+/// 用户消息底部操作栏：复制 / 重发。
+///
+/// - 复制：拷贝该条用户输入到剪贴板。
+/// - 重发：把同样的文字再发一次（追加一轮新问答），方便重试或换个回答。
+class _UserActionsBar extends StatelessWidget {
+  const _UserActionsBar({required this.text});
+
+  final String text;
+
+  Future<void> _resend(BuildContext context) async {
+    final chat = context.read<ChatState>();
+    if (chat.streaming) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('请等当前回复完成后再重发'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+    await chat.sendMessage(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ActionChip(
+          icon: Icons.copy_outlined,
+          label: '复制',
+          onTap: () => _copyText(context, text),
+        ),
+        const SizedBox(width: 6),
+        _ActionChip(
+          icon: Icons.refresh,
+          label: '重发',
+          onTap: () => _resend(context),
         ),
       ],
     );
@@ -253,7 +355,7 @@ class _ActionChip extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

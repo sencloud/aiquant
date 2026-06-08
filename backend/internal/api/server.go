@@ -21,6 +21,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
 )
@@ -39,6 +40,7 @@ type Deps struct {
 	Onboarding *onboarding.Service
 	Chat       *chat.Service
 	Qwen       *qwen.VisionClient
+	Share      *share.Repo
 }
 
 // NewRouter 装配业务路由。
@@ -62,6 +64,9 @@ func NewRouter(d *Deps) http.Handler {
 	r.Get("/healthz", handleHealthz(d))
 	r.Get("/readyz", handleReadyz(d))
 	r.Get("/metrics", handleMetrics(d))
+
+	// 公开分享页：无需登录，浏览器 / 微信直接打开 https://<host>/s/{id}。
+	r.Get("/s/{id}", handleSharePage(d))
 
 	// SSE 子路由：JWT + audit，但不挂 middleware.Timeout —— chi 的 timeout
 	// 用 http.TimeoutHandler 包了 ResponseWriter，会让 SSE handler 拿不到
@@ -96,6 +101,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountDing(r, d)
 				mountLive(r, d)
 				mountPortfolioParse(r, d)
+				mountAIShare(r, d)
 			})
 		})
 	})
