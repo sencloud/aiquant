@@ -7,12 +7,13 @@ import '../../state/chat_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../home/home_screen.dart';
-import 'login_screen.dart';
 
 /// AuthGate 是 App 的根 widget。
 /// - bootstrap 中：显示启动 splash；
-/// - 已登录：HomeScreen；
-/// - 未登录：LoginScreen。
+/// - 否则：始终进入 HomeScreen（主程序）。
+///
+/// 产品策略：启动默认进主程序，未登录也能浏览；只有在进入「我的」/ DING 等
+/// 需账号的 tab，或触发发送消息等需鉴权功能时，才由 requireLogin 弹登录页。
 ///
 /// 在登录态切换时，统一驱动其它状态：
 /// - 登录后：ChatState.bootstrap() + BillingState.refreshAll() + DingState.bootstrap()
@@ -63,7 +64,7 @@ class _AuthGateState extends State<AuthGate> {
       });
     }
 
-    return isAuthed ? const HomeScreen() : const LoginScreen();
+    return const HomeScreen();
   }
 }
 
