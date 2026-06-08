@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
@@ -20,6 +21,15 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _bootstrapped = false;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((pkg) {
+      if (mounted) setState(() => _version = 'v${pkg.version}');
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -174,8 +184,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _section('账号管理'),
               const SizedBox(height: 6),
               _LogoutTile(),
-              const SizedBox(height: 8),
-              _DeleteAccountTile(),
+              // 注销账户入口暂时隐藏
+              // const SizedBox(height: 8),
+              // _DeleteAccountTile(),
             ],
             const SizedBox(height: 24),
             _section('法律条款'),
@@ -186,8 +197,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               dense: true,
               leading: const Icon(Icons.info_outline, color: AppColors.amber),
-              title: Text('喜宽',
-                  style: TextStyle(color: AppColors.textPrimary)),
+              title: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('喜宽', style: TextStyle(color: AppColors.textPrimary)),
+                  if (_version.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text(_version,
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11)),
+                  ],
+                ],
+              ),
               subtitle: Text('AI 投资助手 · 让看盘和决策更轻松',
                   style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 11)),
@@ -767,6 +789,7 @@ class _LogoutTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _DeleteAccountTile extends StatelessWidget {
   Future<void> _confirm(BuildContext context) async {
     final confirmed = await showDialog<bool>(
