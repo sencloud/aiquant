@@ -15,6 +15,7 @@ import 'state/billing_state.dart';
 import 'state/chat_state.dart';
 import 'state/ding_state.dart';
 import 'state/live_state.dart';
+import 'state/nautilus_state.dart';
 import 'state/portfolio_state.dart';
 import 'state/settings_state.dart';
 
@@ -60,6 +61,7 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => ChatState()),
         ChangeNotifierProvider(create: (_) => DingState()),
         ChangeNotifierProvider(create: (_) => LiveState()),
+        ChangeNotifierProvider(create: (_) => NautilusState()),
       ],
       child: const XikuanApp(),
     ),

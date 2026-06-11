@@ -18,10 +18,13 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/predict"
 	"github.com/sencloud/finme-backend/internal/share"
+	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
 )
@@ -41,6 +44,9 @@ type Deps struct {
 	Chat       *chat.Service
 	Qwen       *qwen.VisionClient
 	Share      *share.Repo
+	Shell      *shell.Repo
+	Predict    *predict.Service
+	Invite     *invite.Service
 }
 
 // NewRouter 装配业务路由。
@@ -92,6 +98,9 @@ func NewRouter(d *Deps) http.Handler {
 				mountAuth(r, d)
 				mountBillingPublic(r, d)
 			})
+			// 鹦鹉螺：市场浏览公开（未登录可看），管理端走 X-Admin-Key。
+			mountNautilusPublic(r, d)
+			mountNautilusAdmin(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -102,6 +111,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountLive(r, d)
 				mountPortfolioParse(r, d)
 				mountAIShare(r, d)
+				mountNautilus(r, d)
 			})
 		})
 	})

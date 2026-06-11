@@ -7,7 +7,7 @@ import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../ding/ding_screen.dart';
-import '../live/live_screen.dart';
+import '../nautilus/nautilus_screen.dart';
 import '../portfolio/portfolio_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -20,7 +20,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 助理, 1 = 组合, 2 = AI 直播(中间凸起), 3 = DING, 4 = 我的
+  // 0 = 助理, 1 = 组合, 2 = 鹦鹉螺(中间凸起), 3 = DING, 4 = 我的
+  // 直播功能暂时下线：入口替换为鹦鹉螺预测市场，live 代码保留未删。
   int _index = 0;
 
   @override
@@ -60,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen>
     const pages = [
       AssistantScreen(),
       PortfolioScreen(),
-      LiveScreen(),
+      NautilusScreen(),
       DingScreen(),
       SettingsScreen(),
     ];
@@ -105,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen>
                   active: _index == 1,
                   onTap: () => _selectTab(1),
                 ),
-                _LiveCenterButton(
+                _NautilusCenterButton(
                   active: _index == 2,
                   onTap: () => _selectTab(2),
                 ),
@@ -133,10 +134,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-/// 底部中间「AI 直播」凸起按钮 —— 圆形金黄渐变 + 直播红点,
-/// 比普通 tab 更突出,强调"实时直播"的核心入口地位。
-class _LiveCenterButton extends StatelessWidget {
-  const _LiveCenterButton({required this.active, required this.onTap});
+/// 底部中间「鹦鹉螺」凸起按钮 —— 圆形金黄渐变 + 鹦鹉螺螺旋线稿,
+/// 比普通 tab 更突出,强调预测市场的核心入口地位。
+class _NautilusCenterButton extends StatelessWidget {
+  const _NautilusCenterButton({required this.active, required this.onTap});
   final bool active;
   final VoidCallback onTap;
 
@@ -169,29 +170,18 @@ class _LiveCenterButton extends StatelessWidget {
                 ],
                 border: Border.all(color: AppColors.bgSurface, width: 2),
               ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.live_tv, color: Colors.white, size: 20),
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFef4444),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: Image.asset(
+                  'assets/branding/nautilus.png',
+                  width: 22,
+                  height: 22,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 1),
             Text(
-              '直播',
+              '鹦鹉螺',
               style: TextStyle(
                 color: active ? AppColors.amber : AppColors.textSecondary,
                 fontSize: 10,

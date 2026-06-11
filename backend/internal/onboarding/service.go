@@ -9,6 +9,7 @@ import (
 
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
 )
@@ -33,10 +34,12 @@ const (
 //   - ding.TaskRepo 写演示任务（用 ListByUser 检测幂等）
 //   - ding.NotificationRepo 写欢迎通知（同样按用户检测幂等）
 type Service struct {
-	st       *store.Store
-	ledger   *billing.LedgerRepo
-	tasks    *ding.TaskRepo
-	notifs   *ding.NotificationRepo
+	st           *store.Store
+	ledger       *billing.LedgerRepo
+	tasks        *ding.TaskRepo
+	notifs       *ding.NotificationRepo
+	shells       *shell.Repo
+	signupShells int64
 }
 
 func New(
@@ -44,8 +47,13 @@ func New(
 	ledger *billing.LedgerRepo,
 	tasks *ding.TaskRepo,
 	notifs *ding.NotificationRepo,
+	shells *shell.Repo,
+	signupShells int64,
 ) *Service {
-	return &Service{st: st, ledger: ledger, tasks: tasks, notifs: notifs}
+	return &Service{
+		st: st, ledger: ledger, tasks: tasks, notifs: notifs,
+		shells: shells, signupShells: signupShells,
+	}
 }
 
 // OnboardIfNeeded 在首次登录后调用。所有步骤都是幂等的，重复调用安全。
@@ -57,6 +65,9 @@ func (s *Service) OnboardIfNeeded(ctx context.Context, user *users.User) error {
 		return nil
 	}
 	if err := s.ensureSignupBonus(ctx, user); err != nil {
+		return err
+	}
+	if err := s.ensureSignupShells(ctx, user); err != nil {
 		return err
 	}
 	if err := s.ensureDemoTask(ctx, user.ID); err != nil {
@@ -81,6 +92,25 @@ func (s *Service) ensureSignupBonus(ctx context.Context, user *users.User) error
 		return nil
 	}
 	if errors.Is(err, billing.ErrLedgerDuplicate) {
+		return nil
+	}
+	return err
+}
+
+// ensureSignupShells 鹦鹉螺预测市场的初始螺壳(与喜点独立)。
+func (s *Service) ensureSignupShells(ctx context.Context, user *users.User) error {
+	if s.shells == nil || s.signupShells <= 0 {
+		return nil
+	}
+	_, err := s.shells.Apply(ctx, shell.ApplyParams{
+		UserID:  user.ID,
+		Delta:   s.signupShells,
+		Reason:  shell.ReasonSignupGift,
+		RefType: "user",
+		RefID:   user.UUID,
+		Remark:  "首次登录赠送",
+	})
+	if err == nil || errors.Is(err, shell.ErrDuplicate) {
 		return nil
 	}
 	return err

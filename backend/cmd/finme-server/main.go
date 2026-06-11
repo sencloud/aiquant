@@ -32,13 +32,16 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/predict"
 	"github.com/sencloud/finme-backend/internal/push"
 	"github.com/sencloud/finme-backend/internal/scheduler"
 	"github.com/sencloud/finme-backend/internal/share"
+	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/users"
 
@@ -105,11 +108,18 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	if err != nil {
 		l.Fatal().Err(err).Msg("init billing")
 	}
+	// 鹦鹉螺预测市场：螺壳账本 + 市场/下注 + 邀请。
+	shellRepo := shell.NewRepo(st)
+	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)
+	inviteSvc := invite.NewService(st, cfg.Nautilus.InviteRewardShells)
+
 	onboardSvc := onboarding.New(
 		st,
 		billing.NewLedgerRepo(st),
 		ding.NewTaskRepo(st),
 		ding.NewNotificationRepo(st),
+		shellRepo,
+		cfg.Nautilus.SignupShells,
 	)
 
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
@@ -181,6 +191,9 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Chat:       chatSvc,
 		Qwen:       qwenVision,
 		Share:      share.NewRepo(st),
+		Shell:      shellRepo,
+		Predict:    predictSvc,
+		Invite:     inviteSvc,
 	}
 	router := api.NewRouter(deps)
 
@@ -281,6 +294,10 @@ func waitForSignal() {
 func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
+
+	// 鹦鹉螺：关闭到期市场 + 金融类自动结算(东财实时行情判定)。
+	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)
+	sch.Register(predict.NewAutoSettleJob(predictSvc, realtime.New(0), &l, time.Minute))
 
 	usersSvc := users.NewService(st, cfg)
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
