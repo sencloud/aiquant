@@ -33,6 +33,18 @@ type Config struct {
 	AI        AIConfig        `toml:"ai"`
 	Qwen      QwenConfig      `toml:"qwen"`
 	RateLimit RateLimitConfig `toml:"ratelimit"`
+	Nautilus  NautilusConfig  `toml:"nautilus"`
+}
+
+// NautilusConfig 鹦鹉螺预测市场的运行参数。
+//
+// admin_key 用于管理端建市场 / 录结果（X-Admin-Key 头校验），
+// 走 FINME_NAUTILUS__ADMIN_KEY 注入；为空时管理端点直接 503。
+type NautilusConfig struct {
+	AdminKey           string `toml:"admin_key"`
+	SignupShells       int64  `toml:"signup_shells"`        // 新用户赠送螺壳
+	InviteRewardShells int64  `toml:"invite_reward_shells"` // 邀请双方各得
+	MinBet             int64  `toml:"min_bet"`              // 单笔最低下注
 }
 
 type ServerConfig struct {
@@ -300,6 +312,11 @@ func defaultConfig() *Config {
 			SMSPerIPPerHour:   5,
 			OrderPerUserRPM:   5,
 		},
+		Nautilus: NautilusConfig{
+			SignupShells:       100,
+			InviteRewardShells: 50,
+			MinBet:             10,
+		},
 	}
 }
 
@@ -445,6 +462,9 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_SMS__ACCESS_KEY_SECRET"); v != "" {
 		c.SMS.AccessKeySecret = v
+	}
+	if v := os.Getenv("FINME_NAUTILUS__ADMIN_KEY"); v != "" {
+		c.Nautilus.AdminKey = v
 	}
 }
 

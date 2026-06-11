@@ -5,6 +5,7 @@ import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
 import '../../state/ding_state.dart';
+import '../../state/nautilus_state.dart';
 import '../../theme/app_theme.dart';
 import '../home/home_screen.dart';
 
@@ -50,16 +51,19 @@ class _AuthGateState extends State<AuthGate> {
           if (wasAuthed == true) {
             context.read<ChatState>().reset();
             context.read<DingState>().reset();
+            context.read<NautilusState>().clearUserData();
           }
           context.read<ChatState>().bootstrap();
           context.read<BillingState>().refreshAll();
           context.read<DingState>().bootstrap();
+          context.read<NautilusState>().refreshWallet();
         } else if (wasAuthed == true) {
           // 仅在从已登录显式跳到未登录（登出 / 强制下线）时才清空本地缓存，
           // 避免冷启动 splash 阶段误把 Hive 清掉。
           context.read<ChatState>().reset();
           context.read<BillingState>().reset();
           context.read<DingState>().reset();
+          context.read<NautilusState>().clearUserData();
         }
       });
     }
