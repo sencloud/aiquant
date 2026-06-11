@@ -47,6 +47,8 @@ type User struct {
 	Nickname      sql.NullString `db:"nickname"`
 	Status        string `db:"status"`
 	CreditBalance int64  `db:"credit_balance"`
+	ShellBalance  int64  `db:"shell_balance"`
+	InviteCode    sql.NullString `db:"invite_code"`
 	RiskScore     int64  `db:"risk_score"`
 	CreatedAt     int64  `db:"created_at"`
 	UpdatedAt     int64  `db:"updated_at"`
