@@ -27,6 +27,19 @@ const (
 	CategoryFinance = "finance"
 )
 
+// 子分类（在大类下再分，供前端筛选；空串=未分类）。
+const (
+	// 天气子类
+	SubWeatherCity  = "city"  // 城市天气
+	SubWeatherGrain = "grain" // 谷物油籽产区
+	SubWeatherSoft  = "soft"  // 软商品产区
+
+	// 金融子类
+	SubFinIndex = "index" // 股指
+	SubFinStock = "stock" // 个股
+	SubFinForex = "forex" // 外汇
+)
+
 const (
 	ResolveAuto   = "auto"
 	ResolveManual = "manual"
@@ -36,6 +49,7 @@ const (
 type Market struct {
 	ID               int64          `db:"id" json:"id"`
 	Category         string         `db:"category" json:"category"`
+	SubCategory      string         `db:"subcategory" json:"subcategory"`
 	Title            string         `db:"title" json:"title"`
 	Description      string         `db:"description" json:"description"`
 	Status           string         `db:"status" json:"status"`

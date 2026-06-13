@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>下载喜宽 · AI 投研助理</title>
+<meta name="description" content="下载喜宽 App，聊行情、管组合、做日报，还能在鹦鹉螺预测全球天气与金融行情。">
+<meta name="theme-color" content="#0A0A0A">
+<meta property="og:title" content="下载喜宽 · AI 投研助理">
+<meta property="og:description" content="好友邀请你加入喜宽，注册填邀请码双方各得螺壳奖励。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://www.singzquant.com/og.png">
+<meta property="og:url" content="https://www.singzquant.com/d/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A0A0A'/><rect x='8' y='10' width='3' height='12' rx='1' fill='%23D97706'/><rect x='14.5' y='6' width='3' height='20' rx='1' fill='%23E5E5E5'/><rect x='21' y='13' width='3' height='9' rx='1' fill='%23D97706'/></svg>">
+<style>
+  :root{
+    --bg:#0A0A0A;--surface:#141414;--raised:#1C1C1C;--border:#2A2A2A;
+    --tx:#E5E5E5;--tx2:#9E9E9E;--tx3:#6B6B6B;
+    --amber:#D97706;--amber-dim:#B35B05;--amber-soft:rgba(217,118,6,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+    background:var(--bg);color:var(--tx);line-height:1.6;min-height:100vh;
+    -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;
+    padding:32px 22px 40px;
+  }
+  .glow{position:fixed;inset:0;z-index:-1;pointer-events:none}
+  .glow::before{content:"";position:absolute;top:-160px;left:50%;transform:translateX(-50%);
+    width:680px;height:480px;border-radius:50%;
+    background:radial-gradient(circle,rgba(217,118,6,.22),transparent 62%);filter:blur(30px)}
+  .wrap{width:100%;max-width:420px;text-align:center}
+  .logo{width:72px;height:72px;border-radius:18px;background:var(--surface);
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+    margin:0 auto 18px}
+  .logo svg{width:40px;height:40px}
+  h1{font-size:24px;font-weight:800;letter-spacing:.4px}
+  h1 .amber{color:var(--amber)}
+  .sub{color:var(--tx2);font-size:14px;margin-top:8px}
+  .invite{margin:26px 0;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:20px 18px}
+  .invite .cap{font-size:12px;color:var(--tx3);letter-spacing:.5px}
+  .invite .code{font-size:30px;font-weight:900;letter-spacing:4px;color:var(--amber);
+    margin:6px 0 4px;font-variant-numeric:tabular-nums}
+  .invite .hint{font-size:12px;color:var(--tx2)}
+  .copy{margin-top:14px;width:100%;background:var(--amber-soft);color:var(--amber);
+    border:1px solid var(--amber-dim);border-radius:12px;padding:10px;font-size:13px;
+    font-weight:700;cursor:pointer}
+  .copy:active{opacity:.7}
+  .btn{display:block;width:100%;padding:15px;border-radius:14px;font-size:16px;font-weight:800;
+    margin-top:14px;border:none;cursor:pointer;text-decoration:none}
+  .btn-primary{background:var(--amber);color:#fff}
+  .btn-primary:active{background:var(--amber-dim)}
+  .android{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:16px;margin-top:14px;font-size:13px;color:var(--tx2);display:none}
+  .steps{margin-top:26px;text-align:left;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:18px 20px}
+  .steps h2{font-size:13px;color:var(--tx2);font-weight:700;margin-bottom:12px;letter-spacing:.5px}
+  .steps ol{list-style:none;counter-reset:s}
+  .steps li{counter-increment:s;position:relative;padding:6px 0 6px 30px;font-size:13.5px;color:var(--tx)}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:6px;width:20px;height:20px;
+    border-radius:50%;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:800;
+    display:flex;align-items:center;justify-content:center}
+  .foot{margin-top:26px;font-size:11px;color:var(--tx3);line-height:1.7}
+  .foot a{color:var(--tx2)}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+  <div class="logo">
+    <svg viewBox="0 0 32 32"><rect x="8" y="10" width="3" height="12" rx="1" fill="#D97706"/><rect x="14.5" y="6" width="3" height="20" rx="1" fill="#E5E5E5"/><rect x="21" y="13" width="3" height="9" rx="1" fill="#D97706"/></svg>
+  </div>
+  <h1>下载<span class="amber">喜宽</span></h1>
+  <p class="sub">AI 投研助理 · 聊行情、管组合、做日报</p>
+
+  <div class="invite" id="inviteBox" style="display:none">
+    <div class="cap">好友邀请码</div>
+    <div class="code" id="codeText">--------</div>
+    <div class="hint">注册后在 App「鹦鹉螺 - 邀请」填写，双方各得螺壳奖励</div>
+    <button class="copy" id="copyBtn">复制邀请码</button>
+  </div>
+
+  <a class="btn btn-primary" id="iosBtn" href="https://apps.apple.com/cn/app/%E5%96%9C%E5%AE%BD/id6770043388">App Store 下载</a>
+  <div class="android" id="androidBox">
+    安卓版即将上线。请用 iPhone 打开本页下载，或先记下邀请码，待安卓上线后填写。
+  </div>
+
+  <div class="steps">
+    <h2>三步领奖励</h2>
+    <ol>
+      <li>App Store 下载并打开喜宽</li>
+      <li>进入「鹦鹉螺」板块，点「邀请」</li>
+      <li>填写上方邀请码，双方各得螺壳</li>
+    </ol>
+  </div>
+
+  <p class="foot">
+    本内容仅供学习参考，不构成投资建议。<br>
+    <a href="https://www.singzquant.com">www.singzquant.com</a>
+  </p>
+</div>
+<script>
+  (function(){
+    var params = new URLSearchParams(location.search);
+    var ref = (params.get('ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    if (ref) {
+      document.getElementById('inviteBox').style.display = 'block';
+      document.getElementById('codeText').textContent = ref;
+      var btn = document.getElementById('copyBtn');
+      btn.addEventListener('click', function(){
+        var done = function(){ btn.textContent = '已复制 ✓'; setTimeout(function(){ btn.textContent = '复制邀请码'; }, 1800); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ref).then(done, function(){});
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = ref; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); done(); } catch(e){}
+          document.body.removeChild(ta);
+        }
+      });
+    }
+    // UA 嗅探：非 iOS 设备显示安卓兜底提示。
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && 'ontouchend' in document);
+    if (!isIOS) {
+      document.getElementById('androidBox').style.display = 'block';
+    }
+  })();
+</script>
+</body>
+</html>

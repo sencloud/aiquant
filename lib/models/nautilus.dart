@@ -34,6 +34,7 @@ class PredictMarket {
   const PredictMarket({
     required this.id,
     required this.category,
+    required this.subCategory,
     required this.title,
     required this.description,
     required this.status,
@@ -48,6 +49,7 @@ class PredictMarket {
 
   final int id;
   final String category; // weather / finance
+  final String subCategory; // city/grain/soft 或 index/stock/forex（空=未分类）
   final String title;
   final String description;
   final String status; // open / closed / settled / cancelled
@@ -91,6 +93,7 @@ class PredictMarket {
   factory PredictMarket.fromJson(Map<String, dynamic> j) => PredictMarket(
         id: _asInt(j['id']),
         category: _asStr(j['category']),
+        subCategory: _asStr(j['subcategory']),
         title: _asStr(j['title']),
         description: _asStr(j['description']),
         status: _asStr(j['status']),

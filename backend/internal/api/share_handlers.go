@@ -2,9 +2,11 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -100,11 +102,26 @@ func handleSharePage(d *Deps) http.HandlerFunc {
 
 		w.Header().Set("Cache-Control", "public, max-age=600")
 		_ = sharePageTpl.Execute(w, sharePageData{
-			Question:  s.Question,
-			AnswerRaw: template.HTML(buf.String()), //nolint:gosec // goldmark 默认转义裸 HTML
-			Date:      time.UnixMilli(s.CreatedAt).Format("2006-01-02 15:04"),
+			Question:    s.Question,
+			AnswerRaw:   template.HTML(buf.String()), //nolint:gosec // goldmark 默认转义裸 HTML
+			Date:        time.UnixMilli(s.CreatedAt).Format("2006-01-02 15:04"),
+			DownloadURL: downloadURL(r.Context(), d, s.UserID),
 		})
 	}
+}
+
+// downloadURL 拼接「下载落地页」链接：带上创建者邀请码做拉新归因。
+// 取不到邀请码(未配置/异常)时退化为无 ref 的下载页。
+func downloadURL(ctx context.Context, d *Deps, userID int64) string {
+	const base = "https://www.singzquant.com/d/"
+	if d.Invite == nil {
+		return base
+	}
+	code, err := d.Invite.EnsureCode(ctx, userID)
+	if err != nil || code == "" {
+		return base
+	}
+	return base + "?ref=" + url.QueryEscape(code) + "&utm_source=share"
 }
 
 // shareURL 用请求自身的 host/scheme 拼分享链接（部署在 api.singzquant.com 时即
@@ -120,9 +137,10 @@ func shareURL(r *http.Request, id string) string {
 }
 
 type sharePageData struct {
-	Question  string
-	AnswerRaw template.HTML
-	Date      string
+	Question    string
+	AnswerRaw   template.HTML
+	Date        string
+	DownloadURL string
 }
 
 var sharePageTpl = template.Must(template.New("share").Parse(sharePageHTML))
@@ -137,6 +155,9 @@ const sharePageHTML = `<!doctype html>
 <meta name="description" content="来自喜宽 AI 投资助理的对话内容，仅供参考。">
 <meta property="og:title" content="喜宽 · AI 投资助理">
 <meta property="og:description" content="来自喜宽 AI 投资助理的对话内容，仅供参考。">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://www.singzquant.com/og.png">
+<meta property="og:url" content="https://www.singzquant.com">
 <style>
 :root{--accent:#D97706;--bg:#F5F2EA;--card:#fff;--fg:#1A1A1A;--fg2:#5A5A5A;--fg3:#999;--soft:#FAF5EC;--border:#E6E1D5}
 *{box-sizing:border-box}
@@ -167,6 +188,9 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,B
 .foot{display:flex;align-items:center;gap:6px;padding:12px 18px 16px;background:var(--soft);border-top:1px solid var(--border);font-size:11px;color:var(--fg3)}
 .brand{margin-left:auto;background:var(--accent);color:#fff;font-weight:800;font-size:11px;letter-spacing:.5px;padding:3px 9px;border-radius:10px;text-decoration:none}
 .tip{max-width:680px;margin:14px auto 28px;padding:0 18px;font-size:11px;color:var(--fg3);text-align:center;line-height:1.7}
+.dl{display:flex;align-items:center;justify-content:center;gap:8px;max-width:680px;margin:16px auto 0;padding:14px;background:var(--accent);color:#fff;border-radius:14px;font-weight:800;font-size:15px;text-decoration:none;box-shadow:0 6px 18px rgba(217,118,6,.25)}
+.dl:active{opacity:.85}
+.dl small{font-weight:600;opacity:.85;font-size:11px}
 </style>
 </head>
 <body>
@@ -195,6 +219,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,B
       <a class="brand" href="https://www.singzquant.com">singzquant.com</a>
     </div>
   </div>
+  <a class="dl" href="{{.DownloadURL}}">下载喜宽 App，体验 AI 投研助理 <small>· 填邀请码得螺壳</small></a>
   <p class="tip">本内容由 AI 生成，不构成任何投资建议。投资有风险，决策需谨慎。</p>
 </div>
 </body>
