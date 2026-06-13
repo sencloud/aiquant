@@ -30,6 +30,7 @@ const (
 	ReasonBetPayout    = "bet_payout"    // 结算派彩
 	ReasonBetRefund    = "bet_refund"    // 市场取消 / 无对手盘退款
 	ReasonAdminAdjust  = "admin_adjust"  // 后台手动调账
+	ReasonBotFunding   = "bot_funding"   // 机器人下注资金由平台兜底供给
 )
 
 // Entry 是账本一行（不可变，单向追加）。

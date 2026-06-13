@@ -49,6 +49,7 @@ type User struct {
 	CreditBalance int64  `db:"credit_balance"`
 	ShellBalance  int64  `db:"shell_balance"`
 	InviteCode    sql.NullString `db:"invite_code"`
+	IsBot         bool   `db:"is_bot"`
 	RiskScore     int64  `db:"risk_score"`
 	CreatedAt     int64  `db:"created_at"`
 	UpdatedAt     int64  `db:"updated_at"`
@@ -232,6 +233,52 @@ func (s *Service) EnsureByApple(ctx context.Context, sub, nickname string) (*Use
 		return nil, fmt.Errorf("insert user by apple: %w", err)
 	}
 	return s.FindByID(ctx, id)
+}
+
+// EnsureBots 幂等保证存在至少 n 个机器人账号，返回全部 bot 用户 id。
+//
+// Bot 账号无登录凭证(无 phone/apple)，uuid 用确定性的 "bot-0001" 形式保证
+// 重复执行不会重复创建；昵称沿用随机词库，混入真实用户里更自然。
+func (s *Service) EnsureBots(ctx context.Context, n int) ([]int64, error) {
+	ids := []int64{}
+	if err := s.st.DB.SelectContext(ctx, &ids,
+		"SELECT id FROM users WHERE is_bot=1 ORDER BY id"); err != nil {
+		return nil, err
+	}
+	now := time.Now().UnixMilli()
+	for i := len(ids); i < n; i++ {
+		uuid := fmt.Sprintf("bot-%04d", i+1)
+		nick := genRandomNickname()
+		var id int64
+		err := s.st.Tx(ctx, func(tx *sqlx.Tx) error {
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO users(uuid, nickname, status, credit_balance, is_bot, created_at, updated_at)
+				VALUES (?, ?, 'active', 0, 1, ?, ?)`,
+				uuid, sql.NullString{String: nick, Valid: true}, now, now)
+			if err != nil {
+				return err
+			}
+			id, err = res.LastInsertId()
+			return err
+		})
+		if err != nil {
+			if u, e := s.FindByUUID(ctx, uuid); e == nil && u != nil {
+				ids = append(ids, u.ID)
+				continue
+			}
+			return nil, fmt.Errorf("create bot %s: %w", uuid, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// ListBotIDs 返回全部机器人账号 id。
+func (s *Service) ListBotIDs(ctx context.Context) ([]int64, error) {
+	ids := []int64{}
+	err := s.st.DB.SelectContext(ctx, &ids,
+		"SELECT id FROM users WHERE is_bot=1 ORDER BY id")
+	return ids, err
 }
 
 // CreditBalance 单独读余额（避免 chat 服务为了一个数字加载完整 User）。

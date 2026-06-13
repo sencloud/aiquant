@@ -64,6 +64,19 @@ class PredictMarket {
   bool get isSettled => status == 'settled';
   bool get isCancelled => status == 'cancelled';
 
+  /// 全部选项的下注人数合计（热度）。
+  int get totalBettors => options.fold(0, (s, o) => s + o.bettorCount);
+
+  /// 是否临近截止（6 小时内），用于高亮提醒。
+  bool get closingSoon {
+    if (!isOpen) return false;
+    final left = closeAt - DateTime.now().millisecondsSinceEpoch;
+    return left > 0 && left <= 6 * 60 * 60 * 1000;
+  }
+
+  /// 是否天气类自动结算（用于详情页展示结算来源）。
+  bool get isWeatherAuto => category == 'weather' && resolveKind == 'auto';
+
   /// 选项当前的隐含赔率（含本金倍数）。池子为空时返回 0 表示"待定"。
   double oddsFor(MarketOption o) {
     if (o.poolShells <= 0) return 0;

@@ -128,6 +128,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
       ),
       body: Column(
         children: [
+          _headerBanner(n, authed),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
             child: Row(
@@ -182,6 +183,131 @@ class _NautilusScreenState extends State<NautilusScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 顶部横幅：登录后展示螺壳余额(渐变卡)+邀请行动点；未登录展示领螺壳引导。
+  Widget _headerBanner(NautilusState n, bool authed) {
+    if (authed && n.walletLoaded) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: InkWell(
+          onTap: _openWallet,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.amber, AppColors.amberDim],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Image.asset('assets/branding/nautilus.png',
+                    width: 30, height: 30, color: Colors.black),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('我的螺壳',
+                        style: TextStyle(
+                            color: Colors.black87,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text('${n.balance}',
+                        style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            height: 1.0)),
+                  ],
+                ),
+                const Spacer(),
+                _bannerButton(
+                  icon: Icons.card_giftcard,
+                  label: '邀请赚螺壳',
+                  onTap: _openInvite,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: InkWell(
+        onTap: _openWallet,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.amber.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              const _ShellIcon(size: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('登录领螺壳',
+                        style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text('用螺壳押全球天气和金融行情，邀请好友还能赚更多',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  size: 20, color: AppColors.amber),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bannerButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: Colors.white),
+            const SizedBox(width: 5),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
       ),
     );
   }
@@ -276,7 +402,22 @@ class _MarketCard extends StatelessWidget {
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11),
                     ),
+                    if (market.totalBettors > 0) ...[
+                      const SizedBox(width: 10),
+                      Icon(Icons.people_alt_rounded,
+                          size: 11, color: AppColors.textTertiary),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${market.totalBettors}',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11),
+                      ),
+                    ],
                     const Spacer(),
+                    if (market.isOpen && market.closingSoon) ...[
+                      const Icon(Icons.bolt, size: 12, color: AppColors.warning),
+                      const SizedBox(width: 2),
+                    ],
                     Text(
                       market.isOpen
                           ? '截止 ${formatCloseAt(market.closeAt)}'
@@ -286,7 +427,13 @@ class _MarketCard extends StatelessWidget {
                                   ? '已取消'
                                   : '待开奖',
                       style: TextStyle(
-                          color: AppColors.textTertiary, fontSize: 11),
+                          color: market.isOpen && market.closingSoon
+                              ? AppColors.warning
+                              : AppColors.textTertiary,
+                          fontSize: 11,
+                          fontWeight: market.isOpen && market.closingSoon
+                              ? FontWeight.w700
+                              : FontWeight.w400),
                     ),
                   ],
                 ),

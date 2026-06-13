@@ -21,6 +21,7 @@ var (
 	ErrOptionInvalid  = errors.New("option does not belong to market")
 	ErrBetTooSmall    = errors.New("bet amount below minimum")
 	ErrAlreadyFinal   = errors.New("market already settled or cancelled")
+	ErrDuplicateMarket = errors.New("market with same dedup_key already exists")
 )
 
 // Service 聚合市场/选项/下注的读写与结算。
@@ -51,6 +52,7 @@ type CreateMarketInput struct {
 	ResolveRule string   `json:"resolve_rule"`
 	RakeBps     int64    `json:"rake_bps"`
 	Options     []string `json:"options"`
+	DedupKey    string   `json:"dedup_key"` // 可选；非空时用唯一索引保证不重复建市场
 }
 
 func (in *CreateMarketInput) validate() error {
@@ -81,8 +83,15 @@ func (in *CreateMarketInput) validate() error {
 		if err != nil {
 			return fmt.Errorf("resolve_rule invalid json: %w", err)
 		}
-		if rule.Symbol == "" || rule.Op == "" {
-			return fmt.Errorf("resolve_rule requires symbol/op")
+		if rule.Op == "" {
+			return fmt.Errorf("resolve_rule requires op")
+		}
+		if rule.Source == "weather" {
+			if rule.City == "" || rule.Date == "" || rule.Metric == "" {
+				return fmt.Errorf("weather resolve_rule requires city/date/metric")
+			}
+		} else if rule.Symbol == "" {
+			return fmt.Errorf("resolve_rule requires symbol")
 		}
 		nOpt := len(in.Options)
 		if rule.YesIdx < 0 || rule.YesIdx >= nOpt || rule.NoIdx < 0 || rule.NoIdx >= nOpt || rule.YesIdx == rule.NoIdx {
@@ -104,11 +113,15 @@ func (s *Service) CreateMarket(ctx context.Context, in CreateMarketInput) (*Mark
 	err := s.st.Tx(ctx, func(tx *sqlx.Tx) error {
 		res, err := tx.ExecContext(ctx, `
 			INSERT INTO predict_markets(category, title, description, status, close_at,
-				resolve_at, resolve_kind, resolve_rule, rake_bps, created_at, updated_at)
-			VALUES(?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
+				resolve_at, resolve_kind, resolve_rule, rake_bps, dedup_key, created_at, updated_at)
+			VALUES(?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
 			in.Category, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description),
-			in.CloseAt, in.ResolveAt, in.ResolveKind, in.ResolveRule, in.RakeBps, now, now)
+			in.CloseAt, in.ResolveAt, in.ResolveKind, in.ResolveRule, in.RakeBps,
+			nullStr(in.DedupKey), now, now)
 		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				return ErrDuplicateMarket
+			}
 			return err
 		}
 		marketID, _ = res.LastInsertId()
@@ -155,6 +168,40 @@ func (s *Service) ListMarkets(ctx context.Context, category string, limit int) (
 		views = append(views, *v)
 	}
 	return views, nil
+}
+
+// OpenMarkets 返回当前仍可下注(status=open 且未到 close_at)的市场，供 Bot 下注使用。
+func (s *Service) OpenMarkets(ctx context.Context, limit int) ([]MarketView, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	now := time.Now().UnixMilli()
+	rows := []Market{}
+	if err := s.st.DB.SelectContext(ctx, &rows, `
+		SELECT * FROM predict_markets
+		WHERE status='open' AND close_at>?
+		ORDER BY close_at LIMIT ?`, now, limit); err != nil {
+		return nil, err
+	}
+	views := make([]MarketView, 0, len(rows))
+	for _, m := range rows {
+		v, err := s.attachOptions(ctx, m)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, *v)
+	}
+	return views, nil
+}
+
+// BotBetCount 统计某市场上机器人已下注的笔数（用于限制 bot 在单市场的活跃度）。
+func (s *Service) BotBetCount(ctx context.Context, marketID int64) (int, error) {
+	var n int
+	err := s.st.DB.GetContext(ctx, &n, `
+		SELECT COUNT(*) FROM predict_bets b
+		JOIN users u ON u.id = b.user_id
+		WHERE b.market_id=? AND u.is_bot=1`, marketID)
+	return n, err
 }
 
 func (s *Service) GetMarket(ctx context.Context, id int64) (*MarketView, error) {
@@ -447,6 +494,13 @@ func (s *Service) Cancel(ctx context.Context, marketID int64) error {
 		}
 		return nil
 	})
+}
+
+func nullStr(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }
 
 // refundBetsTx 把一组 active 下注全额退款（流局 / 取消共用）。

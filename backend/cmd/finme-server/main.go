@@ -24,6 +24,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
+	"github.com/sencloud/finme-backend/internal/ai/weather"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	aitools "github.com/sencloud/finme-backend/internal/ai/tools"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
@@ -295,11 +296,35 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
 
-	// 鹦鹉螺：关闭到期市场 + 金融类自动结算(东财实时行情判定)。
+	// 鹦鹉螺：关闭到期市场 + 金融/天气类自动结算(东财行情 + Open-Meteo 判定)。
 	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)
-	sch.Register(predict.NewAutoSettleJob(predictSvc, realtime.New(0), &l, time.Minute))
+	predictRt := realtime.New(0)
+	predictWx := weather.New(0)
+	sch.Register(predict.NewAutoSettleJob(predictSvc, predictRt, predictWx, &l, time.Minute))
 
 	usersSvc := users.NewService(st, cfg)
+
+	// 鹦鹉螺：Bot 自动下注 + 每日模板出题(平台兜底供给螺壳，零人工运营)。
+	if cfg.Nautilus.BotEnabled {
+		sch.Register(predict.NewBotBetJob(predictSvc, shell.NewRepo(st), usersSvc, predict.BotConfig{
+			Count:      cfg.Nautilus.BotCount,
+			MinBet:     cfg.Nautilus.BotMinBet,
+			MaxBet:     cfg.Nautilus.BotMaxBet,
+			PerMarket:  cfg.Nautilus.BotPerMarket,
+			ActiveFrom: cfg.Nautilus.BotActiveFrom,
+			ActiveTo:   cfg.Nautilus.BotActiveTo,
+			Interval:   90 * time.Second,
+		}, &l))
+		l.Info().Msg("scheduler: nautilus bot bet job enabled")
+	}
+	if cfg.Nautilus.DailyEnabled {
+		sch.Register(predict.NewDailyMarketJob(predictSvc, predictRt, predictWx, predict.DailyConfig{
+			Hour:     cfg.Nautilus.DailyHour,
+			Interval: 30 * time.Minute,
+		}, &l))
+		l.Info().Msg("scheduler: nautilus daily market job enabled")
+	}
+
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
 	if !chatSvc.Configured() {
 		l.Warn().Msg("scheduler: chat service not configured, ding runner disabled")
