@@ -45,6 +45,19 @@ type NautilusConfig struct {
 	SignupShells       int64  `toml:"signup_shells"`        // 新用户赠送螺壳
 	InviteRewardShells int64  `toml:"invite_reward_shells"` // 邀请双方各得
 	MinBet             int64  `toml:"min_bet"`              // 单笔最低下注
+
+	// Bot 自动下注：独立虚拟账号与真人同池瓜分，螺壳由平台兜底供给。
+	BotEnabled    bool  `toml:"bot_enabled"`
+	BotCount      int   `toml:"bot_count"`       // 机器人账号数量
+	BotMinBet     int64 `toml:"bot_min_bet"`     // 单笔下注下限
+	BotMaxBet     int64 `toml:"bot_max_bet"`     // 单笔下注上限
+	BotPerMarket  int   `toml:"bot_per_market"`  // 每个市场 bot 累计下注笔数上限
+	BotActiveFrom int   `toml:"bot_active_from"` // 活跃时段起始小时(本地时间, 含)
+	BotActiveTo   int   `toml:"bot_active_to"`   // 活跃时段结束小时(本地时间, 含)
+
+	// 每日出题 Agent：模板 + 实时行情/天气自动生成新盘口。
+	DailyEnabled bool `toml:"daily_enabled"`
+	DailyHour    int  `toml:"daily_hour"` // 每日出题触发的本地小时
 }
 
 type ServerConfig struct {
@@ -316,6 +329,15 @@ func defaultConfig() *Config {
 			SignupShells:       100,
 			InviteRewardShells: 50,
 			MinBet:             10,
+			BotEnabled:         true,
+			BotCount:           12,
+			BotMinBet:          20,
+			BotMaxBet:          300,
+			BotPerMarket:       8,
+			BotActiveFrom:      8,
+			BotActiveTo:        23,
+			DailyEnabled:       true,
+			DailyHour:          8,
 		},
 	}
 }
@@ -465,6 +487,12 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_NAUTILUS__ADMIN_KEY"); v != "" {
 		c.Nautilus.AdminKey = v
+	}
+	if v := os.Getenv("FINME_NAUTILUS__BOT_ENABLED"); v != "" {
+		c.Nautilus.BotEnabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_NAUTILUS__DAILY_ENABLED"); v != "" {
+		c.Nautilus.DailyEnabled = v == "1" || strings.EqualFold(v, "true")
 	}
 }
 

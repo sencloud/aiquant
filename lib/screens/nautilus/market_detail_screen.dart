@@ -112,6 +112,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                           height: 1.5),
                     ),
                   ],
+                  if (market.isSettled) ...[
+                    const SizedBox(height: 12),
+                    _resultBanner(market),
+                  ],
                   const SizedBox(height: 10),
                   _metaRow(market),
                   const SizedBox(height: 16),
@@ -178,6 +182,44 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
     );
   }
 
+  /// 已结算结果横幅：高亮获胜选项。
+  Widget _resultBanner(PredictMarket market) {
+    final winner =
+        market.options.where((o) => o.id == market.resolvedOptionId).firstOrNull;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.positive.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.positive.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.emoji_events, size: 18, color: AppColors.positive),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('已开奖',
+                    style: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 10)),
+                const SizedBox(height: 2),
+                Text(
+                  winner != null ? '结果：${winner.label}' : '本场流局，已退款',
+                  style: const TextStyle(
+                      color: AppColors.positive,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _metaRow(PredictMarket market) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -191,7 +233,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
           _metaItem('总奖池', '${market.totalPool}'),
           _metaItem('下注截止', formatCloseAt(market.closeAt)),
           _metaItem(
-              '结算方式', market.resolveKind == 'auto' ? '行情自动' : '官方公布'),
+              '结算方式',
+              market.resolveKind == 'auto'
+                  ? (market.isWeatherAuto ? '天气自动' : '行情自动')
+                  : '官方公布'),
         ],
       ),
     );

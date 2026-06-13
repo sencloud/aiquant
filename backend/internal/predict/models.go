@@ -45,6 +45,7 @@ type Market struct {
 	ResolveRule      string         `db:"resolve_rule" json:"-"`
 	ResolvedOptionID sql.NullInt64  `db:"resolved_option_id" json:"-"`
 	RakeBps          int64          `db:"rake_bps" json:"rake_bps"`
+	DedupKey         sql.NullString `db:"dedup_key" json:"-"`
 	CreatedAt        int64          `db:"created_at" json:"created_at"`
 	UpdatedAt        int64          `db:"updated_at" json:"-"`
 }
@@ -80,15 +81,21 @@ type MarketView struct {
 	ResolvedOptionID int64    `json:"resolved_option_id,omitempty"`
 }
 
-// ResolveRule 金融类自动结算规则。
+// ResolveRule 自动结算规则（金融 + 天气共用）。
 //
-// source 决定走 realtime 哪条取数路径：
-//   - cn           A股/ETF/指数代码，如 600519.SH / 000300.SH
-//   - us           美股代码，如 AAPL
-//   - global_index 全球指数别名，如 道琼斯 / 纳斯达克 / 标普500
-//   - forex        外汇对，如 USDCNH
+// source 决定取数路径：
+//   - cn           A股/ETF/指数代码，如 600519.SH / 000300.SH（realtime）
+//   - us           美股代码，如 AAPL（realtime）
+//   - global_index 全球指数别名，如 道琼斯 / 纳斯达克 / 标普500（realtime）
+//   - forex        外汇对，如 USDCNH（realtime）
+//   - weather      天气盘口（Open-Meteo）：用 city + date + metric 取实况值
 //
-// 判定：现价 op value 成立 → yes_idx 选项获胜，否则 no_idx 获胜。
+// 判定：取到的数值 op value 成立 → yes_idx 选项获胜，否则 no_idx 获胜。
+//
+// 天气专用字段：
+//   - City   内置城市 key，见 weather.Cities（如 beijing / shanghai）
+//   - Date   目标日期 YYYY-MM-DD（按城市本地时区）
+//   - Metric tmax / tmin / precip
 type ResolveRule struct {
 	Source string  `json:"source"`
 	Symbol string  `json:"symbol"`
@@ -96,6 +103,10 @@ type ResolveRule struct {
 	Value  float64 `json:"value"`
 	YesIdx int     `json:"yes_idx"`
 	NoIdx  int     `json:"no_idx"`
+
+	City   string `json:"city,omitempty"`
+	Date   string `json:"date,omitempty"`
+	Metric string `json:"metric,omitempty"`
 }
 
 func ParseResolveRule(raw string) (*ResolveRule, error) {
