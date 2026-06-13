@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../models/chat.dart';
+import '../../../services/nautilus_service.dart';
 import '../../../services/share_service.dart';
 import '../../../state/chat_state.dart';
 import '../../../theme/app_theme.dart';
@@ -233,15 +234,98 @@ class _MessageActionsBar extends StatefulWidget {
 
 class _MessageActionsBarState extends State<_MessageActionsBar> {
   bool _sharingLink = false;
+  bool _copying = false;
 
-  void _shareAsImage() {
+  /// 尽力取当前用户邀请码（未登录/异常返回空，不阻塞分享）。
+  Future<String> _fetchInviteCode() async {
+    try {
+      final info = await NautilusService().inviteInfo();
+      return info.code;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> _shareAsImage() async {
+    final code = await _fetchInviteCode();
+    if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ShareCardScreen(
         question: widget.question,
         text: widget.text,
         timestamp: widget.timestamp,
+        inviteCode: code,
       ),
     ));
+  }
+
+  /// 推广文案：选平台 → 生成短链 → 拼平台化文案 → 复制到剪贴板。
+  Future<void> _copyPromoText() async {
+    if (_copying) return;
+    final platform = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('复制推广文案',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800)),
+            ),
+            _promoOption(ctx, '小红书', Icons.tag, 'xhs'),
+            _promoOption(ctx, '知乎', Icons.help_outline, 'zhihu'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (platform == null || !mounted) return;
+
+    setState(() => _copying = true);
+    try {
+      final url = await ShareService().createShare(
+        question: widget.question,
+        answer: widget.text,
+      );
+      final caption = _buildPromoCaption(platform, widget.text, url);
+      await Clipboard.setData(ClipboardData(text: caption));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('${platform == 'xhs' ? '小红书' : '知乎'}文案已复制，去粘贴发布吧'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('生成文案失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _copying = false);
+    }
+  }
+
+  Widget _promoOption(
+      BuildContext ctx, String label, IconData icon, String value) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.amber, size: 20),
+      title: Text(label,
+          style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600)),
+      onTap: () => Navigator.of(ctx).pop(value),
+    );
   }
 
   /// 生成可分享的网页链接：先把问答存到服务端换回短链，再走系统分享面板
@@ -275,27 +359,57 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
     }
   }
 
+  /// 平台化推广文案：钩子标题 + 正文摘要 + 话题标签 + 短链。
+  String _buildPromoCaption(String platform, String text, String url) {
+    final excerpt = _excerpt(text, 120);
+    if (platform == 'xhs') {
+      return '我用喜宽 AI 投研助理问了个问题，回答太顶了📈\n\n'
+          '$excerpt\n\n'
+          '完整对话👉 $url\n\n'
+          '#投资理财 #AI工具 #股票 #理财 #搞钱 #财经 #喜宽';
+    }
+    // 知乎：偏问答/理性语气。
+    return '分享一个我最近在用的 AI 投研助理「喜宽」，问答体验不错。\n\n'
+        '$excerpt\n\n'
+        '完整回答：$url\n\n'
+        '（内容由 AI 生成，仅供参考，不构成投资建议）';
+  }
+
+  /// 取正文前 n 字摘要：去掉 Markdown 符号与多余空行。
+  String _excerpt(String text, int n) {
+    final plain = text
+        .replaceAll(RegExp(r'[#>*`_~\-]'), '')
+        .replaceAll(RegExp(r'\n{2,}'), '\n')
+        .trim();
+    if (plain.length <= n) return plain;
+    return '${plain.substring(0, n)}…';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
       children: [
         _ActionChip(
           icon: Icons.copy_outlined,
           label: '复制',
           onTap: () => _copyText(context, widget.text),
         ),
-        const SizedBox(width: 6),
         _ActionChip(
           icon: Icons.ios_share,
           label: '长图分享',
           onTap: _shareAsImage,
         ),
-        const SizedBox(width: 6),
         _ActionChip(
           icon: _sharingLink ? Icons.hourglass_top : Icons.link,
           label: _sharingLink ? '生成中…' : '链接分享',
           onTap: _sharingLink ? null : _shareAsLink,
+        ),
+        _ActionChip(
+          icon: _copying ? Icons.hourglass_top : Icons.campaign_outlined,
+          label: _copying ? '生成中…' : '推广文案',
+          onTap: _copying ? null : _copyPromoText,
         ),
       ],
     );

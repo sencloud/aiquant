@@ -1,7 +1,7 @@
 name: fincept_app
 description: "喜宽 — 一款轻量的 AI 投资助手，帮你聊行情、管组合、做日报。"
 publish_to: 'none'
-version: 1.0.3+1
+version: 1.0.4+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -30,6 +30,7 @@ dependencies:
   intl: ^0.19.0
   uuid: ^4.5.1
   flutter_markdown: ^0.7.4
+  qr_flutter: ^4.1.0
 
   # Environment variables loaded from a bundled .env asset
   flutter_dotenv: ^5.2.1

@@ -26,10 +26,21 @@ class NautilusScreen extends StatefulWidget {
 class _NautilusScreenState extends State<NautilusScreen> {
   // 0 = 全球天气, 1 = 金融市场
   int _tab = 0;
+  String _sub = ''; // 当前子分类筛选；空=全部
   bool _bootstrapped = false;
 
   static const _categories = ['weather', 'finance'];
   static const _categoryLabels = ['全球天气', '金融市场'];
+
+  // 各大类下的子分类筛选（key 与后端 subcategory 对齐，空=全部）。
+  static const _subKeys = {
+    'weather': ['', 'grain', 'soft', 'city'],
+    'finance': ['', 'index', 'stock', 'forex'],
+  };
+  static const _subLabels = {
+    'weather': ['全部', '谷物油籽', '软商品', '城市'],
+    'finance': ['全部', '股指', '个股', '外汇'],
+  };
 
   @override
   void didChangeDependencies() {
@@ -67,7 +78,10 @@ class _NautilusScreenState extends State<NautilusScreen> {
   Widget build(BuildContext context) {
     final n = context.watch<NautilusState>();
     final authed = context.watch<AuthState>().isAuthenticated;
-    final markets = n.byCategory(_categories[_tab]);
+    final cat = _categories[_tab];
+    final all = n.byCategory(cat);
+    final markets =
+        _sub.isEmpty ? all : all.where((m) => m.subCategory == _sub).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -139,7 +153,10 @@ class _NautilusScreenState extends State<NautilusScreen> {
                   child: ChoiceChip(
                     label: Text(_categoryLabels[i]),
                     selected: active,
-                    onSelected: (_) => setState(() => _tab = i),
+                    onSelected: (_) => setState(() {
+                      _tab = i;
+                      _sub = ''; // 切大类时重置子筛选
+                    }),
                     labelStyle: TextStyle(
                       color: active ? Colors.black : AppColors.textSecondary,
                       fontSize: 12,
@@ -156,6 +173,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
               }),
             ),
           ),
+          _subFilterRow(cat),
           Expanded(
             child: RefreshIndicator(
               color: AppColors.amber,
@@ -278,6 +296,43 @@ class _NautilusScreenState extends State<NautilusScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// 子分类筛选条：天气(谷物油籽/软商品/城市) / 金融(股指/个股/外汇)。
+  Widget _subFilterRow(String category) {
+    final keys = _subKeys[category] ?? const [''];
+    final labels = _subLabels[category] ?? const ['全部'];
+    return SizedBox(
+      height: 36,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+        itemCount: keys.length,
+        itemBuilder: (_, i) {
+          final active = _sub == keys[i];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(labels[i]),
+              selected: active,
+              onSelected: (_) => setState(() => _sub = keys[i]),
+              labelStyle: TextStyle(
+                color: active ? AppColors.amber : AppColors.textTertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+              selectedColor: AppColors.amber.withValues(alpha: 0.16),
+              backgroundColor: AppColors.bgSurface,
+              side: BorderSide(
+                  color: active ? AppColors.amber : AppColors.borderDim),
+              showCheckmark: false,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          );
+        },
       ),
     );
   }

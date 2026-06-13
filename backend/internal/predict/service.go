@@ -44,6 +44,7 @@ func (s *Service) MinBet() int64 { return s.minBet }
 // CreateMarketInput 管理端建市场的入参。
 type CreateMarketInput struct {
 	Category    string   `json:"category"`
+	SubCategory string   `json:"subcategory"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	CloseAt     int64    `json:"close_at"`
@@ -112,10 +113,11 @@ func (s *Service) CreateMarket(ctx context.Context, in CreateMarketInput) (*Mark
 	var marketID int64
 	err := s.st.Tx(ctx, func(tx *sqlx.Tx) error {
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO predict_markets(category, title, description, status, close_at,
+			INSERT INTO predict_markets(category, subcategory, title, description, status, close_at,
 				resolve_at, resolve_kind, resolve_rule, rake_bps, dedup_key, created_at, updated_at)
-			VALUES(?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Category, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description),
+			VALUES(?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Category, strings.TrimSpace(in.SubCategory), strings.TrimSpace(in.Title),
+			strings.TrimSpace(in.Description),
 			in.CloseAt, in.ResolveAt, in.ResolveKind, in.ResolveRule, in.RakeBps,
 			nullStr(in.DedupKey), now, now)
 		if err != nil {

@@ -65,16 +65,17 @@ type finTemplate struct {
 	Symbol string
 	Name   string
 	Unit   string
+	Sub    string // 子分类：index / stock / forex
 }
 
 var financeTemplates = []finTemplate{
-	{"cn", "000300.SH", "沪深300指数", "点"},
-	{"cn", "000001.SH", "上证指数", "点"},
-	{"cn", "399006.SZ", "创业板指", "点"},
-	{"us", "AAPL", "苹果", "美元"},
-	{"us", "NVDA", "英伟达", "美元"},
-	{"global_index", "纳斯达克", "纳斯达克100", "点"},
-	{"forex", "USDCNH", "离岸人民币", ""},
+	{"cn", "000300.SH", "沪深300指数", "点", SubFinIndex},
+	{"cn", "000001.SH", "上证指数", "点", SubFinIndex},
+	{"cn", "399006.SZ", "创业板指", "点", SubFinIndex},
+	{"global_index", "纳斯达克", "纳斯达克100", "点", SubFinIndex},
+	{"us", "AAPL", "苹果", "美元", SubFinStock},
+	{"us", "NVDA", "英伟达", "美元", SubFinStock},
+	{"forex", "USDCNH", "离岸人民币", "", SubFinForex},
 }
 
 func (j *DailyMarketJob) genFinance(ctx context.Context, now time.Time) int {
@@ -99,6 +100,7 @@ func (j *DailyMarketJob) genFinance(ctx context.Context, now time.Time) int {
 		thStr := fmtNum(threshold)
 		in := CreateMarketInput{
 			Category:    CategoryFinance,
+			SubCategory: t.Sub,
 			Title:       fmt.Sprintf("今日%s能否突破 %s%s？", t.Name, thStr, t.Unit),
 			Description: fmt.Sprintf("出题时现价约 %s%s。收盘后按实时行情自动结算。", fmtNum(price), t.Unit),
 			CloseAt:     closeAt,
@@ -117,34 +119,45 @@ func (j *DailyMarketJob) genFinance(ctx context.Context, now time.Time) int {
 
 // ── 天气模板 ───────────────────────────────────────────────────────────
 
-// 仅用国内城市(与服务器同 CST 时区，"明日"语义清晰)。
-var weatherCities = []string{"beijing", "shanghai", "guangzhou", "chengdu"}
+// 每日出题的天气位置：以大宗商品产区为主（天气直接影响产量/期价），
+// 末尾保留少量城市丰富玩法。子分类(city/grain/soft)取自 weather.City.Sub。
+var weatherDailyKeys = []string{
+	"us_corn_belt", "brazil_soy_mt", "us_wheat_kansas", // 谷物油籽
+	"brazil_coffee_mg", "ivorycoast_cocoa", // 软商品
+	"beijing", "shanghai", // 城市
+}
 
 func (j *DailyMarketJob) genWeather(ctx context.Context, now time.Time) int {
 	if j.wx == nil {
 		return 0
 	}
 	target := now.AddDate(0, 0, 1).Format("2006-01-02")
-	closeAt := atOffset(now, 0, 22, 0)   // 今日 22:00 停止下注
-	resolveAt := atOffset(now, 2, 1, 0)  // 后天 01:00 取目标日实况结算
+	closeAt := atOffset(now, 0, 22, 0)  // 今日 22:00 停止下注
+	resolveAt := atOffset(now, 2, 1, 0) // 后天 01:00 取目标日实况结算
 	if closeAt <= now.UnixMilli() {
 		return 0
 	}
 	created := 0
-	for _, key := range weatherCities {
+	for _, key := range weatherDailyKeys {
 		city, ok := weather.CityByKey(key)
 		if !ok {
 			continue
 		}
 		daily, err := j.wx.FetchDaily(ctx, city.Lat, city.Lon)
 		if err != nil {
-			j.logger.Debug().Err(err).Str("city", key).Msg("predict daily: skip weather (no forecast)")
+			j.logger.Debug().Err(err).Str("loc", key).Msg("predict daily: skip weather (no forecast)")
 			continue
 		}
 		d, ok := daily[target]
 		if !ok {
 			continue
 		}
+		// 产区盘口在标题里点出关联作物，强化"天气→大宗商品"叙事。
+		cropSuffix := ""
+		if city.Crop != "" {
+			cropSuffix = "（" + city.Crop + "产区）"
+		}
+
 		// 最高温盘口：阈值取预报值四舍五入，使结果接近 50/50。
 		th := math.Round(d.TMax)
 		tmaxRule := ResolveRule{
@@ -154,7 +167,8 @@ func (j *DailyMarketJob) genWeather(ctx context.Context, now time.Time) int {
 		thStr := strconv.FormatFloat(th, 'f', 0, 64)
 		j.create(ctx, CreateMarketInput{
 			Category:    CategoryWeather,
-			Title:       fmt.Sprintf("明日%s最高气温能否达到 %s℃？", city.Name, thStr),
+			SubCategory: city.Sub,
+			Title:       fmt.Sprintf("明日%s%s最高气温能否达到 %s℃？", city.Name, cropSuffix, thStr),
 			Description: fmt.Sprintf("目标日 %s，最高气温实况由 Open-Meteo 自动判定。", target),
 			CloseAt:     closeAt,
 			ResolveAt:   resolveAt,
@@ -172,7 +186,8 @@ func (j *DailyMarketJob) genWeather(ctx context.Context, now time.Time) int {
 		}
 		j.create(ctx, CreateMarketInput{
 			Category:    CategoryWeather,
-			Title:       fmt.Sprintf("明日%s会下雨吗？", city.Name),
+			SubCategory: city.Sub,
+			Title:       fmt.Sprintf("明日%s%s会下雨吗？", city.Name, cropSuffix),
 			Description: fmt.Sprintf("目标日 %s，按 Open-Meteo 日降水量(>0.1mm 视为下雨)自动判定。", target),
 			CloseAt:     closeAt,
 			ResolveAt:   resolveAt,
