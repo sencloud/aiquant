@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../services/network_permission_service.dart';
+import '../../services/tushare_service.dart';
 import '../../state/auth_state.dart';
+import '../../state/billing_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../ding/ding_screen.dart';
-import '../nautilus/nautilus_screen.dart';
 import '../portfolio/portfolio_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -20,18 +24,27 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 助理, 1 = 组合, 2 = 鹦鹉螺(中间凸起), 3 = DING, 4 = 我的
-  // 直播功能暂时下线：入口替换为鹦鹉螺预测市场，live 代码保留未删。
+  // 0 = 助理, 1 = 组合, 2 = DING, 3 = 我的
+  // 鹦鹉螺预测市场入口暂时隐藏（代码保留未删）；直播功能此前也已下线。
   int _index = 0;
+
+  // 网络由「受限」恢复「可用」时自增，用于重建页面子树触发各 tab 重新拉数据。
+  int _reloadTick = 0;
+  StreamSubscription<void>? _networkSub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _networkSub =
+        NetworkPermissionService.instance.onNetworkAvailable.listen((_) {
+      _onNetworkRestored();
+    });
   }
 
   @override
   void dispose() {
+    _networkSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -44,8 +57,24 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// 需要登录才能进入的 tab：DING(3) / 我的(4)。
-  static const _gatedTabs = {3, 4};
+  /// iOS 首启用户授权「无线数据」后回调：预热网络 + 刷新登录态/账单，并
+  /// bump reload tick 重建页面子树，让当前页面各 tab 重新执行初始加载。
+  void _onNetworkRestored() {
+    if (!mounted) return;
+    // ignore: unawaited_futures
+    TushareService().warmup();
+    final auth = context.read<AuthState>();
+    if (auth.isAuthenticated) {
+      // ignore: unawaited_futures
+      auth.refreshProfile();
+      // ignore: unawaited_futures
+      context.read<BillingState>().refreshAll();
+    }
+    setState(() => _reloadTick++);
+  }
+
+  /// 需要登录才能进入的 tab：DING(2) / 我的(3)。
+  static const _gatedTabs = {2, 3};
 
   /// 切换 tab；命中需鉴权的 tab 时先弹登录，放弃登录则停留原 tab。
   Future<void> _selectTab(int i) async {
@@ -61,7 +90,6 @@ class _HomeScreenState extends State<HomeScreen>
     const pages = [
       AssistantScreen(),
       PortfolioScreen(),
-      NautilusScreen(),
       DingScreen(),
       SettingsScreen(),
     ];
@@ -78,7 +106,10 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      body: KeyedSubtree(
+        key: ValueKey(_reloadTick),
+        child: IndexedStack(index: _index, children: pages),
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.bgSurface,
@@ -106,89 +137,24 @@ class _HomeScreenState extends State<HomeScreen>
                   active: _index == 1,
                   onTap: () => _selectTab(1),
                 ),
-                _NautilusCenterButton(
-                  active: _index == 2,
-                  onTap: () => _selectTab(2),
-                ),
                 _NavItem(
                   icon: Icons.notifications_none,
                   activeIcon: Icons.notifications_active,
                   label: 'DING',
-                  active: _index == 3,
+                  active: _index == 2,
                   badge: unread,
-                  onTap: () => _selectTab(3),
+                  onTap: () => _selectTab(2),
                 ),
                 _NavItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: '我的',
-                  active: _index == 4,
-                  onTap: () => _selectTab(4),
+                  active: _index == 3,
+                  onTap: () => _selectTab(3),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 底部中间「鹦鹉螺」凸起按钮 —— 圆形金黄渐变 + 鹦鹉螺螺旋线稿,
-/// 比普通 tab 更突出,强调预测市场的核心入口地位。
-class _NautilusCenterButton extends StatelessWidget {
-  const _NautilusCenterButton({required this.active, required this.onTap});
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.amber, AppColors.amberDim],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.amber.withValues(alpha: active ? 0.55 : 0.3),
-                    blurRadius: active ? 12 : 6,
-                    spreadRadius: active ? 1 : 0,
-                  ),
-                ],
-                border: Border.all(color: AppColors.bgSurface, width: 2),
-              ),
-              child: Center(
-                child: Image.asset(
-                  'assets/branding/nautilus.png',
-                  width: 22,
-                  height: 22,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              '鹦鹉螺',
-              style: TextStyle(
-                color: active ? AppColors.amber : AppColors.textSecondary,
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-              ),
-            ),
-          ],
         ),
       ),
     );

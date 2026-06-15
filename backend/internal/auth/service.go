@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -26,6 +27,7 @@ type Service struct {
 	users      *users.Service
 	apple      *AppleVerifier
 	sms        SMSProvider
+	email      EmailProvider
 	jwtKey     []byte
 	accessTTL  time.Duration
 	refreshTTL time.Duration
@@ -43,11 +45,25 @@ func NewService(st *store.Store, cfg *platform.Config, usersSvc *users.Service) 
 	default:
 		return nil, fmt.Errorf("sms provider %q not implemented", cfg.SMS.Provider)
 	}
+	var email EmailProvider
+	switch cfg.Email.Provider {
+	case "mock", "":
+		email = &MockEmailProvider{}
+	case "resend":
+		rp, err := NewResendProvider(cfg.Email.ResendAPIKey, cfg.Email.From, cfg.Email.FromName)
+		if err != nil {
+			return nil, fmt.Errorf("email provider resend: %w", err)
+		}
+		email = rp
+	default:
+		return nil, fmt.Errorf("email provider %q not implemented", cfg.Email.Provider)
+	}
 	return &Service{
 		st:         st,
 		users:      usersSvc,
 		apple:      NewAppleVerifier(cfg.Apple.BundleID, cfg.Apple.JWKSURL),
 		sms:        sms,
+		email:      email,
 		jwtKey:     jwtKey,
 		accessTTL:  time.Duration(cfg.Security.AccessTokenTTLMin) * time.Minute,
 		refreshTTL: time.Duration(cfg.Security.RefreshTokenTTLDay) * 24 * time.Hour,
@@ -168,6 +184,119 @@ func (s *Service) VerifySMS(ctx context.Context, in VerifySMSInput) (*TokenPair,
 		return nil, nil, err
 	}
 	return pair, user, nil
+}
+
+// SendEmailCodeInput 校验后委派给 provider；同邮箱 60s 限频在 DB 查询里实现。
+type SendEmailCodeInput struct {
+	Email string
+	IP    string
+}
+
+func (s *Service) SendEmailCode(ctx context.Context, in SendEmailCodeInput) error {
+	email := normalizeEmail(in.Email)
+	if err := validateEmail(email); err != nil {
+		return platform.ErrBadRequest("AUTH.EMAIL_INVALID", err.Error(), nil)
+	}
+	hmacIdx := s.users.EmailHmac(email)
+	now := time.Now()
+	var lastAt sql.NullInt64
+	err := s.st.DB.GetContext(ctx, &lastAt,
+		"SELECT MAX(created_at) FROM email_codes WHERE email_hmac=? AND purpose='login'", hmacIdx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if lastAt.Valid && now.Sub(time.UnixMilli(lastAt.Int64)) < emailResendGap {
+		return platform.ErrTooManyRequests("AUTH.EMAIL_TOO_FREQUENT", "请稍后再试")
+	}
+
+	code := generateCode()
+	hashed, err := platform.HashPassword(code)
+	if err != nil {
+		return platform.ErrInternal("AUTH.HASH_FAILED", err)
+	}
+	expires := now.Add(emailCodeExpiry).UnixMilli()
+	_, err = s.st.DB.ExecContext(ctx, `
+		INSERT INTO email_codes(email_hmac, code_hash, purpose, expires_at, ip, created_at)
+		VALUES (?, ?, 'login', ?, ?, ?)`,
+		hmacIdx, hashed, expires, in.IP, now.UnixMilli(),
+	)
+	if err != nil {
+		return platform.ErrInternal("AUTH.EMAIL_PERSIST", err)
+	}
+	if err := s.email.Send(ctx, email, code); err != nil {
+		return platform.ErrInternal("AUTH.EMAIL_SEND", err)
+	}
+	return nil
+}
+
+// VerifyEmailInput 完成验证码登录 → 返回 TokenPair。
+type VerifyEmailInput struct {
+	Email, Code string
+	DeviceID    string
+	IP, UA      string
+}
+
+func (s *Service) VerifyEmail(ctx context.Context, in VerifyEmailInput) (*TokenPair, *users.User, error) {
+	email := normalizeEmail(in.Email)
+	if err := validateEmail(email); err != nil {
+		return nil, nil, platform.ErrBadRequest("AUTH.EMAIL_INVALID", err.Error(), nil)
+	}
+	if len(in.Code) != 6 {
+		return nil, nil, platform.ErrBadRequest("AUTH.CODE_INVALID", "code must be 6 digits", nil)
+	}
+	hmacIdx := s.users.EmailHmac(email)
+	now := time.Now().UnixMilli()
+
+	type codeRow struct {
+		ID       int64         `db:"id"`
+		CodeHash string        `db:"code_hash"`
+		Expires  int64         `db:"expires_at"`
+		Consumed sql.NullInt64 `db:"consumed_at"`
+		Attempts int64         `db:"attempts"`
+	}
+	var row codeRow
+	err := s.st.DB.GetContext(ctx, &row, `
+		SELECT id, code_hash, expires_at, consumed_at, attempts FROM email_codes
+		WHERE email_hmac=? AND purpose='login' AND consumed_at IS NULL
+		ORDER BY created_at DESC LIMIT 1`, hmacIdx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil, platform.ErrBadRequest("AUTH.CODE_NOT_FOUND", "请先获取验证码", nil)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	if row.Expires < now {
+		return nil, nil, platform.ErrBadRequest("AUTH.CODE_EXPIRED", "验证码已过期", nil)
+	}
+	if row.Attempts >= emailMaxAttempt {
+		return nil, nil, platform.ErrTooManyRequests("AUTH.CODE_TOO_MANY_ATTEMPTS", "尝试次数过多")
+	}
+	if !platform.VerifyPassword(in.Code, row.CodeHash) {
+		_, _ = s.st.DB.ExecContext(ctx,
+			"UPDATE email_codes SET attempts=attempts+1 WHERE id=?", row.ID)
+		return nil, nil, platform.ErrBadRequest("AUTH.CODE_MISMATCH", "验证码错误", nil)
+	}
+	if _, err := s.st.DB.ExecContext(ctx,
+		"UPDATE email_codes SET consumed_at=? WHERE id=?", now, row.ID); err != nil {
+		return nil, nil, err
+	}
+
+	user, err := s.users.EnsureByEmail(ctx, email)
+	if err != nil {
+		return nil, nil, err
+	}
+	if user.Status != string(users.StatusActive) {
+		return nil, nil, platform.ErrForbidden("AUTH.USER_BANNED", "账号状态异常")
+	}
+	pair, err := s.issuePair(ctx, user, in.DeviceID, in.IP, in.UA)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pair, user, nil
+}
+
+func normalizeEmail(e string) string {
+	return strings.ToLower(strings.TrimSpace(e))
 }
 
 type AppleLoginInput struct {

@@ -42,6 +42,8 @@ type User struct {
 	UUID          string `db:"uuid"`
 	PhoneHmac     sql.NullString `db:"phone_hmac"`
 	PhoneEnc      []byte `db:"phone_enc"`
+	EmailHmac     sql.NullString `db:"email_hmac"`
+	EmailEnc      []byte `db:"email_enc"`
 	AppleSub      sql.NullString `db:"apple_sub"`
 	WechatUnionID sql.NullString `db:"wechat_unionid"`
 	Nickname      sql.NullString `db:"nickname"`
@@ -62,6 +64,7 @@ type PublicProfile struct {
 	Status        string `json:"status"`
 	CreditBalance int64  `json:"credit_balance"`
 	HasPhone      bool   `json:"has_phone"`
+	HasEmail      bool   `json:"has_email"`
 	HasApple      bool   `json:"has_apple"`
 	CreatedAt     int64  `json:"created_at"`
 }
@@ -77,6 +80,7 @@ func (u *User) ToPublic() *PublicProfile {
 		Status:        u.Status,
 		CreditBalance: u.CreditBalance,
 		HasPhone:      u.PhoneHmac.Valid,
+		HasEmail:      u.EmailHmac.Valid,
 		HasApple:      u.AppleSub.Valid,
 		CreatedAt:     u.CreatedAt,
 	}
@@ -100,6 +104,11 @@ func NewService(st *store.Store, cfg *platform.Config) *Service {
 
 func (s *Service) PhoneHmac(phone string) string {
 	return s.pc.HMAC(phone)
+}
+
+// EmailHmac 复用手机号同一套 HMAC 密钥，对邮箱做稳定哈希索引。
+func (s *Service) EmailHmac(email string) string {
+	return s.pc.HMAC(email)
 }
 
 // FindByUUID 不存在返回 nil（不是 error）。
@@ -138,6 +147,57 @@ func (s *Service) FindByPhone(ctx context.Context, phone string) (*User, error) 
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (s *Service) FindByEmail(ctx context.Context, email string) (*User, error) {
+	var u User
+	err := s.st.DB.GetContext(ctx, &u,
+		"SELECT * FROM users WHERE email_hmac=?", s.pc.HMAC(email))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// EnsureByEmail：邮箱验证码登录时使用。已存在直接返回，否则插入。
+// 邮箱明文仅在内存中，落库只存 HMAC 索引 + AES 密文（与手机号一致），
+// 新用户随机昵称，避免重名。
+func (s *Service) EnsureByEmail(ctx context.Context, email string) (*User, error) {
+	if u, err := s.FindByEmail(ctx, email); err != nil || u != nil {
+		return u, err
+	}
+	now := time.Now().UnixMilli()
+	enc, err := s.pc.Encrypt(email)
+	if err != nil {
+		return nil, err
+	}
+	uuid := platform.NewUUID()
+	hmacIdx := s.pc.HMAC(email)
+	nickname := genRandomNickname()
+
+	var id int64
+	err = s.st.Tx(ctx, func(tx *sqlx.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO users(uuid, email_hmac, email_enc, nickname, status, credit_balance, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 'active', 0, ?, ?)`,
+			uuid, hmacIdx, enc, sql.NullString{String: nickname, Valid: true}, now, now,
+		)
+		if err != nil {
+			return err
+		}
+		id, err = res.LastInsertId()
+		return err
+	})
+	if err != nil {
+		if u2, err2 := s.FindByEmail(ctx, email); err2 == nil && u2 != nil {
+			return u2, nil
+		}
+		return nil, fmt.Errorf("insert user by email: %w", err)
+	}
+	return s.FindByID(ctx, id)
 }
 
 func (s *Service) FindByAppleSub(ctx context.Context, sub string) (*User, error) {
@@ -325,6 +385,8 @@ func (s *Service) SoftDelete(ctx context.Context, userID int64) error {
 				status='deleted',
 				phone_hmac=NULL,
 				phone_enc=NULL,
+				email_hmac=NULL,
+				email_enc=NULL,
 				apple_sub=NULL,
 				wechat_unionid=NULL,
 				nickname=NULL,

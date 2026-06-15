@@ -28,7 +28,9 @@ class BillingState extends ChangeNotifier {
     if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
       return AppleIapService();
     }
-    return MockIapService();
+    // 安卓 / Web：无应用内购通道，购买入口本身已隐藏；这里兜底为不支持，
+    // 避免误用 Mock 走出「假到账」。
+    return UnsupportedIapService();
   }
 
   final BillingService _service;

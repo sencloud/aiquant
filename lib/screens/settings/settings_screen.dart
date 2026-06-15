@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +24,10 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _bootstrapped = false;
   String _version = '';
+
+  /// 仅 iOS / macOS 支持应用内购充值（Apple IAP）。安卓为个人开发者，
+  /// 无合规的应用内虚拟商品支付通道，故隐藏充值套餐，改为引导签到获取。
+  bool get _iapAvailable => !kIsWeb && (Platform.isIOS || Platform.isMacOS);
 
   @override
   void initState() {
@@ -139,46 +145,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => _onCheckin(billing),
             ),
             const SizedBox(height: 24),
-            _section('充值喜点'),
-            const SizedBox(height: 8),
-            if (billing.loadingSkus && billing.skus.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                    child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))),
-              )
-            else if (billing.skus.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text(
-                    billing.lastError ?? '暂无可用套餐',
-                    style: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 12),
+            if (_iapAvailable) ...[
+              _section('充值喜点'),
+              const SizedBox(height: 8),
+              if (billing.loadingSkus && billing.skus.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                      child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))),
+                )
+              else if (billing.skus.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      billing.lastError ?? '暂无可用套餐',
+                      style: TextStyle(
+                          color: AppColors.textTertiary, fontSize: 12),
+                    ),
                   ),
-                ),
-              )
-            else
-              for (final sku in billing.skus) ...[
-                _PackageTile(
-                  sku: sku,
-                  loading: billing.isPurchasingSku(sku.code),
-                  // 当前正在买另一档 → 本档不可点，但不显示 loading
-                  disabled: billing.purchasing &&
-                      !billing.isPurchasingSku(sku.code),
-                  onTap: () => _onPackageTap(billing, sku),
-                ),
-                const SizedBox(height: 8),
-              ],
-            const SizedBox(height: 12),
+                )
+              else
+                for (final sku in billing.skus) ...[
+                  _PackageTile(
+                    sku: sku,
+                    loading: billing.isPurchasingSku(sku.code),
+                    // 当前正在买另一档 → 本档不可点，但不显示 loading
+                    disabled: billing.purchasing &&
+                        !billing.isPurchasingSku(sku.code),
+                    onTap: () => _onPackageTap(billing, sku),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              const SizedBox(height: 12),
+            ],
             _section('喜点说明'),
             const SizedBox(height: 6),
             _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理与行情分析。'),
             _bulletText('• 每次回答消耗 6 喜点，调用行情、新闻等数据工具不再额外计费。'),
-            _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
+            if (_iapAvailable)
+              _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。')
+            else
+              _bulletText('• 当前版本可通过每日签到免费获取喜点。'),
             if (user != null) ...[
               const SizedBox(height: 24),
               _section('账号管理'),

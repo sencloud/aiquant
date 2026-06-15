@@ -30,6 +30,27 @@ class AuthService {
     return _parseLoginResponse(r);
   }
 
+  Future<void> sendEmailCode(String email) async {
+    await _api.dio.post(
+      '/v1/auth/email/send',
+      data: {'email': email},
+      options: _noAuth(),
+    );
+  }
+
+  Future<({TokenPair tokens, UserPublic user})> verifyEmail({
+    required String email,
+    required String code,
+    required String deviceId,
+  }) async {
+    final r = await _api.dio.post(
+      '/v1/auth/email/verify',
+      data: {'email': email, 'code': code, 'device_id': deviceId},
+      options: _noAuth(),
+    );
+    return _parseLoginResponse(r);
+  }
+
   Future<({TokenPair tokens, UserPublic user})> appleLogin({
     required String identityToken,
     String nickname = '',

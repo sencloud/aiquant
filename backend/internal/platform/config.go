@@ -28,6 +28,7 @@ type Config struct {
 	FCM       FCMConfig       `toml:"fcm"`
 	LLM       LLMConfig       `toml:"llm"`
 	SMS       SMSConfig       `toml:"sms"`
+	Email     EmailConfig     `toml:"email"`
 	Tushare   TushareConfig   `toml:"tushare"`
 	News      NewsConfig      `toml:"news"`
 	AI        AIConfig        `toml:"ai"`
@@ -220,6 +221,21 @@ type SMSConfig struct {
 	AccessKeySecret string `toml:"access_key_secret"`
 }
 
+// EmailConfig 邮箱验证码登录用。
+//
+// provider：
+//   - mock / ""  → dev：验证码打印到日志，不真发邮件；
+//   - resend     → 调 Resend API 真发邮件（需 api_key + from）。
+//
+// from 建议绑定自有域名（如 no-reply@yourdomain.com）以提升送达率；
+// api_key 走 EnvironmentFile 注入：FINME_EMAIL__RESEND_API_KEY。
+type EmailConfig struct {
+	Provider     string `toml:"provider"`
+	From         string `toml:"from"`
+	FromName     string `toml:"from_name"`
+	ResendAPIKey string `toml:"resend_api_key"`
+}
+
 type RateLimitConfig struct {
 	APIPerIPRPM       int `toml:"api_per_ip_rpm"`
 	APIPerUserRPM     int `toml:"api_per_user_rpm"`
@@ -289,7 +305,8 @@ func defaultConfig() *Config {
 			TimeoutSec:   180,
 			MaxToolLoops: 60,
 		},
-		SMS: SMSConfig{Provider: "mock"},
+		SMS:   SMSConfig{Provider: "mock"},
+		Email: EmailConfig{Provider: "mock", FromName: "喜宽"},
 		Tushare: TushareConfig{
 			BaseURL:           "http://api.tushare.pro",
 			TimeoutSec:        20,
@@ -484,6 +501,18 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_SMS__ACCESS_KEY_SECRET"); v != "" {
 		c.SMS.AccessKeySecret = v
+	}
+	if v := os.Getenv("FINME_EMAIL__PROVIDER"); v != "" {
+		c.Email.Provider = v
+	}
+	if v := os.Getenv("FINME_EMAIL__FROM"); v != "" {
+		c.Email.From = v
+	}
+	if v := os.Getenv("FINME_EMAIL__FROM_NAME"); v != "" {
+		c.Email.FromName = v
+	}
+	if v := os.Getenv("FINME_EMAIL__RESEND_API_KEY"); v != "" {
+		c.Email.ResendAPIKey = v
 	}
 	if v := os.Getenv("FINME_NAUTILUS__ADMIN_KEY"); v != "" {
 		c.Nautilus.AdminKey = v
