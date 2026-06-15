@@ -63,6 +63,15 @@ class MockIapService implements IapService {
   }
 }
 
+/// UnsupportedIapService：当前平台不提供应用内购（如安卓个人版无合规
+/// 虚拟商品支付通道）。任何购买调用直接抛出，UI 也不应展示充值入口。
+class UnsupportedIapService implements IapService {
+  @override
+  Future<IapPurchaseResult> purchase(String productId) async {
+    throw IapException('当前平台暂不支持充值');
+  }
+}
+
 /// AppleIapService —— iOS StoreKit 1/2 真实实现。
 ///
 /// 工作流：

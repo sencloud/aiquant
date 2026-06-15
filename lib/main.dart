@@ -9,6 +9,7 @@ import 'core/api/api_client.dart' show installNoProxyHttpOverrides;
 import 'core/config/app_config.dart';
 import 'core/storage/hive_setup.dart';
 import 'services/client_error_reporter.dart';
+import 'services/network_permission_service.dart';
 import 'services/tushare_service.dart';
 import 'state/auth_state.dart';
 import 'state/billing_state.dart';
@@ -43,6 +44,9 @@ Future<void> _bootstrap() async {
   await AppConfig.instance.load();
 
   ClientErrorReporter.instance.install();
+
+  // 安装「无线数据」授权状态监听：用户在首启弹窗授权后自动重连并刷新页面。
+  NetworkPermissionService.instance.install();
 
   // 启动后立即发起一次 Tushare 轻量请求：触发 iOS 中国大陆首启的
   // "允许使用 Wi-Fi/蜂窝网络" 系统弹窗，并预热 DNS/TLS。

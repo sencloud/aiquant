@@ -15,6 +15,8 @@ func mountAuth(r chi.Router, d *Deps) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/sms/send", handleSMSSend(d))
 		r.Post("/sms/verify", handleSMSVerify(d))
+		r.Post("/email/send", handleEmailSend(d))
+		r.Post("/email/verify", handleEmailVerify(d))
 		r.Post("/apple", handleAppleLogin(d))
 		r.Post("/refresh", handleRefresh(d))
 		// 登出仍然需要 access token 才能锁定身份
@@ -71,6 +73,65 @@ func handleSMSVerify(d *Deps) http.HandlerFunc {
 		}
 		pair, user, err := d.Auth.VerifySMS(r.Context(), auth.VerifySMSInput{
 			Phone:    strings.TrimSpace(in.Phone),
+			Code:     strings.TrimSpace(in.Code),
+			DeviceID: in.DeviceID,
+			IP:       r.RemoteAddr,
+			UA:       r.UserAgent(),
+		})
+		if err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		if d.Onboarding != nil {
+			if oerr := d.Onboarding.OnboardIfNeeded(r.Context(), user); oerr != nil {
+				platform.LoggerFrom(r.Context()).Warn().Err(oerr).Msg("onboarding failed (non-fatal)")
+			}
+			user, _ = d.Users.FindByID(r.Context(), user.ID)
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"tokens": pair,
+			"user":   user.ToPublic(),
+		})
+	}
+}
+
+type emailSendReq struct {
+	Email string `json:"email"`
+}
+
+func handleEmailSend(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in emailSendReq
+		if err := DecodeJSON(r, &in); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		if err := d.Auth.SendEmailCode(r.Context(), auth.SendEmailCodeInput{
+			Email: strings.TrimSpace(in.Email),
+			IP:    r.RemoteAddr,
+		}); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+type emailVerifyReq struct {
+	Email    string `json:"email"`
+	Code     string `json:"code"`
+	DeviceID string `json:"device_id,omitempty"`
+}
+
+func handleEmailVerify(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in emailVerifyReq
+		if err := DecodeJSON(r, &in); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		pair, user, err := d.Auth.VerifyEmail(r.Context(), auth.VerifyEmailInput{
+			Email:    strings.TrimSpace(in.Email),
 			Code:     strings.TrimSpace(in.Code),
 			DeviceID: in.DeviceID,
 			IP:       r.RemoteAddr,

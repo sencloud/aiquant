@@ -85,6 +85,23 @@ class AuthState extends ChangeNotifier {
     return res.user;
   }
 
+  Future<void> sendEmailCode(String email) async {
+    await _svc.sendEmailCode(email);
+  }
+
+  Future<UserPublic> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    final res = await _svc.verifyEmail(
+      email: email,
+      code: code,
+      deviceId: await _ensureDeviceId(),
+    );
+    await _persistLogin(res.tokens, res.user);
+    return res.user;
+  }
+
   Future<UserPublic> signInWithApple() async {
     final cred = await SignInWithApple.getAppleIDCredential(
       scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],

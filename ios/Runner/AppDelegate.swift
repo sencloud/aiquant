@@ -1,3 +1,4 @@
+import CoreTelephony
 import Flutter
 import UIKit
 import UserNotifications
@@ -6,9 +7,17 @@ import UserNotifications
 @objc class AppDelegate: FlutterAppDelegate {
   // Dart 侧 PushRegistrationService 监听的 channel。
   private static let channelName = "cn.singzquant.aiquant/push"
+  // Dart 侧 NetworkPermissionService 监听的 channel：蜂窝/无线数据授权状态。
+  private static let networkChannelName = "cn.singzquant.aiquant/network"
 
   private var pushChannel: FlutterMethodChannel?
   private var cachedToken: String?
+
+  private var networkChannel: FlutterMethodChannel?
+  private let cellularData = CTCellularData()
+  // 记录上一次的受限状态，仅在「未知/受限 → 可用」的真实变化时通知 Dart，
+  // 避免冷启动即已授权或回调重复触发导致无意义刷新。
+  private var lastCellularRestricted = true
 
   override func application(
     _ application: UIApplication,
@@ -47,10 +56,56 @@ import UserNotifications
           result(FlutterMethodNotImplemented)
         }
       }
+
+      let netChannel = FlutterMethodChannel(
+        name: AppDelegate.networkChannelName,
+        binaryMessenger: controller.binaryMessenger
+      )
+      networkChannel = netChannel
+      netChannel.setMethodCallHandler { [weak self] call, result in
+        guard let self = self else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        switch call.method {
+        case "getCellularState":
+          result(self.cellularStateString(self.cellularData.restrictedState))
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+      observeCellularData()
     }
 
     UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: - Cellular / Wi-Fi Data Permission
+
+  /// 监听系统「无线数据」授权状态。用户在首启弹窗里选择「WLAN 与蜂窝网络」或
+  /// 「仅蜂窝网络」后，restrictedState 会从 unknown/restricted 变为 notRestricted，
+  /// 此时通知 Dart 自动重新联网并刷新页面。
+  private func observeCellularData() {
+    lastCellularRestricted = (cellularData.restrictedState != .notRestricted)
+    cellularData.cellularDataRestrictionDidUpdateNotifier = { [weak self] state in
+      guard let self = self else { return }
+      let nowRestricted = (state != .notRestricted)
+      let becameAvailable = self.lastCellularRestricted && !nowRestricted
+      self.lastCellularRestricted = nowRestricted
+      guard becameAvailable else { return }
+      DispatchQueue.main.async {
+        self.networkChannel?.invokeMethod("onNetworkAvailable", arguments: nil)
+      }
+    }
+  }
+
+  private func cellularStateString(_ state: CTCellularDataRestrictedState) -> String {
+    switch state {
+    case .notRestricted: return "notRestricted"
+    case .restricted: return "restricted"
+    default: return "unknown"
+    }
   }
 
   // MARK: - APNs Registration

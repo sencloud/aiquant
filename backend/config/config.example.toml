@@ -80,6 +80,17 @@ template_code = ""
 access_key_id = ""
 access_key_secret = ""
 
+# 邮箱验证码登录（个人开发者方案）
+# provider：mock（验证码打印到日志）/ resend（调 Resend API 真发邮件）
+# from：发件地址，未绑定域名时可用 Resend 测试发件人 onboarding@resend.dev（仅能发给你注册邮箱）；
+#       正式上线请绑定自有域名，如 no-reply@yourdomain.com
+# resend_api_key：请勿提交进 git，建议用环境变量 FINME_EMAIL__RESEND_API_KEY 注入
+[email]
+provider = "mock"
+from = "onboarding@resend.dev"
+from_name = "喜宽"
+resend_api_key = ""
+
 [ratelimit]
 api_per_ip_rpm = 100
 api_per_user_rpm = 30
