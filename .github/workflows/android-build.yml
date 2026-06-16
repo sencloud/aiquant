@@ -1,0 +1,77 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter (latest stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Print versions
+        run: |
+          flutter --version
+          java -version
+
+      - name: Generate .env from secrets
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          API_BASE_URL: https://api.singzquant.com
+        run: |
+          if [ -z "${TUSHARE_TOKEN}" ] || [ -z "${DEEPSEEK_API_KEY}" ]; then
+            echo "::error::Missing GitHub Secret TUSHARE_TOKEN or DEEPSEEK_API_KEY"
+            exit 1
+          fi
+          cat > .env <<EOF
+          TUSHARE_TOKEN=${TUSHARE_TOKEN}
+          TUSHARE_ENDPOINT=http://api.tushare.pro
+          DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          DEEPSEEK_BASE_URL=https://api.deepseek.com
+          API_BASE_URL=${API_BASE_URL}
+          EOF
+          echo ".env generated ($(wc -c < .env) bytes)"
+          echo "::add-mask::${TUSHARE_TOKEN}"
+          echo "::add-mask::${DEEPSEEK_API_KEY}"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build APK (release)
+        env:
+          # 与 iOS 保持一致：用 run_number + 100 偏移自增 build number。
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          BN=$((100 + BUILD_NUMBER))
+          echo "Using build number: ${BN}"
+          flutter build apk \
+            --release \
+            --build-number="${BN}" \
+            --dart-define=API_BASE_URL=https://api.singzquant.com
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
