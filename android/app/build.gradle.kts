@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "io.fincept.fincept_app"
-    compileSdk = flutter.compileSdkVersion
+    // androidx.core 1.18.0 等传递依赖按 API 36 编译，需 compileSdk 36；
+    // 不再跟随 flutter.compileSdkVersion（当前仍为 35）。
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
