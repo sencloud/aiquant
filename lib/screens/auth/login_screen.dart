@@ -258,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
       keyboardType: TextInputType.emailAddress,
       autocorrect: false,
       textInputAction: TextInputAction.next,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+      style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
       decoration: _inputDecoration(
         hint: '请输入邮箱地址',
         icon: Icons.alternate_email,
@@ -274,7 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
       keyboardType: TextInputType.number,
       maxLength: 6,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.textPrimary, fontSize: 15, letterSpacing: 4),
       decoration: _inputDecoration(
         hint: '6 位验证码',
