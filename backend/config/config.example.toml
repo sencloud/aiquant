@@ -68,8 +68,8 @@ service_account_json = ""    # 整段 service-account.json 文本
 provider = "deepseek"
 api_key = ""                 # FINME_LLM__API_KEY 注入更安全
 base_url = "https://api.deepseek.com"
-chat_model = "deepseek-chat"
-reason_model = "deepseek-reasoner"
+chat_model = "deepseek-v4-flash"
+reason_model = "deepseek-v4-pro"
 timeout_sec = 180
 max_tool_loops = 6
 
