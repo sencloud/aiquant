@@ -300,8 +300,8 @@ func defaultConfig() *Config {
 		LLM: LLMConfig{
 			Provider:     "deepseek",
 			BaseURL:      "https://api.deepseek.com",
-			ChatModel:    "deepseek-chat",
-			ReasonModel:  "deepseek-reasoner",
+			ChatModel:    "deepseek-v4-flash",
+			ReasonModel:  "deepseek-v4-pro",
 			TimeoutSec:   180,
 			MaxToolLoops: 60,
 		},
