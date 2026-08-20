@@ -19,6 +19,7 @@ import 'state/live_state.dart';
 import 'state/nautilus_state.dart';
 import 'state/portfolio_state.dart';
 import 'state/settings_state.dart';
+import 'state/watchlist_state.dart';
 
 Future<void> main() async {
   // 全局未捕获异常 → /v1/client/error 轻量上报。
@@ -66,6 +67,8 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => DingState()),
         ChangeNotifierProvider(create: (_) => LiveState()),
         ChangeNotifierProvider(create: (_) => NautilusState()),
+        // 看盘自选列表（本地持久化，无需登录）
+        ChangeNotifierProvider(create: (_) => WatchlistState()..bootstrap()),
       ],
       child: const XikuanApp(),
     ),

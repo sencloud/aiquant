@@ -280,6 +280,7 @@ class TushareService {
         high: _toDoubleOrNull(r['high']),
         low: _toDoubleOrNull(r['low']),
         pctChg: _toDoubleOrNull(r['pct_chg']),
+        vol: _toDoubleOrNull(r['vol']),
       ));
     }
     out.sort((a, b) => a.date.compareTo(b.date));
