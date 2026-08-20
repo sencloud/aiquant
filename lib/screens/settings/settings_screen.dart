@@ -57,6 +57,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// 每日签到回调（入口已下线，代码保留）。
+  // ignore: unused_element
   Future<void> _onCheckin(BillingState b) async {
     final r = await b.checkIn();
     if (!mounted) return;
@@ -138,13 +140,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _AccountTile(nickname: user.nickname, uuid: user.uuid),
             if (user != null) const SizedBox(height: 16),
             _BalanceCard(balance: balance, loading: billing.loadingBalance),
-            const SizedBox(height: 12),
-            _CheckinCard(
-              checkedIn: billing.checkedInToday,
-              loading: billing.checkingIn,
-              onTap: () => _onCheckin(billing),
-            ),
             const SizedBox(height: 24),
+            // 每日签到入口已下线（_CheckinCard 代码保留未删）。
+            // _CheckinCard(
+            //   checkedIn: billing.checkedInToday,
+            //   loading: billing.checkingIn,
+            //   onTap: () => _onCheckin(billing),
+            // ),
+            // const SizedBox(height: 24),
             if (_iapAvailable) ...[
               _section('充值喜点'),
               const SizedBox(height: 8),
@@ -187,9 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _bulletText('• 喜点是 App 内的虚拟道具，用于解锁 AI 助理与行情分析。'),
             _bulletText('• 每次回答消耗 6 喜点，调用行情、新闻等数据工具不再额外计费。'),
             if (_iapAvailable)
-              _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。')
-            else
-              _bulletText('• 当前版本可通过每日签到免费获取喜点。'),
+              _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
             if (user != null) ...[
               const SizedBox(height: 24),
               _section('账号管理'),
@@ -344,6 +345,8 @@ class _BalanceCard extends StatelessWidget {
 }
 
 /// 每日签到卡片 —— 签到领 10 喜点。今天已签到则显示禁用态 + 勾选。
+/// （入口已下线，代码保留未删。）
+// ignore: unused_element
 class _CheckinCard extends StatelessWidget {
   const _CheckinCard({
     required this.checkedIn,
@@ -410,6 +413,7 @@ class _CheckinCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _CheckinButton extends StatelessWidget {
   const _CheckinButton({
     required this.done,

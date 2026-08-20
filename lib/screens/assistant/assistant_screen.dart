@@ -14,7 +14,8 @@ import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 import 'widgets/session_drawer.dart';
-import 'widgets/strategy_picker.dart';
+// 「策略之王」入口暂时隐藏（代码保留）；恢复时取消下一行注释即可。
+// import 'widgets/strategy_picker.dart';
 
 /// AssistantScreen 的入参。
 ///
@@ -306,7 +307,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
   ///
   /// - 角色 tag：合并原横向 chip 列表，显示当前选中 persona，点击展开角色清单。
   /// - 策略之王 tag：呈现策略气泡列表，默认挂载「ETF 组合轮动」，点「立即运行」
-  ///   即把策略 prompt 直接发给当前会话的 AI 助理。
+  ///   即把策略 prompt 直接发给当前会话的 AI 助理。（当前暂时隐藏）
   Widget _topTagBar(ChatState chat, Persona persona, ChatSession? session) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -327,10 +328,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
             },
           ),
           const SizedBox(width: 8),
-          StrategyPicker(
-            disabled: chat.streaming,
-            onRun: (s) => _runStrategy(s),
-          ),
+          // 「策略之王」入口暂时隐藏（代码保留未删）。
+          // StrategyPicker(
+          //   disabled: chat.streaming,
+          //   onRun: (s) => _runStrategy(s),
+          // ),
         ],
       ),
     );
@@ -340,6 +342,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
   ///
   /// 若用户已开启「@组合」，则把组合快照也带上，让 AI 在策略报告里参考
   /// 当前持仓做换仓建议。
+  /// 入口暂时隐藏后本方法暂无调用方（代码保留，恢复入口时同步恢复调用）。
+  // ignore: unused_element
   Future<void> _runStrategy(Strategy s) async {
     if (!await requireLogin(context)) return;
     if (!mounted) return;

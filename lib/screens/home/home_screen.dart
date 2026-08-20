@@ -12,8 +12,11 @@ import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../ding/ding_screen.dart';
-import '../portfolio/portfolio_screen.dart';
+// 组合页暂时下线（代码保留，入口隐藏）；后续如需恢复把 import 和
+// pages 里的 WatchScreen 换回 PortfolioScreen 即可。
+// import '../portfolio/portfolio_screen.dart';
 import '../settings/settings_screen.dart';
+import '../watch/watch_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,8 +27,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 助理, 1 = 组合, 2 = DING, 3 = 我的
+  // 0 = 助理, 1 = 看盘, 2 = DING, 3 = 我的
   // 鹦鹉螺预测市场入口暂时隐藏（代码保留未删）；直播功能此前也已下线。
+  // 组合 tab 已被看盘 tab 替换（PortfolioScreen 代码保留，入口隐藏）。
   int _index = 0;
 
   // 网络由「受限」恢复「可用」时自增，用于重建页面子树触发各 tab 重新拉数据。
@@ -89,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     const pages = [
       AssistantScreen(),
-      PortfolioScreen(),
+      WatchScreen(),
       DingScreen(),
       SettingsScreen(),
     ];
@@ -131,9 +135,9 @@ class _HomeScreenState extends State<HomeScreen>
                   onTap: () => _selectTab(0),
                 ),
                 _NavItem(
-                  icon: Icons.pie_chart_outline,
-                  activeIcon: Icons.pie_chart,
-                  label: '组合',
+                  icon: Icons.candlestick_chart_outlined,
+                  activeIcon: Icons.candlestick_chart,
+                  label: '看盘',
                   active: _index == 1,
                   onTap: () => _selectTab(1),
                 ),

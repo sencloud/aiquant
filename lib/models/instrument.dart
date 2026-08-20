@@ -40,6 +40,9 @@ class CandlePoint {
   final double? low;
   final double? pctChg;
 
+  /// 成交量（手）。K 线图下方的成交量柱使用；旧数据可能缺失。
+  final double? vol;
+
   CandlePoint({
     required this.date,
     required this.close,
@@ -47,5 +50,6 @@ class CandlePoint {
     this.high,
     this.low,
     this.pctChg,
+    this.vol,
   });
 }
