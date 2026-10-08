@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜字与行情线">
+  <defs>
+    <linearGradient id="m7bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1b1510"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="m7glow" cx="0.5" cy="0.36" r="0.64">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m7line" gradientUnits="userSpaceOnUse" x1="204" y1="824" x2="830" y2="576">
+      <stop offset="0" stop-color="#b35b05"/>
+      <stop offset="1" stop-color="#f8b64f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#m7bg)"/>
+  <rect width="1024" height="1024" fill="url(#m7glow)"/>
+  <text x="512" y="392" text-anchor="middle" dominant-baseline="central"
+        font-family="'Noto Sans SC','Microsoft YaHei','PingFang SC',sans-serif"
+        font-weight="900" font-size="560" fill="#f2efea">喜</text>
+  <polyline points="204,824 356,762 470,800 604,690 706,730 830,576"
+            fill="none" stroke="url(#m7line)" stroke-width="82"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="830" cy="576" r="46" fill="#f2efea"/>
+</svg>

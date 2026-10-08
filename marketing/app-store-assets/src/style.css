@@ -1,0 +1,453 @@
+/* 喜宽 · App Store 创意素材（产品页顶部横幅 / 搜索结果素材）
+ *
+ * 设计约束来自 Apple《App Store 素材资源最佳做法》：
+ *   - 不含具体定价、折扣、网址、版权符号
+ *   - 不含未获得的奖项/荣誉、不含其他平台标志
+ *   - 面向 4+ 年龄段
+ *   - 焦点元素居中留安全区，边缘可被裁切而不影响信息
+ *
+ * 画布用 CSS px 排版，渲染时用 --force-device-scale-factor=2 输出 2 倍图。
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  position: relative;
+  background: #07080a;
+  color: #f7f5f2;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 暖橙光晕，呼应品牌色 #E8890C */
+.l-glow-main {
+  background: radial-gradient(
+    58% 74% at 15% 44%,
+    rgba(232, 137, 12, 0.3),
+    transparent 63%
+  );
+}
+
+.l-glow-corner {
+  background: radial-gradient(
+    48% 66% at 94% 96%,
+    rgba(232, 137, 12, 0.22),
+    transparent 66%
+  );
+}
+
+.l-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 5.5vw 5.5vw;
+  opacity: 0.9;
+}
+
+.l-vignette {
+  background: radial-gradient(
+    118% 118% at 46% 48%,
+    transparent 38%,
+    rgba(0, 0, 0, 0.62) 100%
+  );
+}
+
+/* 背景里若隐若现的 K 线，作为「行情」的视觉母题 */
+.l-candles {
+  display: flex;
+  align-items: flex-end;
+  opacity: 0.17;
+}
+
+.l-candles svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stage {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 7vw;
+  padding-right: 3vw;
+}
+
+.copy {
+  position: relative;
+  max-width: 48vw;
+}
+
+.brandchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85vw;
+  padding: 0.62vw 1.5vw 0.62vw 0.62vw;
+  border-radius: 999px;
+  background: rgba(232, 137, 12, 0.13);
+  border: 1px solid rgba(232, 137, 12, 0.45);
+}
+
+.brandchip img {
+  width: 2.5vw;
+  height: 2.5vw;
+  border-radius: 0.68vw;
+  display: block;
+}
+
+.brandchip span {
+  font-size: 1.5vw;
+  font-weight: 700;
+  color: #f2a33c;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin-top: 1.9vw;
+  font-size: 6.3vw;
+  line-height: 1.13;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  text-shadow: 0 0.6vw 3vw rgba(0, 0, 0, 0.55);
+}
+
+h1 .amber {
+  color: #f0a02a;
+}
+
+.sub {
+  margin-top: 1.7vw;
+  font-size: 1.72vw;
+  font-weight: 500;
+  color: #ada497;
+  letter-spacing: 0.03em;
+}
+
+.sub .sep {
+  color: #554d44;
+  margin: 0 0.5vw;
+}
+
+/* ── 手机样机：展示真实界面，呼应「展示亲身体验」 ───────────────── */
+.device {
+  position: absolute;
+  right: 7vw;
+  bottom: -4vh;
+  height: 92vh;
+  aspect-ratio: 9 / 19.5;
+  border-radius: 3.4vh;
+  padding: 0.85vh;
+  background: linear-gradient(160deg, #33302c, #14120f 45%, #24211d);
+  box-shadow: 0 4vh 12vh rgba(0, 0, 0, 0.72), 0 0 0 0.12vh rgba(255, 255, 255, 0.12);
+}
+
+.screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 2.7vh;
+  overflow: hidden;
+  background: #f7f7f5;
+  display: flex;
+  flex-direction: column;
+}
+
+.notch {
+  position: absolute;
+  top: 1.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32%;
+  height: 3.4%;
+  border-radius: 999px;
+  background: #100e0c;
+  z-index: 6;
+}
+
+.statusbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.7vh 2.1vh 0.7vh;
+  font-size: 1.35vh;
+  font-weight: 700;
+  color: #16130f;
+}
+
+.sb-right {
+  display: flex;
+  gap: 0.5vh;
+  align-items: center;
+}
+
+.sb-bar {
+  width: 0.32vh;
+  background: #16130f;
+  border-radius: 1px;
+}
+
+.sb-batt {
+  width: 3vh;
+  height: 1.4vh;
+  border: 0.14vh solid #16130f;
+  border-radius: 0.32vh;
+  position: relative;
+}
+
+.sb-batt::after {
+  content: "";
+  position: absolute;
+  inset: 0.16vh;
+  right: 44%;
+  background: #16130f;
+  border-radius: 0.14vh;
+}
+
+.appbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1.2vh;
+  padding: 0.9vh 2.1vh 1.6vh;
+  border-bottom: 0.12vh solid #ebe7e0;
+}
+
+.appbar img {
+  width: 3.5vh;
+  height: 3.5vh;
+  border-radius: 1vh;
+}
+
+.appbar-title {
+  font-size: 2.05vh;
+  font-weight: 800;
+  color: #17130e;
+}
+
+.appbar-title small {
+  display: block;
+  font-size: 1.3vh;
+  font-weight: 500;
+  color: #8c8377;
+}
+
+.chat {
+  flex: 1;
+  overflow: hidden;
+  padding: 2.4vh 1.9vh 1vh;
+  display: flex;
+  flex-direction: column;
+  gap: 1.9vh;
+}
+
+.bubble {
+  align-self: flex-end;
+  max-width: 84%;
+  padding: 1.45vh 1.75vh;
+  border-radius: 2vh 2vh 0.6vh 2vh;
+  background: #e8890c;
+  color: #fff;
+  font-size: 1.72vh;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.answer {
+  align-self: flex-start;
+  max-width: 94%;
+  padding: 1.7vh 1.8vh;
+  border-radius: 2vh 2vh 2vh 0.6vh;
+  background: #fff;
+  border: 0.12vh solid #ece7df;
+  box-shadow: 0 0.5vh 1.6vh rgba(23, 19, 14, 0.07);
+}
+
+.answer-tag {
+  display: inline-block;
+  font-size: 1.35vh;
+  font-weight: 700;
+  color: #b8790c;
+  background: rgba(232, 137, 12, 0.14);
+  border-radius: 0.55vh;
+  padding: 0.4vh 0.95vh;
+}
+
+.kline {
+  display: block;
+  width: 100%;
+  height: 21vh;
+  margin: 1.3vh 0 0.9vh;
+}
+
+.pts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95vh;
+}
+
+.pts li {
+  position: relative;
+  padding-left: 2vh;
+  font-size: 1.58vh;
+  line-height: 1.45;
+  color: #3b352d;
+  font-weight: 500;
+}
+
+.pts li::before {
+  content: "";
+  position: absolute;
+  left: 0.3vh;
+  top: 0.72vh;
+  width: 0.85vh;
+  height: 0.85vh;
+  border-radius: 50%;
+  background: #e8890c;
+}
+
+.answer-foot {
+  margin-top: 1.3vh;
+  font-size: 1.22vh;
+  color: #a79e92;
+}
+
+/* 「已调用工具」小标签，说明回答有真实数据支撑 */
+.tools {
+  align-self: flex-start;
+  display: flex;
+  gap: 0.85vh;
+  flex-wrap: wrap;
+}
+
+.tools span {
+  font-size: 1.2vh;
+  font-weight: 600;
+  color: #7c7367;
+  background: #f1efeb;
+  border-radius: 999px;
+  padding: 0.55vh 1.3vh;
+}
+
+.inputbar {
+  flex: none;
+  margin: 0 1.9vh 2vh;
+  padding: 1.25vh 1.35vh;
+  border-radius: 999px;
+  background: #f1efeb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1vh;
+}
+
+.inputbar .ph {
+  font-size: 1.5vh;
+  color: #9a9186;
+}
+
+.send {
+  width: 3.5vh;
+  height: 3.5vh;
+  border-radius: 50%;
+  background: #e8890c;
+  flex: none;
+  position: relative;
+}
+
+.send::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.95vh;
+  height: 0.95vh;
+  border-top: 0.26vh solid #fff;
+  border-right: 0.26vh solid #fff;
+  transform: translate(-50%, -30%) rotate(-45deg);
+}
+
+/* ── 超宽横幅（3840×1646，21:9）────────────────────────────── */
+@media (min-aspect-ratio: 2/1) {
+  .stage {
+    padding-left: 6vw;
+  }
+
+  .copy {
+    max-width: 44vw;
+  }
+
+  .brandchip {
+    gap: 1vh;
+    padding: 0.9vh 2.6vh 0.9vh 0.9vh;
+  }
+
+  .brandchip img {
+    width: 3.1vh;
+    height: 3.1vh;
+    border-radius: 0.85vh;
+  }
+
+  .brandchip span {
+    font-size: 1.95vh;
+  }
+
+  h1 {
+    margin-top: 2.4vh;
+    font-size: 8.4vh;
+  }
+
+  .sub {
+    margin-top: 2.1vh;
+    font-size: 2.25vh;
+  }
+
+  .device {
+    right: 6vw;
+    bottom: -18vh;
+    height: 106vh;
+  }
+}
+
+/* ── 3:2 竖一些的画布（1920×1280）──────────────────────────── */
+@media (max-aspect-ratio: 3/2) {
+  .stage {
+    padding-left: 6.5vw;
+  }
+
+  .copy {
+    max-width: 50vw;
+  }
+
+  h1 {
+    font-size: 6.8vw;
+  }
+
+  .sub {
+    font-size: 1.85vw;
+  }
+
+  .device {
+    right: 5vw;
+    bottom: -7vh;
+    height: 96vh;
+  }
+}

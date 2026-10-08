@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="宽的宝盖头与行情线">
+  <defs>
+    <linearGradient id="m4bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1b1510"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="m4glow" cx="0.5" cy="0.38" r="0.64">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m4amber" gradientUnits="userSpaceOnUse" x1="286" y1="478" x2="738" y2="358">
+      <stop offset="0" stop-color="#c2660a"/>
+      <stop offset="1" stop-color="#f8b64f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#m4bg)"/>
+  <rect width="1024" height="1024" fill="url(#m4glow)"/>
+  <circle cx="512" cy="298" r="40" fill="#f8b64f"/>
+  <polyline points="292,372 730,372 730,486"
+            fill="none" stroke="url(#m4amber)" stroke-width="82"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="344,748 466,664 566,710 676,590"
+            fill="none" stroke="#f2efea" stroke-width="60"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="676" cy="590" r="48" fill="#f8b64f"/>
+</svg>

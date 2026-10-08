@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="配色变体 亮琥珀底">
+  <defs>
+    <linearGradient id="cwa" x1="0" y1="0" x2="0.72" y2="1">
+      <stop offset="0" stop-color="#f9bd5e"/>
+      <stop offset="0.52" stop-color="#d97706"/>
+      <stop offset="1" stop-color="#9c4b09"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#cwa)"/>
+  <polyline points="188,724 328,606 448,664 596,472 720,530 842,330"
+            fill="none" stroke="#171310" stroke-width="78"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="842" cy="330" r="46" fill="#f2efea"/>
+</svg>

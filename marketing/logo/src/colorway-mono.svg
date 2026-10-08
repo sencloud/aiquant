@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="配色变体 纯黑白">
+  <rect width="1024" height="1024" fill="#0b0b0c"/>
+  <polyline points="188,724 328,606 448,664 596,472 720,530 842,330"
+            fill="none" stroke="#f2efea" stroke-width="78"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="842" cy="330" r="46" fill="#f0a02a"/>
+</svg>

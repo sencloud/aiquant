@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="对话气泡与行情线">
+  <defs>
+    <linearGradient id="m2bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1b1510"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="m2glow" cx="0.5" cy="0.42" r="0.64">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m2bub" gradientUnits="userSpaceOnUse" x1="196" y1="240" x2="828" y2="860">
+      <stop offset="0" stop-color="#f8b64f"/>
+      <stop offset="1" stop-color="#b35b05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#m2bg)"/>
+  <rect width="1024" height="1024" fill="url(#m2glow)"/>
+  <path d="M320 690 L282 824 Q274 848 300 836 L452 690 Z" fill="url(#m2bub)"/>
+  <rect x="196" y="240" width="632" height="470" rx="130" fill="url(#m2bub)"/>
+  <polyline points="268,600 366,522 452,562 552,452 648,494 772,372"
+            fill="none" stroke="#13110e" stroke-width="56"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
