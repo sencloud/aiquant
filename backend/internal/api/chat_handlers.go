@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,48 @@ import (
 // 间隔写一行 SSE 注释 `: ping`(前端 LineSplitter 见 ':' 开头即忽略,不破坏
 // 协议),让连接始终有字节流动。
 const sseHeartbeatInterval = 12 * time.Second
+
+// maxChatBodyBytes 是 AI chat 请求体上限。普通文本远小于此，但多模态图片
+// 走 base64 内联，4 张压缩图就可能到几 MB，因此单独放宽（默认 DecodeJSON
+// 只有 256KB）。
+const maxChatBodyBytes = 24 << 20 // 24 MB
+
+// normalizeChatImages 校验客户端上传的图片 data URL。
+//
+// 约定：元素形如 `data:image/jpeg;base64,<payload>`。返回归一化后的列表
+// （去掉空项），坏数据直接以 400 拒绝，避免带着无效图片去调 LLM 白扣费用。
+func normalizeChatImages(in []string) ([]string, error) {
+	if len(in) > chat.MaxImagesPerMessage {
+		return nil, platform.ErrBadRequest("AI.TOO_MANY_IMAGES",
+			fmt.Sprintf("一次最多上传 %d 张图片", chat.MaxImagesPerMessage), nil)
+	}
+	out := make([]string, 0, len(in))
+	for _, raw := range in {
+		s := strings.TrimSpace(raw)
+		if s == "" {
+			continue
+		}
+		if len(s) > chat.MaxImageDataURLLen {
+			return nil, platform.ErrBadRequest("AI.IMAGE_TOO_LARGE",
+				"单张图片过大，请压缩后重试", nil)
+		}
+		if !strings.HasPrefix(s, "data:image/") {
+			return nil, platform.ErrBadRequest("AI.IMAGE_INVALID",
+				"图片必须是 data:image/...;base64 形式", nil)
+		}
+		comma := strings.IndexByte(s, ',')
+		if comma < 0 || !strings.Contains(s[:comma], ";base64") {
+			return nil, platform.ErrBadRequest("AI.IMAGE_INVALID",
+				"图片必须是 base64 编码", nil)
+		}
+		if _, err := base64.StdEncoding.DecodeString(s[comma+1:]); err != nil {
+			return nil, platform.ErrBadRequest("AI.IMAGE_INVALID",
+				"图片 base64 解码失败", err)
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
 
 // mountAIChat 挂载 /v1/ai/* 路由（受 JWT 保护）。
 func mountAIChat(r chi.Router, d *Deps) {
@@ -51,6 +94,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		Message          string                 `json:"message,omitempty"`
 		Messages         []chatMsg              `json:"messages,omitempty"`
 		PortfolioContext *chat.PortfolioContext `json:"portfolio_context,omitempty"`
+		// Images 是本轮用户消息附带的图片（data:image/...;base64,...）。
+		Images []string `json:"images,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		uc := MustUser(r)
@@ -60,7 +105,12 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		}
 
 		var body reqBody
-		if err := DecodeJSON(r, &body); err != nil {
+		if err := decodeJSONLarge(r, &body, maxChatBodyBytes); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		images, err := normalizeChatImages(body.Images)
+		if err != nil {
 			WriteError(w, r, err)
 			return
 		}
@@ -73,7 +123,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 				}
 			}
 		}
-		if userText == "" {
+		// 允许「只发图不发文」。
+		if userText == "" && len(images) == 0 {
 			WriteError(w, r, platform.ErrBadRequest("AI.EMPTY_INPUT", "消息内容为空", nil))
 			return
 		}
@@ -149,6 +200,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			DeepMode:         body.DeepMode,
 			SystemHint:       body.SystemHint,
 			PortfolioContext: body.PortfolioContext,
+			Images:           images,
 		}, emit)
 		close(stopHeartbeat)
 	}

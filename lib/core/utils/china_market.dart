@@ -27,6 +27,10 @@ class ChinaMarket {
       if (s.startsWith('4') || s.startsWith('8') || s.startsWith('920')) {
         return '$s.BJ';
       }
+      // 场内基金：沪市 5 开头（510/511/512/513/515/516/517/518/560/561/562/563/588），
+      // 深市 1 开头（159 ETF / 150 分级 / 160-16x LOF）。
+      if (s.startsWith('5')) return '$s.SH';
+      if (s.startsWith('1')) return '$s.SZ';
     }
 
     return s;

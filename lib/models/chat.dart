@@ -86,6 +86,10 @@ class ChatMessage extends HiveObject {
   /// role=user 消息：附带的组合名（仅展示用）
   String? portfolioName;
 
+  /// role=user 消息：附带的图片（`data:image/jpeg;base64,...` data URL）。
+  /// 随会话一起落地到 Hive，供气泡缩略图与历史回看使用。
+  List<String>? imageDataUrls;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -98,6 +102,7 @@ class ChatMessage extends HiveObject {
     this.name,
     this.portfolioAttached = false,
     this.portfolioName,
+    this.imageDataUrls,
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now();
 }
@@ -124,13 +129,14 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       name: fields[8] as String?,
       portfolioAttached: fields[9] as bool? ?? false,
       portfolioName: fields[10] as String?,
+      imageDataUrls: (fields[11] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -152,7 +158,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(9)
       ..write(obj.portfolioAttached)
       ..writeByte(10)
-      ..write(obj.portfolioName);
+      ..write(obj.portfolioName)
+      ..writeByte(11)
+      ..write(obj.imageDataUrls);
   }
 }
 

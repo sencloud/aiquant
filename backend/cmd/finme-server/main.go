@@ -31,6 +31,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/api"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
+	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/invite"
@@ -195,6 +196,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Shell:      shellRepo,
 		Predict:    predictSvc,
 		Invite:     inviteSvc,
+		Brief:      buildBriefService(cfg, &l, st),
 	}
 	router := api.NewRouter(deps)
 
@@ -220,6 +222,24 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Error().Err(err).Msg("graceful shutdown failed")
 	}
 	l.Info().Msg("bye")
+}
+
+// buildBriefService 构造首页「今天想聊点什么」的生成/读取服务。
+//
+// LLM 未配置或初始化失败时仍返回可用实例：生成退化为模板拼装，接口照常有内容。
+func buildBriefService(cfg *platform.Config, l *zerolog.Logger, st *store.Store) *brief.Service {
+	rt := realtime.New(0)
+	if !cfg.LLM.Configured() {
+		return brief.NewService(st, l, nil, rt, "")
+	}
+	ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+		cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+		time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+	if err != nil {
+		l.Warn().Err(err).Msg("brief: deepseek init failed, use template questions")
+		return brief.NewService(st, l, nil, rt, "")
+	}
+	return brief.NewService(st, l, ds, rt, cfg.LLM.ChatModel)
 }
 
 // buildChatService 构造 /v1/ai/chat 服务，依赖 LLM + Tushare + News + tools 注册表。
@@ -295,6 +315,13 @@ func waitForSignal() {
 func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))
+
+	// 首页「今天想聊点什么」：非交易日空跑，交易日内按时段（盘前/早盘/午间/
+	// 午后/收盘）各生成一次，客户端直接读最近一条。
+	if cfg.AI.HomeSuggestEnabled {
+		sch.Register(brief.NewJob(buildBriefService(cfg, &l, st), 10*time.Minute, &l))
+		l.Info().Msg("scheduler: home suggestions job enabled")
+	}
 
 	// 鹦鹉螺：关闭到期市场 + 金融/天气类自动结算(东财行情 + Open-Meteo 判定)。
 	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)

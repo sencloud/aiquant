@@ -51,6 +51,10 @@ type ChatInput struct {
 	DeepMode    bool   // 启用 reasoner 模型 + 加价
 	SystemHint  string // 个性化 system prompt（可选）
 	ClientReqID string // 幂等键（与 reason+ref_type 三元组幂等扣费）
+
+	// Images 是本轮用户消息附带的图片，元素为 `data:image/...;base64,...`
+	// 形式的 data URL。允许只发图不发文（UserText 为空）。
+	Images []string
 	// BillingReason 决定 ledger entry 的 reason 列：
 	//   - 空（默认）→ billing.ReasonConsumeAI（来自 /v1/ai/chat 用户主动对话）
 	//   - billing.ReasonConsumeDing → DING runner / run-now 的统一扣费
@@ -97,6 +101,17 @@ type PortfolioHolding struct {
 
 // ErrInsufficientBalance 暴露给上层用于 HTTP 401/402 风格响应。
 var ErrInsufficientBalance = errors.New("insufficient balance")
+
+// 多模态图片限制（客户端已压缩，这里只做服务端兜底）。
+const (
+	// MaxImagesPerMessage 单条消息最多几张图。
+	MaxImagesPerMessage = 4
+	// MaxImageDataURLLen 单个 data URL 字符串的最大长度（约 3MB 原始图片）。
+	MaxImageDataURLLen = 4 << 20
+	// MaxHistoryImageMessages 回放历史时最多保留最近几条带图消息的图片：
+	// 图片每轮都会重发进 prompt，不设上限会让长会话的 token 成本无限增长。
+	MaxHistoryImageMessages = 3
+)
 
 // CollectResult 把 [Run] 派发的事件聚合成一份最终结果，供 DING runner /
 // 同步 run-now 等无 SSE 出口的调用方使用。
@@ -169,7 +184,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		_ = emit("error", map[string]any{"code": "AI.NOT_CONFIGURED", "message": "AI 服务未启用"})
 		return errors.New("ai chat not configured")
 	}
-	if in.UserText == "" {
+	if strings.TrimSpace(in.UserText) == "" && len(in.Images) == 0 {
 		_ = emit("error", map[string]any{"code": "AI.EMPTY_INPUT", "message": "消息内容为空"})
 		return errors.New("empty user text")
 	}
@@ -210,11 +225,22 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := s.d.Sessions.AppendUser(ctx, sess.ID, in.UserText); err != nil {
+	// 图片以 data URL 数组落库，历史回放时按多模态片段重新拼进 prompt。
+	imagesJSON := ""
+	if len(in.Images) > 0 {
+		if raw, jerr := json.Marshal(in.Images); jerr == nil {
+			imagesJSON = string(raw)
+		}
+	}
+	if _, err := s.d.Sessions.AppendUser(ctx, sess.ID, in.UserText, imagesJSON); err != nil {
 		_ = emit("error", map[string]any{"code": "AI.PERSIST", "message": err.Error()})
 		return err
 	}
-	_ = s.d.Sessions.SetTitleIfEmpty(ctx, sess.ID, in.UserText)
+	titleSeed := in.UserText
+	if strings.TrimSpace(titleSeed) == "" {
+		titleSeed = "图片提问"
+	}
+	_ = s.d.Sessions.SetTitleIfEmpty(ctx, sess.ID, titleSeed)
 
 	maxCtx := cfg.MaxContextMsgs
 	if maxCtx <= 0 {
@@ -229,8 +255,19 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 	if sys := buildSystemPrompt(in.SystemHint, in.PortfolioContext); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
-	for _, m := range historyMsgs {
-		llmMsgs = append(llmMsgs, mapMessageToLLM(m))
+	// 只保留最近 MaxHistoryImageMessages 条带图消息的图片：图片每轮都会重发
+	// 进 prompt，不设上限会让长会话的 token 成本无限增长。
+	allowImages := make([]bool, len(historyMsgs))
+	imageMsgs := 0
+	for i := len(historyMsgs) - 1; i >= 0; i-- {
+		if !historyMsgs[i].ImagesJSON.Valid || historyMsgs[i].ImagesJSON.String == "" {
+			continue
+		}
+		imageMsgs++
+		allowImages[i] = imageMsgs <= MaxHistoryImageMessages
+	}
+	for i, m := range historyMsgs {
+		llmMsgs = append(llmMsgs, mapMessageToLLM(m, allowImages[i]))
 	}
 
 	tools := s.d.Tools.ToolListJSON()
@@ -368,10 +405,19 @@ LOOPS:
 }
 
 // mapMessageToLLM 把数据库行转成 LLM 协议的 message。
-func mapMessageToLLM(m Message) llm.MessageWithTools {
+//
+// withImages 为 true 且该行带图时，把 images_json 里的 data URL 拼成多模态
+// content 片段（text + image_url）；否则退化成纯文本，避免历史图片无限重发。
+func mapMessageToLLM(m Message, withImages bool) llm.MessageWithTools {
 	out := llm.MessageWithTools{
 		Role:    m.Role,
 		Content: m.Content,
+	}
+	if withImages && m.ImagesJSON.Valid && m.ImagesJSON.String != "" {
+		var urls []string
+		if err := json.Unmarshal([]byte(m.ImagesJSON.String), &urls); err == nil && len(urls) > 0 {
+			out.Parts = llm.BuildMultimodalParts(m.Content, urls)
+		}
 	}
 	if m.ToolCallsJSON.Valid && m.ToolCallsJSON.String != "" {
 		var calls []llm.ToolCall

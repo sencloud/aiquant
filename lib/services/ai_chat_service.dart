@@ -31,6 +31,7 @@ class AiChatService {
     bool deepMode = false,
     String? systemHint,
     Map<String, dynamic>? portfolioContext,
+    List<String>? images,
   }) async* {
     final cfg = AppConfig.instance;
     // SSE 走裸 http 绕过了 dio 拦截器，必须在这里主动续签：
@@ -52,6 +53,8 @@ class AiChatService {
         'system_hint': systemHint,
       if (portfolioContext != null && portfolioContext.isNotEmpty)
         'portfolio_context': portfolioContext,
+      // 多模态：本轮附带的图片 data URL 数组（服务端转成 content 片段）。
+      if (images != null && images.isNotEmpty) 'images': images,
       'message': message,
     };
 
