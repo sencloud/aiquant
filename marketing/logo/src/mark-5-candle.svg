@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="单根K线">
+  <defs>
+    <linearGradient id="m5bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1b1510"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="m5glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m5wick" gradientUnits="userSpaceOnUse" x1="512" y1="184" x2="512" y2="840">
+      <stop offset="0" stop-color="#f8b64f"/>
+      <stop offset="1" stop-color="#b35b05"/>
+    </linearGradient>
+    <linearGradient id="m5body" gradientUnits="userSpaceOnUse" x1="366" y1="330" x2="658" y2="698">
+      <stop offset="0" stop-color="#f9bd5e"/>
+      <stop offset="1" stop-color="#a3500a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#m5bg)"/>
+  <rect width="1024" height="1024" fill="url(#m5glow)"/>
+  <line x1="512" y1="184" x2="512" y2="840" stroke="url(#m5wick)" stroke-width="44" stroke-linecap="round"/>
+  <rect x="366" y="330" width="292" height="368" rx="96" fill="url(#m5body)"/>
+  <rect x="378" y="342" width="268" height="344" rx="86" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="6"/>
+</svg>

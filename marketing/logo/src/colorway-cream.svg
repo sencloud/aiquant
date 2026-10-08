@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="配色变体 浅米底">
+  <defs>
+    <linearGradient id="cwc" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#faf7f2"/>
+      <stop offset="1" stop-color="#ece6dc"/>
+    </linearGradient>
+    <linearGradient id="cwcl" gradientUnits="userSpaceOnUse" x1="188" y1="724" x2="842" y2="330">
+      <stop offset="0" stop-color="#b35b05"/>
+      <stop offset="1" stop-color="#e8890c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#cwc)"/>
+  <polyline points="188,724 328,606 448,664 596,472 720,530 842,330"
+            fill="none" stroke="url(#cwcl)" stroke-width="78"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="842" cy="330" r="46" fill="#171310"/>
+</svg>

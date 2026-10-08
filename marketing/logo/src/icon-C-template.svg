@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜宽 应用图标 原稿">
+  <defs>
+    <linearGradient id="cbg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1b1510"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="cglow" cx="0.66" cy="0.28" r="0.62">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cstar" gradientUnits="userSpaceOnUse" x1="720" y1="180" x2="900" y2="420">
+      <stop offset="0" stop-color="#f9bd5e"/>
+      <stop offset="1" stop-color="#c2660a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#cbg)"/>
+  <rect width="1024" height="1024" fill="url(#cglow)"/>
+  <path d="{{XI_PATH}}" transform="translate(215.6,804.3) scale(0.5599,-0.5599)" fill="#f2efea"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(800,238) scale(88)" fill="url(#cstar)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(886,392) scale(44)" fill="#f8b64f" fill-opacity="0.9"/>
+</svg>

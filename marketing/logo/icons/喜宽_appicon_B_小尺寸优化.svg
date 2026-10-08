@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜宽 应用图标 小尺寸优化">
+  <defs>
+    <linearGradient id="bbg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#1e1711"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </linearGradient>
+    <radialGradient id="bcenter" cx="0.46" cy="0.53" r="0.6">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bcorner" cx="0.8" cy="0.26" r="0.5">
+      <stop offset="0" stop-color="#e8890c" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#e8890c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bstar" gradientUnits="userSpaceOnUse" x1="740" y1="200" x2="920" y2="420">
+      <stop offset="0" stop-color="#f9bd5e"/>
+      <stop offset="1" stop-color="#c2660a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bbg)"/>
+  <rect width="1024" height="1024" fill="url(#bcenter)"/>
+  <rect width="1024" height="1024" fill="url(#bcorner)"/>
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(152.8,748.1) scale(0.6198,-0.6198)" fill="#f6f3ee"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(818,300) scale(96)" fill="url(#bstar)"/>
+</svg>

@@ -1,0 +1,995 @@
+/* 喜宽 · App Store 截屏（iPhone 6.9" 1320×2868 / 6.5" 1242×2688）
+ *
+ * 画布按 CSS px 排版，渲染时用 --force-device-scale-factor=2 输出 2 倍图。
+ * 机内 UI 用 rem 排版：1rem = 1 个设备点（pt），由 html 的 font-size 换算，
+ * 这样和 Flutter 里写的字号能一一对应。
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 机身高 85.4vh ↔ iPhone 15 Pro 的 852pt */
+html {
+  font-size: 0.1002vh;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #07080a;
+  color: #f7f5f2;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shot {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: hidden;
+}
+
+.shot.active {
+  display: block;
+}
+
+/* ── 画布背景 ───────────────────────────────────────────── */
+.bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      62% 42% at 50% 6%,
+      rgba(232, 137, 12, 0.28),
+      transparent 64%
+    ),
+    radial-gradient(58% 40% at 88% 96%, rgba(232, 137, 12, 0.16), transparent 66%),
+    linear-gradient(180deg, #0d0a07 0%, #07080a 62%, #0a0806 100%);
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 5.5vw 5.5vw;
+}
+
+/* ── 顶部文案 ───────────────────────────────────────────── */
+.headline {
+  position: absolute;
+  top: 2.4vh;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 4;
+  padding: 0 4vw;
+}
+
+.headline h2 {
+  font-size: 4.5vh;
+  line-height: 1.16;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-shadow: 0 0.4vh 2vh rgba(0, 0, 0, 0.5);
+}
+
+.headline .amber {
+  color: #f0a02a;
+}
+
+/* ── 手机机身 ───────────────────────────────────────────── */
+.device {
+  position: absolute;
+  left: 50%;
+  top: 14.6vh;
+  transform: translateX(-50%);
+  height: 85.4vh;
+  width: calc(85.4vh * 9 / 19.5);
+  padding: 5rem;
+  border-radius: 66rem;
+  background: linear-gradient(150deg, #3b3733 0%, #16130f 38%, #2a2724 74%, #100e0c 100%);
+  box-shadow: 0 3vh 9vh rgba(0, 0, 0, 0.72),
+    0 0 0 0.08vh rgba(255, 255, 255, 0.14), 0 0 12vh rgba(232, 137, 12, 0.12);
+}
+
+.ui {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 61rem;
+  overflow: hidden;
+  background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  color: #1a1a1a;
+}
+
+.island {
+  position: absolute;
+  top: 11rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 126rem;
+  height: 37rem;
+  border-radius: 999px;
+  background: #050505;
+  z-index: 9;
+}
+
+.statusbar {
+  flex: none;
+  height: 54rem;
+  background: #fff;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 60rem 8rem 32rem;
+  font-size: 16rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.sb-right {
+  display: flex;
+  align-items: center;
+  gap: 6rem;
+}
+
+.sb-bar {
+  width: 3.4rem;
+  background: #1a1a1a;
+  border-radius: 1rem;
+}
+
+.sb-batt {
+  width: 25rem;
+  height: 12rem;
+  border: 1.6rem solid rgba(26, 26, 26, 0.9);
+  border-radius: 4rem;
+  position: relative;
+}
+
+.sb-batt::after {
+  content: "";
+  position: absolute;
+  inset: 1.8rem;
+  right: 32%;
+  background: #1a1a1a;
+  border-radius: 1.4rem;
+}
+
+/* AppBar：白底 + 琥珀橙标题，和 App 里一致 */
+.appbar {
+  flex: none;
+  height: 56rem;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14rem;
+  padding: 0 18rem;
+}
+
+.appbar .title {
+  color: #d97706;
+  font-size: 16rem;
+  font-weight: 800;
+  letter-spacing: 1.2rem;
+}
+
+.appbar .spacer {
+  flex: 1;
+}
+
+.appbar svg {
+  display: block;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34rem;
+  height: 34rem;
+  padding: 0 10rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 20rem;
+  font-weight: 800;
+}
+
+.body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: #f5f5f5;
+}
+
+/* 底部导航 */
+.nav {
+  flex: none;
+  height: 83rem;
+  background: #fff;
+  border-top: 1rem solid #e5e5e5;
+  display: flex;
+  padding-bottom: 22rem;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  color: #999;
+  position: relative;
+}
+
+.nav-item span {
+  font-size: 11rem;
+  font-weight: 600;
+}
+
+.nav-item.active {
+  color: #d97706;
+}
+
+.nav-item.active span {
+  font-weight: 800;
+}
+
+.nav-item .dot {
+  position: absolute;
+  top: 12rem;
+  left: 50%;
+  margin-left: 8rem;
+  min-width: 18rem;
+  height: 18rem;
+  padding: 0 4rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.4rem solid #fff;
+}
+
+/* ── 屏幕 1：AI 助理 ────────────────────────────────────── */
+.chips {
+  display: flex;
+  gap: 10rem;
+  padding: 12rem 16rem;
+  background: #fff;
+  border-bottom: 1rem solid #e5e5e5;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rem;
+  height: 36rem;
+  padding: 0 16rem;
+  border-radius: 999px;
+  border: 1.4rem solid #e5e5e5;
+  font-size: 13rem;
+  font-weight: 700;
+  color: #5a5a5a;
+}
+
+.chip.on {
+  border-color: #d97706;
+  color: #d97706;
+  background: rgba(217, 118, 6, 0.07);
+}
+
+.pico {
+  width: 18rem;
+  height: 18rem;
+  border-radius: 5rem;
+  background: #d97706;
+  display: inline-block;
+  margin-right: 2rem;
+}
+
+.chat {
+  padding: 18rem 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 16rem;
+}
+
+.bubble {
+  align-self: flex-end;
+  max-width: 82%;
+  padding: 13rem 16rem;
+  border-radius: 18rem 18rem 5rem 18rem;
+  background: #d97706;
+  color: #fff;
+  font-size: 14rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.card {
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 14rem;
+}
+
+.card.self-start {
+  align-self: flex-start;
+  max-width: 94%;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11.5rem;
+  font-weight: 800;
+  color: #b35b05;
+  background: rgba(217, 118, 6, 0.13);
+  border-radius: 5rem;
+  padding: 3rem 8rem;
+}
+
+.kline {
+  display: block;
+  width: 100%;
+  margin: 10rem 0 6rem;
+}
+
+.pts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8rem;
+}
+
+.pts li {
+  position: relative;
+  padding-left: 17rem;
+  font-size: 13rem;
+  line-height: 1.45;
+  color: #3b352d;
+  font-weight: 500;
+}
+
+.pts li::before {
+  content: "";
+  position: absolute;
+  left: 2rem;
+  top: 6rem;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 50%;
+  background: #d97706;
+}
+
+.foot {
+  margin-top: 10rem;
+  font-size: 10.5rem;
+  color: #a79e92;
+}
+
+.tools {
+  display: flex;
+  gap: 8rem;
+  align-self: flex-start;
+}
+
+.tools span {
+  font-size: 11rem;
+  font-weight: 600;
+  color: #7c7367;
+  background: #f1efeb;
+  border-radius: 999px;
+  padding: 6rem 12rem;
+}
+
+.inputbar {
+  position: absolute;
+  left: 16rem;
+  right: 16rem;
+  bottom: 16rem;
+  height: 46rem;
+  border-radius: 999px;
+  background: #f1efeb;
+  border: 1rem solid #e5e5e5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6rem 0 16rem;
+}
+
+.inputbar .ph {
+  font-size: 13rem;
+  color: #9a9186;
+}
+
+.send {
+  width: 36rem;
+  height: 36rem;
+  border-radius: 50%;
+  background: #d97706;
+  position: relative;
+  flex: none;
+}
+
+.send::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9rem;
+  height: 9rem;
+  border-top: 2.6rem solid #fff;
+  border-right: 2.6rem solid #fff;
+  transform: translate(-50%, -30%) rotate(-45deg);
+}
+
+/* ── 屏幕 2：看盘自选 ───────────────────────────────────── */
+.list {
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  padding: 14rem 16rem;
+  border-bottom: 1rem solid #efefef;
+}
+
+.row .left {
+  flex: 1;
+  min-width: 0;
+}
+
+.row .nm {
+  display: flex;
+  align-items: center;
+  gap: 8rem;
+}
+
+.row .nm b {
+  font-size: 15rem;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.row .ac {
+  font-size: 10rem;
+  color: #999;
+  border: 1rem solid #e5e5e5;
+  border-radius: 3rem;
+  padding: 1rem 5rem;
+}
+
+.row .code {
+  margin-top: 4rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5rem;
+  color: #999;
+}
+
+.row .right {
+  text-align: right;
+}
+
+.row .px {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 17rem;
+  font-weight: 800;
+}
+
+.row .pc {
+  margin-top: 3rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5rem;
+  font-weight: 700;
+}
+
+.up {
+  color: #dc2626;
+}
+
+.down {
+  color: #16a34a;
+}
+
+/* ── 屏幕 3：品种详情 ───────────────────────────────────── */
+.detail-head {
+  background: #fff;
+  padding: 14rem 18rem 12rem;
+  border-bottom: 1rem solid #e5e5e5;
+}
+
+.detail-head .big {
+  display: flex;
+  align-items: baseline;
+  gap: 10rem;
+}
+
+.detail-head .p {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 34rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.detail-head .d {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 15rem;
+  font-weight: 700;
+}
+
+.kv {
+  margin-top: 12rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8rem;
+}
+
+.kv div {
+  font-size: 11rem;
+  color: #999;
+}
+
+.kv div b {
+  display: block;
+  margin-top: 3rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8rem;
+  padding: 10rem 16rem;
+  background: #fff;
+  border-bottom: 1rem solid #e5e5e5;
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: flex;
+  border: 1rem solid #dcdcdc;
+  border-radius: 6rem;
+  overflow: hidden;
+}
+
+.seg span {
+  font-size: 12rem;
+  font-weight: 700;
+  color: #5a5a5a;
+  padding: 5rem 12rem;
+}
+
+.seg span.on {
+  background: #d97706;
+  color: #fff;
+}
+
+.tg {
+  font-size: 11.5rem;
+  font-weight: 700;
+  color: #b35b05;
+  background: rgba(217, 118, 6, 0.12);
+  border: 1rem solid rgba(217, 118, 6, 0.35);
+  border-radius: 999px;
+  padding: 4rem 10rem;
+}
+
+.chart {
+  background: #fff;
+  padding: 6rem 10rem 10rem;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+}
+
+.legend {
+  display: flex;
+  gap: 12rem;
+  padding: 8rem 2rem 4rem;
+  font-size: 10.5rem;
+  font-weight: 700;
+}
+
+/* ── 屏幕 4：DING ───────────────────────────────────────── */
+.tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 1rem solid #e5e5e5;
+}
+
+.tabs div {
+  flex: 1;
+  text-align: center;
+  padding: 12rem 0 10rem;
+  font-size: 12.5rem;
+  font-weight: 700;
+  color: #5a5a5a;
+  position: relative;
+}
+
+.tabs div.on {
+  color: #d97706;
+  font-weight: 800;
+}
+
+.tabs div.on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 60rem;
+  height: 3rem;
+  border-radius: 2rem;
+  background: #d97706;
+}
+
+.inbox {
+  padding: 12rem 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12rem;
+}
+
+.mail {
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 10rem;
+  padding: 14rem;
+}
+
+.mail .top {
+  display: flex;
+  align-items: center;
+  gap: 8rem;
+}
+
+.mail .top b {
+  font-size: 14.5rem;
+  font-weight: 800;
+}
+
+.mail .top .t {
+  margin-left: auto;
+  font-size: 11rem;
+  color: #999;
+}
+
+.mail .dot {
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: #dc2626;
+  flex: none;
+}
+
+.mail p {
+  margin-top: 8rem;
+  font-size: 12.5rem;
+  line-height: 1.55;
+  color: #5a5a5a;
+}
+
+.mail .meta {
+  margin-top: 10rem;
+  font-size: 11rem;
+  color: #b35b05;
+  font-weight: 700;
+}
+
+/* ── 屏幕 5：我的 ───────────────────────────────────────── */
+.pad {
+  padding: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 14rem;
+}
+
+.acct {
+  display: flex;
+  align-items: center;
+  gap: 14rem;
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 16rem;
+}
+
+.acct .av {
+  width: 54rem;
+  height: 54rem;
+  border-radius: 50%;
+  background: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.acct b {
+  font-size: 17rem;
+  font-weight: 800;
+}
+
+.acct small {
+  display: block;
+  margin-top: 5rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5rem;
+  color: #999;
+}
+
+.balance {
+  border-radius: 12rem;
+  padding: 22rem;
+  background: linear-gradient(135deg, #d97706, #b35b05);
+  color: #fff;
+}
+
+.balance .cap {
+  display: flex;
+  align-items: center;
+  gap: 7rem;
+  font-size: 12.5rem;
+  font-weight: 800;
+  letter-spacing: 1.2rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.balance .num {
+  margin-top: 14rem;
+  display: flex;
+  align-items: baseline;
+  gap: 8rem;
+}
+
+.balance .num i {
+  font-style: normal;
+  font-size: 44rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.balance .num span {
+  font-size: 14rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sec {
+  margin-top: 6rem;
+  font-size: 12rem;
+  font-weight: 800;
+  color: #5a5a5a;
+  letter-spacing: 0.6rem;
+}
+
+.notes {
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 11rem;
+}
+
+.notes p {
+  font-size: 12.5rem;
+  line-height: 1.5;
+  color: #3b352d;
+}
+
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10rem;
+}
+
+.plan {
+  display: flex;
+  align-items: center;
+  gap: 12rem;
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 13rem 14rem;
+}
+
+.plan .ic {
+  width: 40rem;
+  height: 40rem;
+  border-radius: 10rem;
+  background: rgba(217, 118, 6, 0.1);
+  border: 1rem solid rgba(217, 118, 6, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plan b {
+  font-size: 15rem;
+  font-weight: 800;
+}
+
+.plan small {
+  display: block;
+  margin-top: 4rem;
+  font-size: 11rem;
+  color: #999;
+}
+
+.plan .price {
+  margin-left: auto;
+  background: #d97706;
+  color: #fff;
+  font-size: 14rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 8rem 16rem;
+}
+
+/* 喜点流水 */
+.led {
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 3rem 16rem;
+}
+
+.led .r {
+  display: flex;
+  align-items: center;
+  padding: 13rem 0;
+  border-bottom: 1rem solid #f2f2f2;
+}
+
+.led .r:last-child {
+  border-bottom: none;
+}
+
+.led .r b {
+  font-size: 12.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.led .r .tm {
+  margin-left: 10rem;
+  font-size: 11rem;
+  color: #999;
+}
+
+.led .r .v {
+  margin-left: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13.5rem;
+  font-weight: 800;
+}
+
+/* 列表类小圆角行（账号 / 法律条款等），对齐 App 里的 ListTile */
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 12rem;
+  background: #fff;
+  border: 1rem solid #e5e5e5;
+  border-radius: 12rem;
+  padding: 15rem 16rem;
+  font-size: 13rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.tile .ar {
+  margin-left: auto;
+  color: #c4c4c4;
+  font-size: 16rem;
+}
+
+/* 只在 iPad 画布上出现的内容：手机屏装不下，
+ * iPad 屏更高，同一个页面本来就会露出更多条目。 */
+.io-block,
+.io-chat {
+  display: none;
+}
+
+.io-block > .sec {
+  margin-top: 16rem;
+}
+
+.io-block > * + * {
+  margin-top: 10rem;
+}
+
+/* ── iPad（2048×2732 / 2064×2752）────────────────────────────
+ * App 在 iPad 上仍是手机版布局（只有 macOS/Windows/Linux 进桌面版），
+ * 所以这里只是把同一套 UI 放到更宽的 1024×1366pt 屏幕上，画风保持一致。
+ * 用宽高比区分画布：iPhone 约 0.46，iPad 约 0.75，阈值取 0.6。
+ */
+@media (min-aspect-ratio: 3/5) {
+  html {
+    font-size: 0.05813vh;
+  }
+
+  .headline {
+    top: 2.9vh;
+    padding: 0 5vw;
+  }
+
+  .headline h2 {
+    font-size: 6vh;
+  }
+
+  /* 机身 = 屏幕 1024×1366pt + 四周约 1.1vh 的窄边框 */
+  .device {
+    top: 17.6vh;
+    height: 81.6vh;
+    width: 61.75vh;
+    padding: 1.1vh;
+    border-radius: 26rem;
+  }
+
+  /* iPad 屏幕圆角小得多，且没有灵动岛 */
+  .ui {
+    border-radius: 19rem;
+  }
+
+  .island {
+    display: none;
+  }
+
+  .statusbar {
+    height: 24rem;
+    align-items: center;
+    padding: 0 34rem 0 26rem;
+    font-size: 15rem;
+  }
+
+  /* iPad 底部安全区 20pt、导航条 49pt */
+  .nav {
+    height: 70rem;
+    padding-bottom: 20rem;
+  }
+
+  /* 屏幕更宽，把图表高度放大一些，避免横向被拉得过扁 */
+  .kline {
+    height: 560rem;
+  }
+
+  .chart svg {
+    height: 1060rem;
+  }
+
+  /* iPad 屏幕更高，露出更多条目才不空 */
+  .io-block {
+    display: block;
+  }
+
+  .io-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 16rem;
+  }
+}

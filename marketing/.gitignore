@@ -1,0 +1,18 @@
+# 这里只入库「源码」，生成物不入库 —— 跑一次 build.ps1 就能重出（需要本机有 Chrome/Edge）。
+# 共约 30 MB，没必要塞进 Git 历史。
+
+# App Store 商品页素材：顶部横幅 / 搜索结果素材 / iPhone 与 iPad 截屏（24 张）
+app-store-assets/*.png
+
+# Logo 方案总览图、图标定稿对比图
+logo/*.png
+
+# Logo 图标 PNG（矢量源在 logo/icons/*.svg，可直接导出任意尺寸）
+logo/icons/*.png
+
+# 渲染中间产物：每个方案一次性的包装 HTML
+logo/render-*.html
+logo/board.html
+logo/final-board.html
+
+# 注意：logo/archive/ 里的旧图标是刻意保留的（换标回退用），不要忽略。
