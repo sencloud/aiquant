@@ -1,0 +1,3 @@
+interface:
+  display_name: "喜宽发版构建"
+  short_description: "push 前的版本号闸门与打包检查"

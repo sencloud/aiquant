@@ -1,0 +1,3 @@
+interface:
+  display_name: "喜宽后端部署"
+  short_description: "线上二进制/配置/nginx/迁移的上线流程"
