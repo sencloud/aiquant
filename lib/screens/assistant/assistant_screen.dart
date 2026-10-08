@@ -1,11 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
 import '../../core/format/credit_fmt.dart';
+import '../../core/utils/image_data_url.dart';
 import '../../models/chat.dart';
 import '../../models/persona.dart';
 import '../../models/strategy.dart';
+import '../../services/image_attach_service.dart';
+import '../../services/market_briefing.dart';
 import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
@@ -51,14 +57,35 @@ class _AssistantScreenState extends State<AssistantScreen> {
   // 推理过程默认始终展示；不再提供顶部隐藏开关。
   static const bool _showReasoning = true;
 
-  /// 「@组合」开关：开启后下次 _send 会把 PortfolioState.currentSummary
-  /// 序列化进 SSE body 的 portfolio_context 字段。
+  /// 是否把 PortfolioState.currentSummary 序列化进 SSE body 的
+  /// portfolio_context 字段。仅由跨 Tab 跳转（AssistantLaunch.attachPortfolio）
+  /// 打开；输入框上方不再提供手动开关。
   bool _attachPortfolio = false;
   bool _launchHandled = false;
+
+  /// 首页空会话的快捷提问：按当前时段 + 开/收盘行情生成。
+  /// 为 null / 空时回退到当前 Persona 的默认建议。
+  final MarketBriefingService _briefing = MarketBriefingService();
+  List<String>? _marketSuggestions;
+  bool _loadingSuggestions = false;
+  DateTime? _suggestionsLoadedAt;
+
+  /// 待发送的图片（data URL）。发送成功后清空。
+  final ImageAttachService _imageAttach = ImageAttachService();
+  final List<String> _pendingImages = [];
+  final Map<String, Uint8List> _pendingImageBytes = {};
+  bool _pickingImage = false;
 
   /// 已经为哪个会话做过「进入即定位到最新消息」的初始滚动。
   /// 切换会话 / 首次进入聊天区时,自动跳到底部展示最新消息(而不是停在最老)。
   String? _scrolledSessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    // ignore: unawaited_futures
+    _loadMarketSuggestions();
+  }
 
   @override
   void dispose() {
@@ -132,11 +159,22 @@ class _AssistantScreenState extends State<AssistantScreen> {
   Future<void> _send([String? override]) async {
     final raw = override ?? _input.text;
     final text = raw.trim();
-    if (text.isEmpty) return;
+    final images = List<String>.from(_pendingImages);
+    // 允许「只发图不发文」。
+    if (text.isEmpty && images.isEmpty) return;
+    // 流式输出中不接受新消息：发送按钮此时是「停止」，但键盘回车仍会走到这里，
+    // 不加这道闸会把输入框和已选图片白白清空。
+    if (context.read<ChatState>().streaming) return;
     // 发送是需鉴权功能：未登录先弹登录，放弃则不发送（保留输入内容）。
     if (!await requireLogin(context)) return;
     if (!mounted) return;
     _input.clear();
+    if (images.isNotEmpty) {
+      setState(() {
+        _pendingImages.clear();
+        _pendingImageBytes.clear();
+      });
+    }
     // 发送即收起键盘 + 失焦，让聊天区视野最大化
     _focus.unfocus();
     Map<String, dynamic>? ctxJson;
@@ -153,8 +191,75 @@ class _AssistantScreenState extends State<AssistantScreen> {
     }
     await context
         .read<ChatState>()
-        .sendMessage(text, portfolioContext: ctxJson);
+        .sendMessage(text, portfolioContext: ctxJson, imageDataUrls: images);
     _scrollToBottom();
+  }
+
+  /// 选图：底部弹出「拍照 / 从相册选择」，成功后追加到待发送列表。
+  Future<void> _pickImage() async {
+    if (_pickingImage) return;
+    final remaining = ImageAttachService.maxImages - _pendingImages.length;
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('最多附带 ${ImageAttachService.maxImages} 张图片'),
+        ),
+      );
+      return;
+    }
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined,
+                  color: AppColors.amber),
+              title: const Text('拍照', style: TextStyle(fontSize: 14)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.amber),
+              title: const Text('从相册选择', style: TextStyle(fontSize: 14)),
+              subtitle: const Text(
+                '最多 ${ImageAttachService.maxImages} 张',
+                style: TextStyle(fontSize: 11),
+              ),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    setState(() => _pickingImage = true);
+    List<String> picked = const [];
+    try {
+      picked = source == ImageSource.camera
+          ? await _imageAttach.pickFromCamera()
+          : await _imageAttach.pickFromGallery();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('选择图片失败：$e')),
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      for (final url in picked.take(remaining)) {
+        _pendingImages.add(url);
+        _pendingImageBytes[url] = decodeImageDataUrl(url);
+      }
+      _pickingImage = false;
+    });
   }
 
   /// 「喜点不足 / 扣费失败」弹窗：提示余额，并可一键跳到充值页。
@@ -372,7 +477,21 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   /// 空会话时的欢迎面板：参考"元宝"截图布局——上半部分留白让视线聚焦，
   /// 下半部分依次为大标题、福利中心广告条、3 条快速提问 pill。
+  ///
+  /// 快速提问优先用「当前时段 + 开/收盘行情」生成（见 [MarketBriefingService]）；
+  /// 行情不可用时回退到当前 Persona 的默认建议。行情每 5 分钟视为过期，
+  /// 展示时在后台静默刷新。
   Widget _welcomePanel(Persona persona) {
+    final loadedAt = _suggestionsLoadedAt;
+    if (loadedAt == null ||
+        DateTime.now().difference(loadedAt) > const Duration(minutes: 5)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadMarketSuggestions();
+      });
+    }
+    final market = _marketSuggestions;
+    final suggestions =
+        (market != null && market.isNotEmpty) ? market : persona.welcomeSuggestions;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Column(
@@ -394,11 +513,29 @@ class _AssistantScreenState extends State<AssistantScreen> {
             onTap: _openCreditCenter,
           ),
           const SizedBox(height: 14),
-          for (final q in persona.welcomeSuggestions.take(3)) _suggestion(q),
+          for (final q in suggestions.take(3)) _suggestion(q),
           const SizedBox(height: 4),
         ],
       ),
     );
+  }
+
+  /// 拉取「当前时段 + 开/收盘行情」摘要并生成快捷提问；失败保持原建议。
+  Future<void> _loadMarketSuggestions() async {
+    if (_loadingSuggestions) return;
+    _loadingSuggestions = true;
+    try {
+      final list = await _briefing.loadSuggestions();
+      if (!mounted) return;
+      setState(() {
+        _marketSuggestions = list.isEmpty ? null : list;
+        _suggestionsLoadedAt = DateTime.now();
+      });
+    } catch (_) {
+      if (mounted) setState(() => _suggestionsLoadedAt = DateTime.now());
+    } finally {
+      _loadingSuggestions = false;
+    }
   }
 
   /// 椭圆 pill 样式的快速提问（替代原 raised 背景的方框样式），
@@ -444,8 +581,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _portfolioChip(),
-          const SizedBox(height: 6),
+          if (_pendingImages.isNotEmpty) _pendingImageStrip(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -456,10 +592,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(color: AppColors.borderDim),
                   ),
-                  padding: const EdgeInsets.fromLTRB(18, 4, 6, 4),
+                  padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      _attachButton(),
                       Expanded(
                         child: TextField(
                           controller: _input,
@@ -492,79 +629,87 @@ class _AssistantScreenState extends State<AssistantScreen> {
     );
   }
 
-  /// 「@组合」chip：默认关；开启后下次 _send 会把当前组合 summary 上送。
-  ///
-  /// 设计取舍：用 chip 而非 menu / dialog，单次请求级别开关；不持久化（用户
-  /// 切到其它页再回来默认关闭），避免误用上传持仓。
-  Widget _portfolioChip() {
-    return Consumer<PortfolioState>(
-      builder: (context, ps, _) {
-        final summary = ps.currentSummary;
-        final hasHoldings = summary != null && summary.holdings.isNotEmpty;
-        final label = !hasHoldings
-            ? '@组合（暂无持仓）'
-            : _attachPortfolio
-                ? '已附带：${summary.portfolio.name}（${summary.holdings.length} 只）'
-                : '@组合（${summary.portfolio.name}）';
-        const activeColor = AppColors.amber;
-        final inactiveBg = AppColors.bgRaised;
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: !hasHoldings
-                  ? null
-                  : () => setState(() => _attachPortfolio = !_attachPortfolio),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _attachPortfolio
-                      ? activeColor.withValues(alpha: 0.18)
-                      : inactiveBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _attachPortfolio
-                        ? activeColor
-                        : AppColors.borderDim,
+  /// 待发送图片的横向缩略图条（带右上角删除）。
+  Widget _pendingImageStrip() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 2),
+      child: SizedBox(
+        height: 66,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _pendingImages.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, i) {
+            final url = _pendingImages[i];
+            final bytes = _pendingImageBytes[url];
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: bytes == null || bytes.isEmpty
+                      ? Container(
+                          width: 64,
+                          height: 64,
+                          color: AppColors.bgRaised,
+                          child: Icon(Icons.broken_image_outlined,
+                              size: 18, color: AppColors.textTertiary),
+                        )
+                      : Image.memory(
+                          bytes,
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        ),
+                ),
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => setState(() {
+                      _pendingImages.removeAt(i);
+                      _pendingImageBytes.remove(url);
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.borderDim),
+                      ),
+                      child: Icon(Icons.close,
+                          size: 12, color: AppColors.textSecondary),
+                    ),
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _attachPortfolio
-                          ? Icons.account_balance_wallet
-                          : Icons.account_balance_wallet_outlined,
-                      size: 14,
-                      color: _attachPortfolio
-                          ? activeColor
-                          : AppColors.textTertiary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _attachPortfolio
-                            ? activeColor
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    if (_attachPortfolio) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.close, size: 12, color: activeColor),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 输入框左侧「上传图片」入口：达到上限或正在选图时置灰。
+  Widget _attachButton() {
+    final full = _pendingImages.length >= ImageAttachService.maxImages;
+    final disabled = full || _pickingImage;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: disabled ? null : _pickImage,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            Icons.add_photo_alternate_outlined,
+            size: 20,
+            color: disabled ? AppColors.textTertiary : AppColors.amber,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

@@ -211,6 +211,10 @@ type AIConfig struct {
 	DeepBonusCredits int64 `toml:"deep_bonus_credits"`   // 深度模式额外
 	LiveRoomCreateCredits int64 `toml:"live_room_create_credits"` // 创建一个直播间消耗
 	LivePostCredits       int64 `toml:"live_post_credits"`        // 观众在直播间发一条言消耗
+
+	// HomeSuggestEnabled 控制 scheduler 是否按时段生成首页「今天想聊点什么」。
+	// 关掉不影响客户端：客户端会回退到本地按行情拼装。
+	HomeSuggestEnabled bool `toml:"home_suggest_enabled"`
 }
 
 type SMSConfig struct {
@@ -300,7 +304,7 @@ func defaultConfig() *Config {
 		LLM: LLMConfig{
 			Provider:     "deepseek",
 			BaseURL:      "https://api.deepseek.com",
-			ChatModel:    "deepseek-v4-flash",
+			ChatModel:    "deepseek-flash",
 			ReasonModel:  "deepseek-v4-pro",
 			TimeoutSec:   180,
 			MaxToolLoops: 60,
@@ -334,6 +338,7 @@ func defaultConfig() *Config {
 			DeepBonusCredits: 5,
 			LiveRoomCreateCredits: 1,
 			LivePostCredits:       1,
+			HomeSuggestEnabled:    true,
 		},
 		RateLimit: RateLimitConfig{
 			APIPerIPRPM:       100,
@@ -522,6 +527,9 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_NAUTILUS__DAILY_ENABLED"); v != "" {
 		c.Nautilus.DailyEnabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_AI__HOME_SUGGEST_ENABLED"); v != "" {
+		c.AI.HomeSuggestEnabled = v == "1" || strings.EqualFold(v, "true")
 	}
 }
 

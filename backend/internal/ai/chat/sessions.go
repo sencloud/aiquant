@@ -38,6 +38,8 @@ type Message struct {
 	SessionID        int64          `db:"session_id"`
 	Role             string         `db:"role"`
 	Content          string         `db:"content"`
+	// ImagesJSON 是 user 消息附带的图片 data URL 数组（多模态）。
+	ImagesJSON       sql.NullString `db:"images_json"`
 	ToolCallsJSON    sql.NullString `db:"tool_calls_json"`
 	ToolCallID       sql.NullString `db:"tool_call_id"`
 	ToolName         sql.NullString `db:"tool_name"`
@@ -208,12 +210,19 @@ func sanitizeToolPairs(rows []Message) []Message {
 }
 
 // AppendUser 追加一条 user 消息（事务内）。
-func (r *SessionRepo) AppendUser(ctx context.Context, sessionID int64, content string) (*Message, error) {
-	return r.appendMessage(ctx, Message{
+//
+// imagesJSON 为空表示纯文本消息；非空时是图片 data URL 数组的 JSON 串，
+// 供多模态回放（见 service.mapMessageToLLM）。
+func (r *SessionRepo) AppendUser(ctx context.Context, sessionID int64, content, imagesJSON string) (*Message, error) {
+	m := Message{
 		SessionID: sessionID,
 		Role:      "user",
 		Content:   content,
-	})
+	}
+	if imagesJSON != "" {
+		m.ImagesJSON = sql.NullString{String: imagesJSON, Valid: true}
+	}
+	return r.appendMessage(ctx, m)
 }
 
 // AppendAssistant 追加一条 assistant 消息（可能带 tool_calls）。
@@ -261,10 +270,10 @@ func (r *SessionRepo) appendMessage(ctx context.Context, m Message) (*Message, e
 	err := r.st.Tx(ctx, func(tx *sqlx.Tx) error {
 		res, err := tx.ExecContext(ctx, `
 			INSERT INTO ai_chat_messages(
-				session_id, role, content, tool_calls_json, tool_call_id, tool_name,
+				session_id, role, content, images_json, tool_calls_json, tool_call_id, tool_name,
 				prompt_tokens, completion_tokens, credits_charged, created_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			m.SessionID, m.Role, m.Content, m.ToolCallsJSON,
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			m.SessionID, m.Role, m.Content, m.ImagesJSON, m.ToolCallsJSON,
 			m.ToolCallID, m.ToolName,
 			m.PromptTokens, m.CompletionTokens, m.CreditsCharged, now,
 		)

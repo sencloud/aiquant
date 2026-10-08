@@ -24,12 +24,73 @@ type ToolCall struct {
 }
 
 // MessageWithTools 兼容 OpenAI 协议带 tool_calls / tool_call_id 的扩展消息。
+//
+// 多模态：Parts 非空时 content 以「片段数组」形式序列化（text + image_url），
+// 用于携带用户上传的图片；Parts 为空时序列化回普通字符串，保持既有行为。
 type MessageWithTools struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-	Name       string     `json:"name,omitempty"` // role=tool 时的 tool 名
+	Role       string        `json:"role"`
+	Content    string        `json:"content,omitempty"`
+	Parts      []ContentPart `json:"-"` // 非空时以数组形式占据 content 字段
+	ToolCalls  []ToolCall    `json:"tool_calls,omitempty"`
+	ToolCallID string        `json:"tool_call_id,omitempty"`
+	Name       string        `json:"name,omitempty"` // role=tool 时的 tool 名
+}
+
+// ContentPart 是 OpenAI 多模态消息里的一个片段（文本或图片）。
+type ContentPart struct {
+	Type     string    `json:"type"` // text / image_url
+	Text     string    `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL 支持 data:image/...;base64,... 形式的内联图片，也兼容外链 url。
+type ImageURL struct {
+	URL string `json:"url"`
+}
+
+// MarshalJSON 手写序列化：只有 Parts 非空时才把 content 写成数组，
+// 其余情况维持原来的 `content` 字符串 + omitempty 语义（assistant 只带
+// tool_calls 而不带正文时会省略 content 字段）。
+func (m MessageWithTools) MarshalJSON() ([]byte, error) {
+	type wire struct {
+		Role       string     `json:"role"`
+		Content    any        `json:"content,omitempty"`
+		ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+		ToolCallID string     `json:"tool_call_id,omitempty"`
+		Name       string     `json:"name,omitempty"`
+	}
+	w := wire{
+		Role:       m.Role,
+		ToolCalls:  m.ToolCalls,
+		ToolCallID: m.ToolCallID,
+		Name:       m.Name,
+	}
+	switch {
+	case len(m.Parts) > 0:
+		w.Content = m.Parts
+	case m.Content != "":
+		w.Content = m.Content
+	}
+	return json.Marshal(w)
+}
+
+// BuildMultimodalParts 把「正文 + 若干图片 data URL」组装成多模态片段数组。
+// 正文为空（用户只发图）时只输出图片片段。
+func BuildMultimodalParts(text string, imageDataURLs []string) []ContentPart {
+	parts := make([]ContentPart, 0, len(imageDataURLs)+1)
+	if strings.TrimSpace(text) != "" {
+		parts = append(parts, ContentPart{Type: "text", Text: text})
+	}
+	for _, u := range imageDataURLs {
+		if strings.TrimSpace(u) == "" {
+			continue
+		}
+		parts = append(parts, ContentPart{
+			Type:     "image_url",
+			ImageURL: &ImageURL{URL: u},
+		})
+	}
+	return parts
 }
 
 // StreamEvent 是从 LLM 流式产出 / 或工具循环回报的事件。

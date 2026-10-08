@@ -11,7 +11,7 @@ import '../home/home_screen.dart';
 
 /// AuthGate 是 App 的根 widget。
 /// - bootstrap 中：显示启动 splash；
-/// - 否则：始终进入 HomeScreen（主程序）。
+/// - 否则：始终进入主程序（homeBuilder 决定移动端 HomeScreen 还是桌面 DesktopShell）。
 ///
 /// 产品策略：启动默认进主程序，未登录也能浏览；只有在进入「我的」/ DING 等
 /// 需账号的 tab，或触发发送消息等需鉴权功能时，才由 requireLogin 弹登录页。
@@ -21,7 +21,11 @@ import '../home/home_screen.dart';
 /// - 登出后：ChatState.reset() + BillingState.reset() + DingState.reset()
 /// 这样切换账号时不会把上一个用户的 chat / inbox 留给下一个用户。
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  const AuthGate({super.key, this.homeBuilder});
+
+  /// 登录态就绪后渲染的主界面。默认移动端 HomeScreen；
+  /// 桌面平台（Windows/macOS/Linux）由 app.dart 传入 DesktopShell。
+  final WidgetBuilder? homeBuilder;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -68,7 +72,8 @@ class _AuthGateState extends State<AuthGate> {
       });
     }
 
-    return const HomeScreen();
+    // homeBuilder 为空时回落到移动端 HomeScreen（默认行为，保持向后兼容）。
+    return widget.homeBuilder?.call(context) ?? const HomeScreen();
   }
 }
 

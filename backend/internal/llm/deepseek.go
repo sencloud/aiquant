@@ -62,7 +62,7 @@ func NewDeepSeek(apiKey, baseURL, chatModel, reasonModel string, timeout time.Du
 		baseURL = "https://api.deepseek.com"
 	}
 	if chatModel == "" {
-		chatModel = "deepseek-v4-flash"
+		chatModel = "deepseek-flash"
 	}
 	if reasonModel == "" {
 		reasonModel = "deepseek-v4-pro"

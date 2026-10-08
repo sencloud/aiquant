@@ -4,6 +4,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/utils/image_data_url.dart';
 import '../../../models/chat.dart';
 import '../../../services/nautilus_service.dart';
 import '../../../services/share_service.dart';
@@ -25,17 +26,31 @@ Future<void> _copyText(BuildContext context, String text) async {
   );
 }
 
+/// 点开查看大图（可双指缩放 / 拖动）。
+void _openImagePreview(BuildContext context, String dataUrl) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _ImageViewerScreen(dataUrl: dataUrl),
+    ),
+  );
+}
+
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
     required this.allMessages,
     this.showReasoning = true,
+    this.showShareActions = true,
   });
 
   final ChatMessage message;
   final List<ChatMessage> allMessages;
   final bool showReasoning;
+
+  /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
+  /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
+  final bool showShareActions;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +64,8 @@ class MessageBubble extends StatelessWidget {
         showReasoning && (message.reasoning?.isNotEmpty ?? false);
     final hasToolCalls = (message.toolCalls?.isNotEmpty ?? false);
     final hasContent = message.content.trim().isNotEmpty;
+    final imageUrls = message.imageDataUrls ?? const <String>[];
+    final hasImages = imageUrls.isNotEmpty;
 
     final bg = isUser ? AppColors.amber : AppColors.bgRaised;
     final fg = isUser ? Colors.black : AppColors.textPrimary;
@@ -76,9 +93,15 @@ class MessageBubble extends StatelessWidget {
                 findResult: _findToolResult,
               ),
             ),
-          if (hasContent)
+          if (hasImages)
             Padding(
               padding: EdgeInsets.only(top: hasToolCalls ? 6 : 0),
+              child: _UserImageStrip(urls: imageUrls),
+            ),
+          if (hasContent)
+            Padding(
+              padding:
+                  EdgeInsets.only(top: (hasToolCalls || hasImages) ? 6 : 0),
               child: Container(
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.86,
@@ -106,6 +129,7 @@ class MessageBubble extends StatelessWidget {
                 text: message.content,
                 question: _previousUserText(),
                 timestamp: message.timestamp,
+                showShareActions: showShareActions,
               ),
             ),
           if (isUser && hasContent)
@@ -210,6 +234,105 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
+/// 用户消息里的图片：单图按原比例展示，多图按 96 方块平铺；点开看大图。
+class _UserImageStrip extends StatelessWidget {
+  const _UserImageStrip({required this.urls});
+
+  final List<String> urls;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.of(context).size.width * 0.86;
+    if (urls.length == 1) {
+      return GestureDetector(
+        onTap: () => _openImagePreview(context, urls.first),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 240),
+            child: _thumb(decodeImageDataUrl(urls.first),
+                fit: BoxFit.contain, placeholderSize: 120),
+          ),
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.end,
+        children: [
+          for (final url in urls)
+            GestureDetector(
+              onTap: () => _openImagePreview(context, url),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                child: _thumb(decodeImageDataUrl(url),
+                    width: 96, height: 96, fit: BoxFit.cover, placeholderSize: 96),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thumb(
+    Uint8List bytes, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+    required double placeholderSize,
+  }) {
+    if (bytes.isEmpty) {
+      return Container(
+        width: width,
+        height: height ?? placeholderSize,
+        color: AppColors.bgRaised,
+        child: Icon(Icons.broken_image_outlined,
+            size: 18, color: AppColors.textTertiary),
+      );
+    }
+    return Image.memory(
+      bytes,
+      width: width,
+      height: height,
+      fit: fit,
+      gaplessPlayback: true,
+    );
+  }
+}
+
+/// 全屏看大图（可双指缩放 / 拖动）。
+class _ImageViewerScreen extends StatelessWidget {
+  const _ImageViewerScreen({required this.dataUrl});
+
+  final String dataUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = decodeImageDataUrl(dataUrl);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Center(
+        child: bytes.isEmpty
+            ? const Text('图片无法显示',
+                style: TextStyle(color: Colors.white70, fontSize: 13))
+            : InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: Image.memory(bytes, fit: BoxFit.contain),
+              ),
+      ),
+    );
+  }
+}
+
 /// 助理消息底部的轻量操作栏：复制 / 生成长图分享。
 ///
 /// 「长图分享」先 push 到 [ShareCardScreen] 让用户预览，再调系统分享面板
@@ -220,6 +343,7 @@ class _MessageActionsBar extends StatefulWidget {
     required this.text,
     required this.timestamp,
     this.question,
+    this.showShareActions = true,
   });
 
   final String text;
@@ -227,6 +351,9 @@ class _MessageActionsBar extends StatefulWidget {
 
   /// 触发这条 assistant 回答的上一条 user 提问；长图 / 分享页里会同时渲染。
   final String? question;
+
+  /// false 时只保留「复制」，隐藏依赖 share_plus 的分享按钮（桌面端用）。
+  final bool showShareActions;
 
   @override
   State<_MessageActionsBar> createState() => _MessageActionsBarState();
@@ -396,21 +523,24 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
           label: '复制',
           onTap: () => _copyText(context, widget.text),
         ),
-        _ActionChip(
-          icon: Icons.ios_share,
-          label: '长图分享',
-          onTap: _shareAsImage,
-        ),
-        _ActionChip(
-          icon: _sharingLink ? Icons.hourglass_top : Icons.link,
-          label: _sharingLink ? '生成中…' : '链接分享',
-          onTap: _sharingLink ? null : _shareAsLink,
-        ),
-        _ActionChip(
-          icon: _copying ? Icons.hourglass_top : Icons.campaign_outlined,
-          label: _copying ? '生成中…' : '推广文案',
-          onTap: _copying ? null : _copyPromoText,
-        ),
+        // 分享类按钮依赖系统分享面板（share_plus），桌面端隐藏。
+        if (widget.showShareActions) ...[
+          _ActionChip(
+            icon: Icons.ios_share,
+            label: '长图分享',
+            onTap: _shareAsImage,
+          ),
+          _ActionChip(
+            icon: _sharingLink ? Icons.hourglass_top : Icons.link,
+            label: _sharingLink ? '生成中…' : '链接分享',
+            onTap: _sharingLink ? null : _shareAsLink,
+          ),
+          _ActionChip(
+            icon: _copying ? Icons.hourglass_top : Icons.campaign_outlined,
+            label: _copying ? '生成中…' : '推广文案',
+            onTap: _copying ? null : _copyPromoText,
+          ),
+        ],
       ],
     );
   }

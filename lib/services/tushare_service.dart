@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 import '../core/api/api_client.dart' show buildNoProxyAdapter;
 import '../core/config/app_config.dart';
@@ -82,14 +82,24 @@ class TushareService {
 
     final data = resp.data;
     if (data is! Map) {
+      final preview = data.toString();
+      debugPrint('[Tushare] $apiName 返回非 JSON 对象: '
+          '${data.runtimeType} / '
+          '${preview.substring(0, preview.length > 200 ? 200 : preview.length)}');
       throw TushareException('Tushare 返回非 JSON 对象。');
     }
-    if ((data['code'] as int? ?? -1) != 0) {
+    final codeNum = data['code'] as int? ?? -1;
+    final payload = data['data'] as Map?;
+    final rowCount = payload == null
+        ? 0
+        : (payload['items'] as List? ?? const []).length;
+    debugPrint('[Tushare] $apiName code=$codeNum rows=$rowCount '
+        'msg=${data['msg'] ?? ''}');
+    if (codeNum != 0) {
       throw TushareException(
           'Tushare 返回错误：${data['msg'] ?? "未知错误"} (api=$apiName)');
     }
 
-    final payload = data['data'] as Map?;
     if (payload == null) return const [];
     final List<dynamic> fieldList = payload['fields'] as List? ?? const [];
     final List<dynamic> items = payload['items'] as List? ?? const [];

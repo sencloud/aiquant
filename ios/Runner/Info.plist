@@ -64,6 +64,8 @@
 	<false/>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>用于读取你选择的 CSV 文件以批量导入交易记录。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>仅在你主动选择「拍照」上传图片时使用相机，用后即传，不会在后台拍摄。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>仅在你主动选择从「照片」中导入文件、或导出/分享分析报告时访问，本应用不会自动读取你的照片。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -182,9 +182,12 @@ class ChatState extends ChangeNotifier {
   Future<void> sendMessage(
     String text, {
     Map<String, dynamic>? portfolioContext,
+    List<String>? imageDataUrls,
   }) async {
     final session = active ?? await newSession();
-    if (text.trim().isEmpty || _streaming) return;
+    final images = imageDataUrls ?? const <String>[];
+    // 允许「只发图不发文」。
+    if ((text.trim().isEmpty && images.isEmpty) || _streaming) return;
 
     final hasPortfolio =
         portfolioContext != null && portfolioContext.isNotEmpty;
@@ -193,10 +196,11 @@ class ChatState extends ChangeNotifier {
       content: text.trim(),
       portfolioAttached: hasPortfolio,
       portfolioName: hasPortfolio ? portfolioContext['name'] as String? : null,
+      imageDataUrls: images.isEmpty ? null : List<String>.from(images),
     );
     session.messages.add(userMsg);
     if (session.title == '新对话' || session.title.isEmpty) {
-      session.title = _summarizeForTitle(text);
+      session.title = text.trim().isEmpty ? '图片提问' : _summarizeForTitle(text);
     }
     session.updatedAt = DateTime.now();
     await session.save();
@@ -225,6 +229,7 @@ class ChatState extends ChangeNotifier {
       deepMode: true,
       systemHint: persona.systemPrompt,
       portfolioContext: portfolioContext,
+      images: images.isEmpty ? null : images,
     )
         .listen((ev) async {
       switch (ev.kind) {

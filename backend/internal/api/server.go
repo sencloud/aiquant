@@ -16,6 +16,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
+	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/invite"
@@ -47,6 +48,8 @@ type Deps struct {
 	Shell      *shell.Repo
 	Predict    *predict.Service
 	Invite     *invite.Service
+	// Brief 首页「今天想聊点什么」的读写（由 scheduler 定时生成）。
+	Brief *brief.Service
 }
 
 // NewRouter 装配业务路由。
@@ -101,6 +104,8 @@ func NewRouter(d *Deps) http.Handler {
 			// 鹦鹉螺：市场浏览公开（未登录可看），管理端走 X-Admin-Key。
 			mountNautilusPublic(r, d)
 			mountNautilusAdmin(r, d)
+			// 首页内容（今天想聊点什么）公开：无用户数据，未登录也能看。
+			mountAIHomePublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
