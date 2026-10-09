@@ -21,9 +21,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Flutter (latest stable)
+      # 与 ios-testflight.yml 保持一致，固定同一个 Flutter 版本，避免两边漂移。
+      - name: Setup Flutter (pinned 3.47.6)
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.47.6
           channel: stable
           cache: true
 
