@@ -10,9 +10,12 @@
 //   - News（GDELT+FIRMS）：海外议题、卫星火点
 package tools
 
+import "time"
+
 import (
 	"github.com/sencloud/finme-backend/internal/ai/calendar"
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
+	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/ai/news"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
@@ -28,6 +31,10 @@ type Deps struct {
 	Realtime *realtime.Client
 	Calendar *calendar.Client
 	Weather  *weather.Client
+	// Ingest 是本机采集端推上来的行情缓存；有新鲜数据时优先于外部源。
+	Ingest *ingest.Registry
+	// IngestMaxAge 是采集端数据仍被视为新鲜的时长。
+	IngestMaxAge time.Duration
 }
 
 // BuildAll 注册全部工具到一个新的 Registry。
@@ -41,7 +48,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerFundamental(r, d.Tushare)
 	registerMacro(r, d.Tushare)
 	registerEvent(r, d.News, d.CNNews)
-	registerRealtime(r, d.Realtime, d.Tushare)
+	registerRealtime(r, d.Realtime, d.Tushare, d.Ingest, d.IngestMaxAge)
 	registerGlobal(r, d.Realtime, d.Tushare)
 	registerOverseasWeather(r, d.Realtime, d.Weather)
 	registerCalendar(r, d.Calendar)

@@ -34,6 +34,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
@@ -81,6 +82,9 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("open store")
 	}
+	// 行情采集端缓存：api 进程接收推送并落库，scheduler 进程读同一份库，
+	// 这样两个进程里的 AI 工具都能拿到本机推上来的内盘期货实时价。
+	ingest.SetDefault(ingest.NewRegistry(st))
 	defer func() { _ = st.Close() }()
 
 	switch sub {
@@ -193,6 +197,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Onboarding: onboardSvc,
 		Chat:       chatSvc,
 		Qwen:       qwenVision,
+		Ingest:     ingest.Default(),
 		Share:      share.NewRepo(st),
 		Shell:      shellRepo,
 		Predict:    predictSvc,
@@ -299,6 +304,14 @@ func buildChatService(cfg *platform.Config, l *zerolog.Logger, st *store.Store, 
 //   - CNNews（财联社+东财快讯+新浪滚动）：国内中文财经/期货/政策电报
 //   - News（GDELT+FIRMS）：海外议题、卫星火点
 func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
+	return buildToolRegistryWithIngest(cfg, l, ingest.Default())
+}
+
+// buildToolRegistryWithIngest 允许调用方注入行情采集端缓存（api 进程用它接收推送，
+// scheduler 进程读同一份库；测试可传 nil 走纯内存）。
+func buildToolRegistryWithIngest(
+	cfg *platform.Config, l *zerolog.Logger, ig *ingest.Registry,
+) *tool.Registry {
 	tu := tushare.New(cfg.Tushare)
 	nw := news.New(cfg.News)
 	cn := cnnews.New(cfg.News.TimeoutSec)
@@ -311,6 +324,14 @@ func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
 		Realtime: rt,
 		Calendar: cal,
 		Weather:  weather.New(0),
+		Ingest:   ig,
+		IngestMaxAge: func() time.Duration {
+			sec := cfg.Ingest.MaxAgeSec
+			if sec <= 0 {
+				sec = 120
+			}
+			return time.Duration(sec) * time.Second
+		}(),
 	})
 	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
 	return reg

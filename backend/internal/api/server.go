@@ -19,6 +19,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/onboarding"
@@ -53,6 +54,8 @@ type Deps struct {
 	Brief *brief.Service
 	// Strategy 主策略快照（由 scheduler 定时从外部策略站抓取）。
 	Strategy *strategy.Service
+	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
+	Ingest *ingest.Registry
 }
 
 // NewRouter 装配业务路由。
@@ -107,6 +110,8 @@ func NewRouter(d *Deps) http.Handler {
 			// 鹦鹉螺：市场浏览公开（未登录可看），管理端走 X-Admin-Key。
 			mountNautilusPublic(r, d)
 			mountNautilusAdmin(r, d)
+			// 本机采集端推送入口：X-Ingest-Key 鉴权，不走用户 JWT。
+			mountIngest(r, d)
 			// 首页内容（今天想聊点什么）公开：无用户数据，未登录也能看。
 			mountAIHomePublic(r, d)
 			r.Group(func(r chi.Router) {

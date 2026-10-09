@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
+	"github.com/sencloud/finme-backend/internal/ingest"
 )
 
 // registerRealtime 注册实时行情工具：
@@ -17,12 +19,18 @@ import (
 //   - get_market_snapshot         主流指数实时快照（**腾讯 qt.gtimg.cn**)
 //   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX,**东方财富 push2**;腾讯无公开期货接口)
 //   - get_futures_realtime_batch  批量期货合约实时（**东方财富 push2** ulist.np;并发拉取）
-func registerRealtime(r *tool.Registry, c *realtime.Client, tu *tushare.Client) {
+func registerRealtime(
+	r *tool.Registry,
+	c *realtime.Client,
+	tu *tushare.Client,
+	ig *ingest.Registry,
+	igMaxAge time.Duration,
+) {
 	r.MustRegister(&getRealtimeQuoteTool{c: c})
 	r.MustRegister(&getTopMoversTool{c: c, tu: tu})
 	r.MustRegister(&getMarketSnapshotTool{c: c})
-	r.MustRegister(&getFuturesRealtimeTool{c: c, tu: tu})
-	r.MustRegister(&getFuturesRealtimeBatchTool{c: c, tu: tu})
+	r.MustRegister(&getFuturesRealtimeTool{c: c, tu: tu, ig: ig, igMaxAge: igMaxAge})
+	r.MustRegister(&getFuturesRealtimeBatchTool{c: c, tu: tu, ig: ig, igMaxAge: igMaxAge})
 }
 
 // ── get_realtime_quote ─────────────────────────────────────────────────
@@ -221,8 +229,10 @@ func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (
 // ── get_futures_realtime ───────────────────────────────────────────────
 
 type getFuturesRealtimeTool struct {
-	c  *realtime.Client
-	tu *tushare.Client
+	c        *realtime.Client
+	tu       *tushare.Client
+	ig       *ingest.Registry
+	igMaxAge time.Duration
 }
 
 func (t *getFuturesRealtimeTool) Spec() tool.Spec {
@@ -258,6 +268,10 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 	if ts == "" {
 		return tool.EncodeJSON(map[string]any{"error": "ts_code 必填，例如 RB2510.SHF / IF2509.CFE"}), nil
 	}
+	// 本机采集端推上来的实时行情优先：这是唯一能拿到内盘期货盘中价的路径。
+	if q, ok := ingestLookup(t.ig, t.igMaxAge, ts); ok {
+		return tool.EncodeJSON(q), nil
+	}
 	q, err := t.c.FetchFuturesSnapshot(ctx, ts)
 	if err != nil {
 		// 内盘期货实时：腾讯/新浪/雪球/金十都不提供，东财在生产出口不可达。
@@ -292,11 +306,77 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 	}), nil
 }
 
+// ingestLookup 查本机采集端推上来的行情。
+//
+// 采集端按「主力连续」推送（新浪 nf_RB0 → RB.SHF），而模型手里可能是具体月份
+// 合约（RB2601.SHF），所以两种形态都认：先精确匹配，再去掉月份数字按品种匹配。
+func ingestLookup(ig *ingest.Registry, maxAge time.Duration, tsCode string) (map[string]any, bool) {
+	if ig == nil {
+		return nil, false
+	}
+	for _, key := range []string{tsCode, continuousCode(tsCode)} {
+		if key == "" {
+			continue
+		}
+		e, ok := ig.Get(key, maxAge)
+		if !ok {
+			continue
+		}
+		q := e.Quote
+		age := time.Since(e.ReceivedAt)
+		out := map[string]any{
+			"ts_code":    q.Symbol,
+			"name":       q.Name,
+			"last":       q.Last,
+			"pct_chg":    q.PctChg,
+			"change":     q.Change,
+			"open":       q.Open,
+			"high":       q.High,
+			"low":        q.Low,
+			"pre_close":  q.PreClose,
+			"volume":     q.Volume,
+			"oi":         q.OI,
+			"delayed":    false,
+			"realtime":   true,
+			"source":     "local_agent",
+			"age_sec":    int(age.Seconds()),
+			"notice":     "来自本机行情采集端的新浪实时报价（主力连续合约）",
+		}
+		if key != tsCode {
+			out["requested"] = tsCode
+			out["notice"] = "请求的是具体月份合约，采集端只推送主力连续；这是该品种主力连续的实时价。"
+		}
+		return out, true
+	}
+	return nil, false
+}
+
+// continuousCode 把具体月份合约转成主力连续代码：RB2601.SHF → RB.SHF、IF2603.CFX → IF.CFX。
+func continuousCode(tsCode string) string {
+	i := strings.IndexByte(tsCode, '.')
+	if i <= 0 {
+		return ""
+	}
+	head, tail := tsCode[:i], tsCode[i:]
+	j := len(head)
+	for j > 0 && head[j-1] >= '0' && head[j-1] <= '9' {
+		j--
+	}
+	if j == len(head) || j == 0 {
+		// j == len(head)：本来就是连续代码；j == 0：字母部分为空（如股票 600519.SH），
+		// 这种不该被折算成 ".SH"。
+		return ""
+	}
+	return head[:j] + tail
+}
+
 // ── get_futures_realtime_batch ─────────────────────────────────────────
 
 type getFuturesRealtimeBatchTool struct {
-	c  *realtime.Client
-	tu *tushare.Client
+	c        *realtime.Client
+	tu       *tushare.Client
+	ig       *ingest.Registry
+	igMaxAge time.Duration
 }
 
 func (t *getFuturesRealtimeBatchTool) Spec() tool.Spec {
@@ -340,23 +420,44 @@ func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMess
 	if len(codes) > 30 {
 		codes = codes[:30]
 	}
-	quotes, err := t.c.FetchFuturesBatch(ctx, codes)
+	// 采集端有的先取，少的再走外部源。
+	fromAgent := make([]map[string]any, 0, len(codes))
+	pending := make([]string, 0, len(codes))
+	for _, code := range codes {
+		if q, ok := ingestLookup(t.ig, t.igMaxAge, code); ok {
+			fromAgent = append(fromAgent, q)
+			continue
+		}
+		pending = append(pending, code)
+	}
+	// 采集端没覆盖的再走东财；东财也不通就退 Tushare 日线。
+	if len(pending) == 0 {
+		return tool.EncodeJSON(map[string]any{
+			"count":    len(fromAgent),
+			"quotes":   fromAgent,
+			"source":   "local_agent",
+			"realtime": true,
+			"notice":   "全部来自本机行情采集端的实时报价（主力连续合约）。",
+		}), nil
+	}
+	quotes, err := t.c.FetchFuturesBatch(ctx, pending)
 	if err != nil || len(quotes) == 0 {
 		// 与单合约一致：退 Tushare 日线，逐只取最近收盘。
 		// len==0 也要兜底——批量方法在东财不可达时会吞错返回空列表。
 		out := make([]map[string]any, 0, len(codes))
-		for _, c := range codes {
+		for _, c := range pending {
 			if fb, ferr := futuresDailyFallback(ctx, t.tu, c); ferr == nil {
 				out = append(out, fb)
 			}
 		}
+		out = append(out, fromAgent...)
 		if len(out) > 0 {
 			return tool.EncodeJSON(map[string]any{
 				"count":    len(out),
 				"quotes":   out,
-				"source":   "tushare_fut_daily",
+				"source":   "mixed",
 				"realtime": false,
-				"notice":   "实时行情源在服务器出口不可达，以上为最近交易日收盘口径（非盘中价）。",
+				"notice":   "采集端覆盖的为实时价；其余实时源在服务器出口不可达，为最近交易日收盘口径（非盘中价）。",
 			}), nil
 		}
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
@@ -381,9 +482,10 @@ func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMess
 			"delayed":    q.Delayed,
 		})
 	}
+	out = append(out, fromAgent...)
 	return tool.EncodeJSON(map[string]any{
 		"count":  len(out),
 		"quotes": out,
-		"source": "eastmoney_push2",
+		"source": "mixed",
 	}), nil
 }
