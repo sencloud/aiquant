@@ -11,12 +11,8 @@ import '../../state/billing_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
-import '../ding/ding_screen.dart';
-// 组合页暂时下线（代码保留，入口隐藏）；后续如需恢复把 import 和
-// pages 里的 WatchScreen 换回 PortfolioScreen 即可。
-// import '../portfolio/portfolio_screen.dart';
 import '../settings/settings_screen.dart';
-import '../watch/watch_screen.dart';
+import '../strategy/strategy_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,9 +23,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 助理, 1 = 看盘, 2 = DING, 3 = 我的
-  // 鹦鹉螺预测市场入口暂时隐藏（代码保留未删）；直播功能此前也已下线。
-  // 组合 tab 已被看盘 tab 替换（PortfolioScreen 代码保留，入口隐藏）。
+  // 0 = 对话, 1 = 策略, 2 = 我的
+  //
+  // 底部只留两个"主功能"（对话 / 策略）+ 个人中心：看盘、自选、DING、组合
+  // 都收进「我的」。股票行情改成按需触达——聊天里提到某只股票时点链接进详情，
+  // 而不是让人先切 tab 再去搜。
   int _index = 0;
 
   // 网络由「受限」恢复「可用」时自增，用于重建页面子树触发各 tab 重新拉数据。
@@ -77,8 +75,9 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _reloadTick++);
   }
 
-  /// 需要登录才能进入的 tab：DING(2) / 我的(3)。
-  static const _gatedTabs = {2, 3};
+  /// 需要登录才能进入的 tab：策略(1) / 我的(2)。
+  /// 策略数据本身来自账号相关的实盘配置，未登录不展示。
+  static const _gatedTabs = {1, 2};
 
   /// 切换 tab；命中需鉴权的 tab 时先弹登录，放弃登录则停留原 tab。
   Future<void> _selectTab(int i) async {
@@ -93,8 +92,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     const pages = [
       AssistantScreen(),
-      WatchScreen(),
-      DingScreen(),
+      StrategyScreen(),
       SettingsScreen(),
     ];
     final unread = context.watch<DingState>().unreadCount;
@@ -128,33 +126,26 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _NavItem(
-                  icon: Icons.psychology_outlined,
-                  activeIcon: Icons.psychology,
-                  label: '助理',
+                  icon: Icons.chat_bubble_outline,
+                  activeIcon: Icons.chat_bubble,
+                  label: '对话',
                   active: _index == 0,
                   onTap: () => _selectTab(0),
                 ),
                 _NavItem(
-                  icon: Icons.candlestick_chart_outlined,
-                  activeIcon: Icons.candlestick_chart,
-                  label: '看盘',
+                  icon: Icons.insights_outlined,
+                  activeIcon: Icons.insights,
+                  label: '策略',
                   active: _index == 1,
                   onTap: () => _selectTab(1),
-                ),
-                _NavItem(
-                  icon: Icons.notifications_none,
-                  activeIcon: Icons.notifications_active,
-                  label: 'DING',
-                  active: _index == 2,
-                  badge: unread,
-                  onTap: () => _selectTab(2),
                 ),
                 _NavItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: '我的',
-                  active: _index == 3,
-                  onTap: () => _selectTab(3),
+                  active: _index == 2,
+                  badge: unread,
+                  onTap: () => _selectTab(2),
                 ),
               ],
             ),
