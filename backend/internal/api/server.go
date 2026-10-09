@@ -27,6 +27,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
+	"github.com/sencloud/finme-backend/internal/strategy"
 	"github.com/sencloud/finme-backend/internal/users"
 )
 
@@ -50,6 +51,8 @@ type Deps struct {
 	Invite     *invite.Service
 	// Brief 首页「今天想聊点什么」的读写（由 scheduler 定时生成）。
 	Brief *brief.Service
+	// Strategy 主策略快照（由 scheduler 定时从外部策略站抓取）。
+	Strategy *strategy.Service
 }
 
 // NewRouter 装配业务路由。
@@ -117,6 +120,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountPortfolioParse(r, d)
 				mountAIShare(r, d)
 				mountNautilus(r, d)
+				mountStrategy(r, d)
 			})
 		})
 	})
