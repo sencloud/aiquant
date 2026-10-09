@@ -60,6 +60,20 @@ type OptBasicParams struct {
 // 内存层 OptCode 精确匹配（Tushare 接口本身也支持 opt_code 参数，
 // 但部分老 token 不识别，这里走"先拉 exchange 全集 + 内存过滤"
 // 路径，单 exchange 也就 1-2k 条，开销可接受）。
+// optCodeMatches 容错比较标的代码：Tushare 的 opt_code 带 OP 前缀
+// （OP510050.SH），调用方一般传裸代码（510050.SH），两种写法都要认。
+func optCodeMatches(have, want string) bool {
+	have = strings.ToUpper(strings.TrimSpace(have))
+	want = strings.ToUpper(strings.TrimSpace(want))
+	if have == "" || want == "" {
+		return false
+	}
+	if have == want {
+		return true
+	}
+	return strings.TrimPrefix(have, "OP") == strings.TrimPrefix(want, "OP")
+}
+
 func (c *Client) OptionBasic(ctx context.Context, p OptBasicParams) ([]OptionContract, error) {
 	params := map[string]any{}
 	if strings.TrimSpace(p.Exchange) != "" {
@@ -71,10 +85,10 @@ func (c *Client) OptionBasic(ctx context.Context, p OptBasicParams) ([]OptionCon
 	if strings.TrimSpace(p.CallPut) != "" {
 		params["call_put"] = strings.ToUpper(strings.TrimSpace(p.CallPut))
 	}
-	if strings.TrimSpace(p.OptCode) != "" {
-		// 部分 token 支持 opt_code 过滤；不支持也无副作用（被忽略）。
-		params["opt_code"] = strings.TrimSpace(p.OptCode)
-	}
+	// 不把 opt_code 传给接口：Tushare 的 opt_code 带 OP 前缀（OP510050.SH），
+	// 而调用方习惯传裸代码（510050.SH），直接用会过滤成 0 行——这个坑曾经让
+	// 「列出 50ETF 期权」一直返回空。改为只按 exchange 拉全集、在内存里做
+	// 容错匹配（单个交易所 1~2k 行，代价可接受）。
 	fields := []string{
 		"ts_code", "exchange", "name", "opt_code", "call_put",
 		"exercise_type", "exercise_price", "s_month",
@@ -112,7 +126,7 @@ func (c *Client) OptionBasic(ctx context.Context, p OptBasicParams) ([]OptionCon
 			DelistDate:    AsString(r["delist_date"]),
 			PerUnit:       AsFloat(r["per_unit"]),
 		}
-		if wantOptCode != "" && oc.OptCode != wantOptCode {
+		if wantOptCode != "" && !optCodeMatches(oc.OptCode, wantOptCode) {
 			continue
 		}
 		if wantCP != "" && oc.CallPut != wantCP {

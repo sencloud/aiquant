@@ -40,7 +40,7 @@ func (c *Client) SearchGlobal(ctx context.Context, opt GlobalSearchOptions) ([]E
 		err    error
 		src    string
 	}
-	resCh := make(chan result, 3)
+	resCh := make(chan result, 5)
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -62,6 +62,13 @@ func (c *Client) SearchGlobal(ctx context.Context, opt GlobalSearchOptions) ([]E
 		defer wg.Done()
 		ev, err := c.FetchClsTelegraph(ctx, 50)
 		resCh <- result{events: ev, err: err, src: "cls"}
+	}()
+	// 金十快讯：财联社失效后的替代实时源（宏观 / 期货 / 地缘都覆盖）。
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ev, err := c.FetchJin10Flash(ctx, 60)
+		resCh <- result{events: ev, err: err, src: "jin10"}
 	}()
 	go func() { wg.Wait(); close(resCh) }()
 
@@ -115,9 +122,9 @@ func (c *Client) SearchAll(ctx context.Context, opt SearchOptions) ([]Event, err
 	}
 	chSet := map[string]bool{}
 	if len(opt.Channels) == 0 {
-		// 默认只用 cls + eastmoney 两个国内可达的主源；sina 在阿里云出口
-		// 经常被 anti-bot 403，需要时由调用方显式传 channels=["sina"]。
-		chSet = map[string]bool{"cls": true, "eastmoney": true}
+		// 默认用金十 + 东财两个实测可达的主源。财联社 nodeapi 已 404、sina 在
+		// 阿里云出口被 anti-bot 403，两者都只在调用方显式指定时才尝试。
+		chSet = map[string]bool{"jin10": true, "eastmoney": true}
 	} else {
 		for _, ch := range opt.Channels {
 			chSet[strings.ToLower(strings.TrimSpace(ch))] = true
@@ -129,7 +136,7 @@ func (c *Client) SearchAll(ctx context.Context, opt SearchOptions) ([]Event, err
 		err    error
 		src    string
 	}
-	resCh := make(chan result, 3)
+	resCh := make(chan result, 5)
 	var wg sync.WaitGroup
 
 	if chSet["cls"] {
@@ -138,6 +145,14 @@ func (c *Client) SearchAll(ctx context.Context, opt SearchOptions) ([]Event, err
 			defer wg.Done()
 			ev, err := c.FetchClsTelegraph(ctx, 50)
 			resCh <- result{events: ev, err: err, src: "cls"}
+		}()
+	}
+	if chSet["jin10"] {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ev, err := c.FetchJin10Flash(ctx, 60)
+			resCh <- result{events: ev, err: err, src: "jin10"}
 		}()
 	}
 	if chSet["eastmoney"] {

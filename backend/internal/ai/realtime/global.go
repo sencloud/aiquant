@@ -61,7 +61,13 @@ var defaultForexPairs = []string{"UDI", "USDCNH", "USDCNYC", "EURUSD", "USDJPY",
 // ── 取数公开方法 ───────────────────────────────────────────────────────
 
 // FetchUSStock 拉单支美股实时快照。symbol 用美股代码（AAPL / MSFT / BABA / BRK.A）。
+//
+// 取数顺序：腾讯 → 东财。东财 push2 系域名在阿里云出口已不可达，腾讯能拿到
+// 就走腾讯；只有腾讯明确说不支持时才回退（东财的本地方便链路仍可用）。
 func (c *Client) FetchUSStock(ctx context.Context, symbol string) (*GlobalQuote, error) {
+	if q, err := c.FetchUSStockTencent(ctx, symbol); err == nil {
+		return q, nil
+	}
 	meta, err := c.resolveUSSecID(ctx, symbol)
 	if err != nil {
 		return nil, err
@@ -85,6 +91,9 @@ func (c *Client) FetchUSBatch(ctx context.Context, symbols []string) ([]GlobalQu
 
 // FetchGlobalIndex 拉单个全球指数快照（别名见 indexSecID）。
 func (c *Client) FetchGlobalIndex(ctx context.Context, alias string) (*GlobalQuote, error) {
+	if q, err := c.FetchGlobalIndexTencent(ctx, alias); err == nil {
+		return q, nil
+	}
 	secid := lookupSecID(indexSecID, alias)
 	if secid == "" {
 		return nil, fmt.Errorf("unsupported global index: %s", alias)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
+	"github.com/sencloud/finme-backend/internal/ai/tushare"
 )
 
 // registerGlobal 注册「全球行情」工具（东方财富 push2delay，已在阿里云生产实测可达）：
@@ -17,11 +18,14 @@ import (
 //   - get_forex_rate               主流货币对 / 美元指数实时
 //
 // 底层共用 realtime.Client 的 emStockGet + 短期缓存，新增市场只需加薄工具。
-func registerGlobal(r *tool.Registry, c *realtime.Client) {
+//
+// 取数源已变更：东财 push2 系在阿里云出口整体不可达，美股与全球指数改为
+// 腾讯优先 / 东财兜底；外汇东财拿不到时退 Tushare fx_daily（日线口径）。
+func registerGlobal(r *tool.Registry, c *realtime.Client, tu *tushare.Client) {
 	r.MustRegister(&getUSStockRealtimeTool{c: c})
 	r.MustRegister(&getUSStockRealtimeBatchTool{c: c})
 	r.MustRegister(&getGlobalIndexTool{c: c})
-	r.MustRegister(&getForexRateTool{c: c})
+	r.MustRegister(&getForexRateTool{c: c, tu: tu})
 }
 
 // globalQuoteToJSON 把 GlobalQuote 转成对外 map（统一字段命名）。
@@ -195,7 +199,10 @@ func (t *getGlobalIndexTool) Run(ctx context.Context, args json.RawMessage) (str
 
 // ── get_forex_rate ─────────────────────────────────────────────────────
 
-type getForexRateTool struct{ c *realtime.Client }
+type getForexRateTool struct {
+	c  *realtime.Client
+	tu *tushare.Client
+}
 
 func (t *getForexRateTool) Spec() tool.Spec {
 	return tool.Spec{
@@ -226,7 +233,29 @@ func (t *getForexRateTool) Run(ctx context.Context, args json.RawMessage) (strin
 		}
 	}
 	quotes, err := t.c.FetchForexBatch(ctx, in.Pairs)
-	if err != nil {
+	if err != nil || len(quotes) == 0 {
+		// 东财不可达 → 逐对退 Tushare fx_daily（日线收盘口径）。
+		// 注意 len==0 也要兜底：东财不可达时批量方法会吞掉错误返回空列表，
+		// 表现为"成功但没数据"，比报错更难排查。
+		pairs := in.Pairs
+		if len(pairs) == 0 {
+			pairs = []string{"UDI", "USDCNH", "EURUSD", "USDJPY", "GBPUSD"}
+		}
+		rates := make([]map[string]any, 0, len(pairs))
+		for _, p := range pairs {
+			if fb, ferr := forexDailyFallback(ctx, t.tu, p); ferr == nil {
+				rates = append(rates, fb)
+			}
+		}
+		if len(rates) > 0 {
+			return tool.EncodeJSON(map[string]any{
+				"count":    len(rates),
+				"rates":    rates,
+				"source":   "tushare_fx_daily",
+				"realtime": false,
+				"notice":   "实时外汇源在服务器出口不可达，以上为最近交易日收盘口径（非盘中价）。",
+			}), nil
+		}
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	out := make([]map[string]any, 0, len(quotes))

@@ -7,6 +7,7 @@ import (
 
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
+	"github.com/sencloud/finme-backend/internal/ai/tushare"
 )
 
 // registerRealtime 注册实时行情工具：
@@ -16,12 +17,12 @@ import (
 //   - get_market_snapshot         主流指数实时快照（**腾讯 qt.gtimg.cn**)
 //   - get_futures_realtime        单期货合约实时（CFFEX/SHFE/INE/DCE/CZCE/GFEX,**东方财富 push2**;腾讯无公开期货接口)
 //   - get_futures_realtime_batch  批量期货合约实时（**东方财富 push2** ulist.np;并发拉取）
-func registerRealtime(r *tool.Registry, c *realtime.Client) {
+func registerRealtime(r *tool.Registry, c *realtime.Client, tu *tushare.Client) {
 	r.MustRegister(&getRealtimeQuoteTool{c: c})
-	r.MustRegister(&getTopMoversTool{c: c})
+	r.MustRegister(&getTopMoversTool{c: c, tu: tu})
 	r.MustRegister(&getMarketSnapshotTool{c: c})
-	r.MustRegister(&getFuturesRealtimeTool{c: c})
-	r.MustRegister(&getFuturesRealtimeBatchTool{c: c})
+	r.MustRegister(&getFuturesRealtimeTool{c: c, tu: tu})
+	r.MustRegister(&getFuturesRealtimeBatchTool{c: c, tu: tu})
 }
 
 // ── get_realtime_quote ─────────────────────────────────────────────────
@@ -81,7 +82,10 @@ func (t *getRealtimeQuoteTool) Run(ctx context.Context, args json.RawMessage) (s
 
 // ── get_top_movers ─────────────────────────────────────────────────────
 
-type getTopMoversTool struct{ c *realtime.Client }
+type getTopMoversTool struct {
+	c  *realtime.Client
+	tu *tushare.Client
+}
 
 func (t *getTopMoversTool) Spec() tool.Spec {
 	return tool.Spec{
@@ -117,6 +121,13 @@ func (t *getTopMoversTool) Run(ctx context.Context, args json.RawMessage) (strin
 		Limit:     limit,
 	})
 	if err != nil {
+		// 东财 clist 在生产出口不可达 → 退到 Tushare 日线自行排序（收盘口径）。
+		// 只对「全 A 涨跌幅榜」兜底：行业板块榜单 Tushare 日线给不了。
+		if in.BoardCode == "" {
+			if fb, ferr := topMoversFallback(ctx, t.tu, in.Direction, limit); ferr == nil {
+				return tool.EncodeJSON(fb), nil
+			}
+		}
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	movers := make([]map[string]any, 0, len(rows))
@@ -209,7 +220,10 @@ func (t *getMarketSnapshotTool) Run(ctx context.Context, args json.RawMessage) (
 
 // ── get_futures_realtime ───────────────────────────────────────────────
 
-type getFuturesRealtimeTool struct{ c *realtime.Client }
+type getFuturesRealtimeTool struct {
+	c  *realtime.Client
+	tu *tushare.Client
+}
 
 func (t *getFuturesRealtimeTool) Spec() tool.Spec {
 	return tool.Spec{
@@ -246,6 +260,13 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 	}
 	q, err := t.c.FetchFuturesSnapshot(ctx, ts)
 	if err != nil {
+		// 内盘期货实时：腾讯/新浪/雪球/金十都不提供，东财在生产出口不可达。
+		// 退到 Tushare 日线，并如实标注这是收盘口径，避免模型当盘中价用。
+		if fb, ferr := futuresDailyFallback(ctx, t.tu, ts); ferr == nil {
+			fb["notice"] = "实时行情源在服务器出口不可达（" + err.Error() +
+				"），以上为最近交易日收盘口径，不是盘中价；如需盘中价请提示用户以券商行情为准。"
+			return tool.EncodeJSON(fb), nil
+		}
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	return tool.EncodeJSON(map[string]any{
@@ -273,7 +294,10 @@ func (t *getFuturesRealtimeTool) Run(ctx context.Context, args json.RawMessage) 
 
 // ── get_futures_realtime_batch ─────────────────────────────────────────
 
-type getFuturesRealtimeBatchTool struct{ c *realtime.Client }
+type getFuturesRealtimeBatchTool struct {
+	c  *realtime.Client
+	tu *tushare.Client
+}
 
 func (t *getFuturesRealtimeBatchTool) Spec() tool.Spec {
 	return tool.Spec{
@@ -317,7 +341,24 @@ func (t *getFuturesRealtimeBatchTool) Run(ctx context.Context, args json.RawMess
 		codes = codes[:30]
 	}
 	quotes, err := t.c.FetchFuturesBatch(ctx, codes)
-	if err != nil {
+	if err != nil || len(quotes) == 0 {
+		// 与单合约一致：退 Tushare 日线，逐只取最近收盘。
+		// len==0 也要兜底——批量方法在东财不可达时会吞错返回空列表。
+		out := make([]map[string]any, 0, len(codes))
+		for _, c := range codes {
+			if fb, ferr := futuresDailyFallback(ctx, t.tu, c); ferr == nil {
+				out = append(out, fb)
+			}
+		}
+		if len(out) > 0 {
+			return tool.EncodeJSON(map[string]any{
+				"count":    len(out),
+				"quotes":   out,
+				"source":   "tushare_fut_daily",
+				"realtime": false,
+				"notice":   "实时行情源在服务器出口不可达，以上为最近交易日收盘口径（非盘中价）。",
+			}), nil
+		}
 		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
 	}
 	out := make([]map[string]any, 0, len(quotes))
