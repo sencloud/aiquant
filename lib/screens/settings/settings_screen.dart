@@ -10,8 +10,11 @@ import '../../core/api/billing_models.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
+import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/legal_links.dart';
+import '../ding/ding_screen.dart';
+import '../watch/watch_screen.dart';
 
 /// "我的"页面 — 喜点余额、充值套餐、流水、账号管理。
 class SettingsScreen extends StatefulWidget {
@@ -191,6 +194,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _bulletText('• 每次回答消耗 6 喜点，调用行情、新闻等数据工具不再额外计费。'),
             if (_iapAvailable)
               _bulletText('• 喜点属于虚拟商品，购买后不支持退款或转让。'),
+            const SizedBox(height: 24),
+            // 看盘与 DING 不再是底部 tab：自选行情按需从聊天里的股票链接进入，
+            // 定时提醒属于重度功能，都收进这里。
+            _section('工具'),
+            const SizedBox(height: 6),
+            _ToolTile(
+              icon: Icons.star_outline,
+              title: '我的自选',
+              subtitle: '关注的股票 / ETF / 期货行情',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const WatchScreen()),
+              ),
+            ),
+            _ToolTile(
+              icon: Icons.notifications_none,
+              title: '定时提醒',
+              subtitle: '设定时间，让 AI 按点执行任务',
+              badge: context.watch<DingState>().unreadCount,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DingScreen()),
+              ),
+            ),
             if (user != null) ...[
               const SizedBox(height: 24),
               _section('账号管理'),
@@ -265,6 +290,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       );
+}
+
+/// 「我的」里的工具入口行（自选 / 定时提醒），带可选未读角标。
+class _ToolTile extends StatelessWidget {
+  const _ToolTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: AppColors.amber, size: 20),
+      title: Text(title,
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+      subtitle: Text(subtitle,
+          style:
+              TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (badge > 0)
+            Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                badge > 99 ? '99+' : '$badge',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          Icon(Icons.chevron_right,
+              size: 18, color: AppColors.textTertiary),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
 }
 
 class _BalanceCard extends StatelessWidget {
