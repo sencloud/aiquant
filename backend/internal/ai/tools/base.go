@@ -17,6 +17,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
+	"github.com/sencloud/finme-backend/internal/ai/weather"
 )
 
 // Deps 把所有工具会用到的下游 client 打包，避免每个 New* 改签名。
@@ -26,6 +27,7 @@ type Deps struct {
 	CNNews   *cnnews.Client
 	Realtime *realtime.Client
 	Calendar *calendar.Client
+	Weather  *weather.Client
 }
 
 // BuildAll 注册全部工具到一个新的 Registry。
@@ -39,8 +41,9 @@ func BuildAll(d Deps) *tool.Registry {
 	registerFundamental(r, d.Tushare)
 	registerMacro(r, d.Tushare)
 	registerEvent(r, d.News, d.CNNews)
-	registerRealtime(r, d.Realtime)
-	registerGlobal(r, d.Realtime)
+	registerRealtime(r, d.Realtime, d.Tushare)
+	registerGlobal(r, d.Realtime, d.Tushare)
+	registerOverseasWeather(r, d.Realtime, d.Weather)
 	registerCalendar(r, d.Calendar)
 	registerBacktest(r, d.Tushare)
 	registerOptions(r, d.Tushare)

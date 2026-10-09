@@ -310,6 +310,7 @@ func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
 		CNNews:   cn,
 		Realtime: rt,
 		Calendar: cal,
+		Weather:  weather.New(0),
 	})
 	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
 	return reg
