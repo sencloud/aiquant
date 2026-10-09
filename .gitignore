@@ -59,3 +59,10 @@ cursor_*.md
 
 # Hive runtime files (NOT pubspec.lock)
 *.hive
+
+# 本机行情采集端：runner 与日志含 ingest 密钥，绝不入库
+tools/quote-agent/agent.cmd
+tools/quote-agent/agent.log
+
+# Impeccable 的会话中间产物（设计基准 PRODUCT.md / DESIGN.md 仍正常入库）
+.impeccable/questions/

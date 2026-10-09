@@ -36,6 +36,17 @@ type Config struct {
 	RateLimit RateLimitConfig `toml:"ratelimit"`
 	Nautilus  NautilusConfig  `toml:"nautilus"`
 	Strategy  StrategyConfig  `toml:"strategy"`
+	Ingest    IngestConfig    `toml:"ingest"`
+}
+
+// IngestConfig 是「本机行情采集端」的推送鉴权与新鲜度设置。
+//
+// 背景：内盘期货实时行情在生产出口拿不到（东财/新浪/腾讯/雪球/金十逐一实测均不可用），
+// 只能由本机采集端把行情推上来。key 为空表示关闭该入口。
+type IngestConfig struct {
+	Key string `toml:"key"`
+	// MaxAgeSec 是缓存被视为"仍新鲜"的秒数，超过就回退到别的源。
+	MaxAgeSec int `toml:"max_age_sec"`
 }
 
 // StrategyConfig 是「主策略」抓取参数：数据来自外部量化看板（x.singzquant.com）。
@@ -374,6 +385,9 @@ func defaultConfig() *Config {
 			BaseURL:     "https://x.singzquant.com",
 			SyncMinutes: 30,
 		},
+		Ingest: IngestConfig{
+			MaxAgeSec: 120,
+		},
 	}
 }
 
@@ -549,6 +563,9 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_STRATEGY__BASE_URL"); v != "" {
 		c.Strategy.BaseURL = v
+	}
+	if v := os.Getenv("FINME_INGEST__KEY"); v != "" {
+		c.Ingest.Key = v
 	}
 }
 
