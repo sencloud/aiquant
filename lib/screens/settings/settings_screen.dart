@@ -314,7 +314,7 @@ TextStyle mono({
 
 /// 分区标题：上方留白多、下方留白少，一条细线收口。
 class ProfileRule extends StatelessWidget {
-  const ProfileRule(this.label);
+  const ProfileRule(this.label, {super.key});
   final String label;
 
   @override
@@ -343,7 +343,7 @@ class ProfileRule extends StatelessWidget {
 
 /// 卷宗封面：方形号牌 + 姓名 + 档案编号。不用卡片，直接落在背景上。
 class ProfileFolderHead extends StatelessWidget {
-  const ProfileFolderHead({required this.nickname, required this.uid});
+  const ProfileFolderHead({super.key, required this.nickname, required this.uid});
 
   final String nickname;
   final String uid;
@@ -408,6 +408,7 @@ class ProfileFolderHead extends StatelessWidget {
 /// 喜点总账：一行标签 + 等宽大数 + 唯一的主动作。
 class ProfileCreditBureau extends StatelessWidget {
   const ProfileCreditBureau({
+    super.key,
     required this.balance,
     required this.loading,
     this.onRecharge,
@@ -505,6 +506,7 @@ class _StampButton extends StatelessWidget {
 /// 未读用一条 2px 金黄竖线表达——状态靠线，不靠换色。
 class ProfileIndexRow extends StatelessWidget {
   const ProfileIndexRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.note,
@@ -586,7 +588,7 @@ class ProfileIndexRow extends StatelessWidget {
 
 /// 页脚存档戳：版本与来源，等宽小字。
 class ProfileColophon extends StatelessWidget {
-  const ProfileColophon({required this.version});
+  const ProfileColophon({super.key, required this.version});
   final String version;
 
   @override
