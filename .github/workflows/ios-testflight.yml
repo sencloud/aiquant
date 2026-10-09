@@ -15,9 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter (latest stable)
+      # 固定 Flutter 版本：float 到 latest stable 会被两类问题咬——
+      #   1) 新 stable 刚发布时发布清单还没同步全（曾报 "Unable to determine
+      #      Flutter version for channel: stable ... architecture: arm64"）
+      #   2) 抬版本会跟着抬高 Kotlin/AGP 的最低要求，让 Android 侧突然构建失败
+      # 抬版本请显式改这一行，并同步 android-build.yml 与本地 SDK。
+      - name: Setup Flutter (pinned 3.47.6)
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.47.6
           channel: stable
           cache: true
 

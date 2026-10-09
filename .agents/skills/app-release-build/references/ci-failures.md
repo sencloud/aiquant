@@ -16,6 +16,7 @@
 
 | 报错签名 | 成因 | 修法 |
 |---|---|---|
+| `Unable to determine Flutter version for channel: stable version: x.y.z architecture: arm64`（发生在 `Run $GITHUB_ACTION_PATH/setup.sh`，Flutter 步骤） | `subosito/flutter-action` 用 `channel: stable` 时会在运行期解析“当前最新 stable”，再按 arch 去发布清单里找归档。若 Flutter 刚发布新 stable（几分钟级别），清单的 CDN 副本可能还没带上该版本的 arm64 归档，解析结果为空即报此错。**和代码无关，也不是版本号问题。** | 两个 workflow 已固定 `flutter-version`，不再 float。若日志里出现的是别的版本号，先 `curl https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json` 确认该版本 + 对应 arch 的归档是否存在；确实缺失就等同步或临时把 `flutter-version` 指向前一个补丁号重跑。 |
 | Dart 编译报错（如 `const` 用法非法）导致 `flutter build ipa` 失败 | Dart 代码错误，本机 `flutter analyze` 就能发现 | 修代码。参考 `176d647` |
 | `does not contain a "PrivacyInfo.xcprivacy"` / `ITMS-91053 Missing API declaration` | 用了 Required Reason API 但没声明 | 多数 Flutter 插件已自带清单（image_picker_ios / shared_preferences_foundation / webview_flutter_wkwebview / device_info_plus / package_info_plus / file_picker / in_app_purchase_storekit / share_plus）。若仍报，补 App 级 `PrivacyInfo.xcprivacy` 并挂进 Runner target。相机本身不属于 Required Reason API |
 | CocoaPods 安装失败 / pod 版本冲突 | 新增或升级插件后本地没同步 | `ios/Podfile.lock` 没有入库也不是必需（CI 每次全新 `pod install`）；只有本地排查时才需要跑 `pod install` |
@@ -24,7 +25,7 @@
 
 | 报错签名 | 成因 | 修法 |
 |---|---|---|
-| `Your project's Kotlin version (x) is lower than Flutter's minimum supported version of y. Please upgrade your Kotlin version.`（发生在 `applying plugin request [id: 'dev.flutter.flutter-gradle-plugin']`） | CI 用 Flutter **latest stable**，stable 每次抬版本都会跟着抬高它强制要求的 KGP 下限；本地 Android 构建用的是同一个 stable，所以 `flutter build apk --release` 能 100% 复现 | 把 `android/settings.gradle.kts` 里 `org.jetbrains.kotlin.android` 的版本升到报错里写的下限（Flutter 3.47 → 2.2.20）。**别顺手升到 Flutter 推荐的更高版本**：KGP 2.3 起 `jvmTarget` 的字符串写法是硬错误，升之前必须先把 `app/build.gradle.kts` 的 `kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }` 迁成 `compilerOptions` DSL。参考 `3e6df5d`（1.9.24 → 2.1.0）、`99f0394` 之后补的 2.1.0 → 2.2.20 |
+| `Your project's Kotlin version (x) is lower than Flutter's minimum supported version of y. Please upgrade your Kotlin version.`（发生在 `applying plugin request [id: 'dev.flutter.flutter-gradle-plugin']`） | Flutter 抬版本会跟着抬高它强制要求的 KGP 下限。历史上 CI 用 latest stable，stable 一抬就把 Android 构建带崩（已连续修过三次）。**现在两个 workflow 都固定了 `flutter-version`（见 `.github/workflows/*.yml`）**，不会再被自动抬高；但要抬 Flutter 就得显式改那个 pin，并同步本机 SDK。 | 把 `android/settings.gradle.kts` 里 `org.jetbrains.kotlin.android` 的版本升到报错里写的下限（Flutter 3.47 → 2.2.20）。**别顺手升到 Flutter 推荐的更高版本**：KGP 2.3 起 `jvmTarget` 的字符串写法是硬错误，升之前必须先把 `app/build.gradle.kts` 的 `kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }` 迁成 `compilerOptions` DSL。参考 `3e6df5d`（1.9.24 → 2.1.0）、`99f0394` 之后补的 2.1.0 → 2.2.20 |
 | `AAR metadata ... requires compileSdk 3x` | AGP / compileSdk 与依赖要求不匹配 | 升级 AGP 与 compileSdk。参考 `9bb9094`（AGP 8.11.1 + compileSdk 36） |
 | `Namespace not specified` / `package="..."` 缺失 | 插件太旧，不兼容 AGP 8 | 升级插件。参考 `e69c3a0`（file_picker 3.0.4 → 8.3.7） |
 | `mergeReleaseResources` 失败 | `res/` 目录里放了非资源文件 | 删掉。参考 `3680e45`（`res/mipmap-mdpi/README.md`） |
