@@ -45,6 +45,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
+	"github.com/sencloud/finme-backend/internal/strategy"
 	"github.com/sencloud/finme-backend/internal/users"
 
 	"time"
@@ -197,6 +198,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Predict:    predictSvc,
 		Invite:     inviteSvc,
 		Brief:      buildBriefService(cfg, &l, st),
+		Strategy:   buildStrategyService(cfg, &l, st),
 	}
 	router := api.NewRouter(deps)
 
@@ -222,6 +224,18 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Error().Err(err).Msg("graceful shutdown failed")
 	}
 	l.Info().Msg("bye")
+}
+
+// buildStrategyService 构造「主策略」抓取/读取服务。
+//
+// 即便 Tushare 未配置（无法取交易日历）也要返回实例：过期判断会退化为
+// 数工作日，其余功能不受影响。
+func buildStrategyService(cfg *platform.Config, l *zerolog.Logger, st *store.Store) *strategy.Service {
+	if !cfg.Strategy.Enabled {
+		l.Info().Msg("strategy: disabled by config")
+		return nil
+	}
+	return strategy.NewService(st, l, tushare.New(cfg.Tushare), cfg.Strategy.BaseURL)
 }
 
 // buildBriefService 构造首页「今天想聊点什么」的生成/读取服务。
@@ -321,6 +335,13 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	if cfg.AI.HomeSuggestEnabled {
 		sch.Register(brief.NewJob(buildBriefService(cfg, &l, st), 10*time.Minute, &l))
 		l.Info().Msg("scheduler: home suggestions job enabled")
+	}
+
+	// 主策略快照：周期抓取外部量化看板，App 的「策略」tab 直接读。
+	if cfg.Strategy.Enabled {
+		interval := time.Duration(cfg.Strategy.SyncMinutes) * time.Minute
+		sch.Register(strategy.NewJob(buildStrategyService(cfg, &l, st), interval, &l))
+		l.Info().Dur("interval", interval).Msg("scheduler: strategy sync job enabled")
 	}
 
 	// 鹦鹉螺：关闭到期市场 + 金融/天气类自动结算(东财行情 + Open-Meteo 判定)。

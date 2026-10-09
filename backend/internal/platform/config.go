@@ -35,6 +35,14 @@ type Config struct {
 	Qwen      QwenConfig      `toml:"qwen"`
 	RateLimit RateLimitConfig `toml:"ratelimit"`
 	Nautilus  NautilusConfig  `toml:"nautilus"`
+	Strategy  StrategyConfig  `toml:"strategy"`
+}
+
+// StrategyConfig 是「主策略」抓取参数：数据来自外部量化看板（x.singzquant.com）。
+type StrategyConfig struct {
+	Enabled     bool   `toml:"enabled"`
+	BaseURL     string `toml:"base_url"`
+	SyncMinutes int    `toml:"sync_minutes"`
 }
 
 // NautilusConfig 鹦鹉螺预测市场的运行参数。
@@ -361,6 +369,11 @@ func defaultConfig() *Config {
 			DailyEnabled:       true,
 			DailyHour:          8,
 		},
+		Strategy: StrategyConfig{
+			Enabled:     true,
+			BaseURL:     "https://x.singzquant.com",
+			SyncMinutes: 30,
+		},
 	}
 }
 
@@ -530,6 +543,12 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_AI__HOME_SUGGEST_ENABLED"); v != "" {
 		c.AI.HomeSuggestEnabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_STRATEGY__ENABLED"); v != "" {
+		c.Strategy.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_STRATEGY__BASE_URL"); v != "" {
+		c.Strategy.BaseURL = v
 	}
 }
 
