@@ -86,3 +86,6 @@ id_ed25519*
 *.pem
 .env.*
 !.env.example
+
+# flutter golden 失败时生成的对比图
+test/failures/
