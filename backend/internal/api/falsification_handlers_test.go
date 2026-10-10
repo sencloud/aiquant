@@ -227,3 +227,47 @@ func TestInviteEndpointGrantsCredits(t *testing.T) {
 		t.Fatalf("redeem: %d %v", rec.Code, out)
 	}
 }
+
+func TestFalsificationListMetaAndSearchNoAuth(t *testing.T) {
+	e := newTestEnv(t)
+	rec, out := e.do(t, http.MethodGet, "/v1/strategy/falsification?include=insufficient", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	meta, _ := out["list"].(map[string]any)
+	if meta["mode"] != "representative" || meta["searchable"] != true {
+		t.Fatalf("list meta = %v", out["list"])
+	}
+	// 旧客户端（TestFlight 40b71e2）的详情页只用列表条目画免费层：关键数字、
+	// 结论、headline 必须还在列表条目里。
+	for _, a := range out["archive"].([]any) {
+		m := a.(map[string]any)
+		if m["id"] == nil || m["verdict"] == nil || m["strategy"] == nil || m["locked"] == nil {
+			t.Fatalf("list entry missing fields: %v", m)
+		}
+	}
+
+	rec, out = e.do(t, http.MethodGet, "/v1/strategy/falsification/search?q=UT%20Bot&limit=3", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search status %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "report_url") {
+		t.Fatal("report_url leaked in search")
+	}
+	sm, _ := out["search"].(map[string]any)
+	hits, _ := out["archive"].([]any)
+	if sm["matched"] == float64(0) || len(hits) == 0 || len(hits) > 3 {
+		t.Fatalf("search = %v (%d hits)", sm, len(hits))
+	}
+	for _, h := range hits {
+		m := h.(map[string]any)
+		if m["locked"] == true && (m["mechanism"] != nil || m["yearly"] != nil || m["command"] != nil) {
+			t.Fatalf("paid fields leaked in search: %v", m["id"])
+		}
+	}
+	// 搜索不会把详情接口的鉴权绕开。
+	rec, _ = e.do(t, http.MethodGet, "/v1/strategy/falsification/utbot-5min/detail", "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("detail without auth: %d", rec.Code)
+	}
+}

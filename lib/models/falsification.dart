@@ -18,9 +18,13 @@ class FalsificationData {
     this.thresholdVersion = '',
     this.origin = '',
     this.prices = const FalsificationPrices(),
+    this.listMeta = const ArchiveListMeta(),
   });
 
   final String generatedAt;
+
+  /// 后端列表收窄的元信息（自动淘汰只留代表，其余要搜索）。本地资产为空。
+  final ArchiveListMeta listMeta;
 
   /// 判定所用的阈值版本（旧资产没有，为空）。
   final String thresholdVersion;
@@ -50,6 +54,7 @@ class FalsificationData {
         prices: j['prices'] is Map
             ? FalsificationPrices.fromJson(_map(j['prices']))
             : const FalsificationPrices(),
+        listMeta: ArchiveListMeta.fromJson(_map(j['list'])),
       );
 
   /// 用新的档案条目替换同 id 的旧条目（解锁后拿到完整内容时用）。
@@ -63,7 +68,71 @@ class FalsificationData {
         thresholdVersion: thresholdVersion,
         origin: origin,
         prices: prices,
+        listMeta: listMeta,
       );
+}
+
+/// 后端 `list` 元信息：列表是收窄过的通讯录，自动淘汰每个策略只留几条代表。
+class ArchiveListMeta {
+  const ArchiveListMeta({
+    this.mode = '',
+    this.total = 0,
+    this.returned = 0,
+    this.omitted = const {},
+    this.searchable = false,
+  });
+
+  /// representative = 收窄过；空 = 完整列表（本地资产 / 旧后端）。
+  final String mode;
+
+  /// 收窄前可展示的条数。
+  final int total;
+  final int returned;
+
+  /// 按结论统计没放进列表的条数（reject / insufficient）。
+  final Map<String, int> omitted;
+
+  /// 没列出的条目能否用搜索接口查到。
+  final bool searchable;
+
+  int get omittedTotal => omitted.values.fold(0, (a, b) => a + b);
+  int get omittedRejects => omitted['reject'] ?? 0;
+  bool get isNarrowed => mode.isNotEmpty && omittedTotal > 0;
+
+  factory ArchiveListMeta.fromJson(Map<String, dynamic> j) => ArchiveListMeta(
+        mode: _str(j['mode']),
+        total: _int(j['total']),
+        returned: _int(j['returned']),
+        omitted: {
+          for (final e in _map(j['omitted']).entries) e.key: _int(e.value),
+        },
+        searchable: j['searchable'] == true,
+      );
+}
+
+/// 搜索接口的结果：命中的条目（最多 limit 条）+ 一共命中多少。
+class ArchiveSearchResult {
+  const ArchiveSearchResult({
+    required this.query,
+    required this.entries,
+    required this.matched,
+  });
+
+  final String query;
+  final List<ArchiveEntry> entries;
+  final int matched;
+
+  factory ArchiveSearchResult.fromJson(Map<String, dynamic> j) {
+    final meta = _map(j['search']);
+    final entries = _list(j['archive'], ArchiveEntry.fromJson);
+    return ArchiveSearchResult(
+      query: _str(meta['q']),
+      entries: entries,
+      matched: meta.containsKey('matched')
+          ? _int(meta['matched'])
+          : entries.length,
+    );
+  }
 }
 
 /// 喜点价格。默认值与后端 config credits.* 的默认一致。

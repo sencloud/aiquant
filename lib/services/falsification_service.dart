@@ -10,7 +10,7 @@ import '../models/falsification.dart';
 /// 证伪档案的加载口 + 付费动作（解锁详情 / 跑一次证伪）。
 ///
 /// 档案优先读后端 `GET /v1/strategy/falsification`（免登录；带 token 时
-/// 已解锁条目会直接带上付费字段），3 秒拿不到就回落打包进 App 的资产
+/// 已解锁条目会直接带上付费字段），5 秒拿不到就回落打包进 App 的资产
 /// （assets/strategy/falsification.json）—— 离线可用、首屏不被接口拖垮。
 /// 后端档案由 alpha-radar 定时同步，补一条证伪记录不用发版。
 class FalsificationService {
@@ -64,12 +64,13 @@ class FalsificationService {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/v1/strategy/falsification',
-        // 搜索要能搜到样本不足的条目：一次全拿，主列表在客户端过滤。
+        // 列表是后端收窄过的通讯录（自动淘汰每个策略只留几条代表）；
+        // 没列出的条目走 [search]。样本不足的代表也要，主列表在客户端过滤。
         queryParameters: const {'include': 'insufficient'},
         options: Options(
           // 这是个「有更好」的增强，不是必需路径：连不上就立刻用内置数据。
-          receiveTimeout: const Duration(seconds: 3),
-          sendTimeout: const Duration(seconds: 3),
+          receiveTimeout: const Duration(seconds: 5),
+          sendTimeout: const Duration(seconds: 5),
         ),
       );
       final data = resp.data;
@@ -78,6 +79,20 @@ class FalsificationService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// 在后端完整档案里搜索（含没进列表的淘汰条目和样本不足；免登录）。
+  /// 失败抛异常，调用方回落到本地搜索。
+  Future<ArchiveSearchResult> search(String query, {int limit = 50}) async {
+    final r = await _dio.get<Map<String, dynamic>>(
+      '/v1/strategy/falsification/search',
+      queryParameters: {'q': query.trim(), 'limit': limit},
+      options: Options(
+        receiveTimeout: const Duration(seconds: 6),
+        sendTimeout: const Duration(seconds: 6),
+      ),
+    );
+    return ArchiveSearchResult.fromJson(r.data ?? const {});
   }
 
   // ── 解锁详情（需登录）────────────────────────────────────────────────

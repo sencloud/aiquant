@@ -17,8 +17,11 @@ ios `[代码]`（TestFlight 是主发布渠道），Android 与 Web 共用同一
 Flutter（Dart 3.6+ / Flutter 3.47.x）`[代码]`。服务端 Go；主策略数据来自外部
 量化看板，经自家后端归一化下发。证伪档案的数据源是 alpha-radar 的只读导出
 （`GET /api/falsification`，契约见 alpha-radar `docs/falsification-export.md`）：
-后端 scheduler 定时拉取落库，App 读后端公开接口 `GET /v1/strategy/falsification`，
-3 秒拿不到就回落到打包进 App 的同一份资产 `[代码]`。
+后端 scheduler 定时拉取落库（内容没变就不新增快照），App 读后端公开接口
+`GET /v1/strategy/falsification`，5 秒拿不到就回落到打包进 App 的同一份资产 `[代码]`。
+这个列表是收窄过的通讯录：精选 / 可交易 / 仍在验证 / 研究发现全部保留，自动淘汰
+每个策略只留 3 条代表（不同失败闸门优先、离通过最近的优先，总数上限 200）；其余
+条目用 `GET /v1/strategy/falsification/search?q=` 在完整快照里搜 `[代码]`。
 
 ## Users
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -16,13 +17,18 @@ import (
 // mountFalsificationPublic 证伪档案公开接口（免登录）。
 //
 //	GET /v1/strategy/falsification[?include=insufficient]
+//	GET /v1/strategy/falsification/search?q=…[&limit=50]
 //	GET /v1/strategy/falsification/run-options
 //
 // 档案是获客内容：不登录也能看结论、关键数字和闸门结果。带了有效 token 时，
 // 已解锁条目直接带上付费字段（分年盈亏 / 失效机制 / 复现命令）。
 // report_url 永远不出现在响应里。
+//
+// 列表是收窄过的通讯录（见 falsification.ListView）：精选 / 可交易 / 仍在验证 /
+// 研究发现全部保留，自动淘汰每个策略只留几条代表；其余条目用 search 查。
 func mountFalsificationPublic(r chi.Router, d *Deps) {
 	r.Get("/strategy/falsification", handleFalsificationArchive(d))
+	r.Get("/strategy/falsification/search", handleFalsificationSearch(d))
 	r.Get("/strategy/falsification/run-options", handleFalsificationRunOptions(d))
 }
 
@@ -67,11 +73,38 @@ func handleFalsificationArchive(d *Deps) http.HandlerFunc {
 			}
 		}
 		include := r.URL.Query().Get("include") == "insufficient"
-		out := falsification.PublicView(p, include, unlocked)
+		out := falsification.ListView(p, include, unlocked, d.Falsification.ListOptions())
 		out["origin"] = origin
 		out["prices"] = d.Falsification.Prices()
 		w.Header().Set("Cache-Control", "no-store")
 		WriteJSON(w, http.StatusOK, out)
+	}
+}
+
+// handleFalsificationSearch 在完整快照里搜索（含没进列表的淘汰条目和样本不足）。
+// 只返回精简条目 + 元信息，不带 gates 说明 / 成本尺等顶层大字段。
+func handleFalsificationSearch(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d.Falsification == nil {
+			WriteError(w, r, platform.ErrUnavailable("FALSIFICATION.DISABLED", errors.New("falsification disabled")))
+			return
+		}
+		ctx := r.Context()
+		p, origin := d.Falsification.Current(ctx)
+		var unlocked map[string]bool
+		if uid := optionalUserID(d, r); uid > 0 {
+			if ids, err := d.Falsification.UnlockedIDs(ctx, uid); err == nil {
+				unlocked = ids
+			}
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		list, meta := falsification.Search(p, r.URL.Query().Get("q"), limit, unlocked)
+		w.Header().Set("Cache-Control", "no-store")
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"archive": list,
+			"search":  meta,
+			"origin":  origin,
+		})
 	}
 }
 
