@@ -40,6 +40,13 @@ class Analytics {
   static const evArchiveOpen = 'archive_open';
   static const evGateOpen = 'gate_open';
   static const evLiveEntry = 'live_strategy_entry';
+  static const evArchiveSearch = 'archive_search';
+  static const evArchiveList = 'archive_list_open';
+  static const evMethodOpen = 'method_open';
+  static const evArchiveUnlock = 'archive_unlock';
+  static const evFalsifyRunOpen = 'falsify_run_open';
+  static const evFalsifyRunSubmit = 'falsify_run_submit';
+  static const evPaywallInsufficient = 'paywall_insufficient';
   static const evLoginStart = 'login_start';
   static const evLoginSuccess = 'login_success';
   static const evChatSend = 'chat_send';
