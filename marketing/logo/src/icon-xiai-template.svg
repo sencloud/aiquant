@@ -6,8 +6,11 @@
        波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
        和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
        各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
-       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
-       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
+       下面那组「AI」是**专门画的标记**，不是普通字母：笔画更粗、整体带斜势
+       （skewX，像斜体那样有速度感），并且 A 用墨、I 用墨金两色分开 —— 参考
+       189 邮箱图标里那个两色的「5G」，它是标记而不是文字。
+
+       竖向节奏：喜 150-530 / 波浪 589-671 / AI 760-910。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -38,16 +41,21 @@
   <path d="{{XI_PATH}}" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
   <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
-  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+  <path d="M120 630 Q218 600 316 630 T512 630 T708 630 T904 630"
         stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
-  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
-  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
-     stroke-linejoin="round">
-    <path d="M413 885 L469 779"/>
-    <path d="M525 885 L469 779"/>
-    <path d="M437 857 L501 857"/>
-    <path d="M618 779 L618 885"/>
+  <!-- AI：专门画的标记 —— 粗笔画 + 斜势 + 两色（A 墨、I 墨金） -->
+  <g transform="translate(512,835) skewX(-9) translate(-512,-835)">
+    <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round"
+       stroke-linejoin="round">
+      <path d="M410 889 L466 781"/>
+      <path d="M522 889 L466 781"/>
+      <path d="M432 856 L500 856"/>
+    </g>
+    <!-- I 用品牌墨金实色（而不是波浪那支渐变）：暖桃底上金色本来就淡，
+       渐变里更浅的那端会让这一竖在 29px 下几乎看不见。 -->
+    <path d="M616 781 L616 889" stroke="#9E6322" stroke-width="42"
+          stroke-linecap="round" fill="none"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->

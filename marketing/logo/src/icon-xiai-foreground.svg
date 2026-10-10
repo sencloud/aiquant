@@ -18,15 +18,19 @@
   <g transform="translate(512,512) scale(0.63) translate(-512,-512)">
     <path d="{{XI_PATH}}" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-    <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+    <path d="M120 630 Q218 600 316 630 T512 630 T708 630 T904 630"
           stroke="url(#fgWave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
-    <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
-       stroke-linejoin="round">
-      <path d="M413 885 L469 779"/>
-      <path d="M525 885 L469 779"/>
-      <path d="M437 857 L501 857"/>
-      <path d="M618 779 L618 885"/>
+    <!-- AI：粗笔画 + 斜势 + 两色（A 墨、I 墨金）的专门标记 -->
+    <g transform="translate(512,835) skewX(-9) translate(-512,-835)">
+      <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round"
+         stroke-linejoin="round">
+        <path d="M410 889 L466 781"/>
+        <path d="M522 889 L466 781"/>
+        <path d="M432 856 L500 856"/>
+      </g>
+      <path d="M616 781 L616 889" stroke="#9E6322" stroke-width="42"
+            stroke-linecap="round" fill="none"/>
     </g>
 
     <!-- 右上角两颗星 -->
