@@ -87,5 +87,5 @@ id_ed25519*
 .env.*
 !.env.example
 
-# flutter golden 失败时生成的对比图
+# flutter golden test failure diff images
 test/failures/
