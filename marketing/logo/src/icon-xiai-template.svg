@@ -48,16 +48,15 @@
   <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
         transform="translate(898,288) scale(24)" fill="#B57B33" fill-opacity="0.9"/>
 
-  <!-- 下区内容：专门画的两色小写 ai 标记（粗笔画 + 斜势）
-       a 用几何单层画法（圆腔 + 右侧竖笔），i 是短竖加一点 —— 小写比大写更
-       亲切，那个点也顺带成了标记里的一个亮点。 -->
-  <g transform="translate(512,842) skewX(-9) translate(-512,-842)">
-    <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round">
-      <circle cx="455" cy="878" r="65"/>
-      <path d="M520 813 L520 943"/>
+  <!-- 下区内容：专门画的两色 AI 标记（粗笔画 + 斜势） -->
+  <g transform="translate(512,845) skewX(-9) translate(-512,-845)">
+    <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round"
+       stroke-linejoin="round">
+      <path d="M410 899 L466 791"/>
+      <path d="M522 899 L466 791"/>
+      <path d="M432 866 L500 866"/>
     </g>
-    <path d="M630 813 L630 943" stroke="#9E6322" stroke-width="42"
+    <path d="M616 791 L616 899" stroke="#9E6322" stroke-width="42"
           stroke-linecap="round" fill="none"/>
-    <circle cx="630" cy="745" r="24" fill="#9E6322"/>
   </g>
 </svg>
