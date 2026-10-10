@@ -9,37 +9,37 @@
   },
   "gates": [
     {
-      "id": "scale",
-      "name": "尺度闸门",
-      "rule": "往返成本 ÷ 该周期平均振幅 < 25%",
-      "why": "成本是第一道闸门。棕榈油 1 分钟占比 58%，五个策略家族全负 —— 在成本吃掉一半以上振幅的尺度上，再好的信号也是给交易所打工。",
-      "verdict": "先卡这一条，能省掉后面所有工作。"
-    },
-    {
       "id": "sample",
       "name": "样本闸门",
-      "rule": "≥ 200 笔，且跨越 ≥ 3 年",
+      "rule": "≥ 200 笔，且跨越 ≥ 3 年；不足记「样本不足」，不算淘汰",
       "why": "少于 30 笔的「高 PF」是噪声；55 笔那一档再漂亮也不敢实盘。",
       "verdict": "样本不够就只写「方向对、样本不足」，不许当结论用。"
     },
     {
+      "id": "scale",
+      "name": "尺度闸门",
+      "rule": "往返成本 ÷ 该周期平均振幅：< 25% 通过，25%–40% 勉强，≥ 40% 淘汰",
+      "why": "成本是第一道闸门。棕榈油 1 分钟占比 58%，五个策略家族全负 —— 在成本吃掉一半以上振幅的尺度上，再好的信号也是给交易所打工。",
+      "verdict": "先卡这一条，能省掉后面所有工作。"
+    },
+    {
       "id": "yearly",
       "name": "分年闸门",
-      "rule": "正年数 ≥ 4/5，或最近三年不亏",
+      "rule": "正年数 ÷ 年数 ≥ 0.8，或最近三个完整年度都不为负",
       "why": "只报总收益的策略一律不算数：本工程的「有效」几乎全部来自单一年份（2022 印尼出口禁令年）。",
       "verdict": "利润集中在一年 = 那不是策略，是那年的事件。"
     },
     {
       "id": "drawdown",
       "name": "收益回撤比",
-      "rule": "总盈亏 ÷ 最大回撤 ≥ 1.0",
+      "rule": "总盈亏 ÷ |最大回撤| ≥ 1.0，且总盈亏 > 0",
       "why": "决定这套参数值不值得占用资金。千笔样本那一档只有 0.45。",
       "verdict": "PF 好看但回撤吃掉全部利润，等于白做。"
     },
     {
       "id": "robust",
       "name": "参数稳健性",
-      "rule": "最优参数的邻域不能塌方（单调或平台，不能是孤点）",
+      "rule": "最优参数的邻域不能塌方（单调或平台，不能是孤点）；MVP 阶段人工复核，记「待复核」",
       "why": "搜索越广，样本内最优值的乐观偏差越大。孤点最优就是过拟合。",
       "verdict": "参数一旦被用来挑结果，它就是样本内参数。"
     }
@@ -330,7 +330,41 @@
         ]
       ],
       "mechanism": "全部利润来自 2022 年（印尼出口禁令年）。最近三年连亏，收益回撤比 0.45。它证明了 5 分钟尺度上「宽跟踪止损 + 趋势跟随」这个结构本身有微弱优势，值得继续挖 —— 但这条参数不能实盘。",
-      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --start 20220101"
+      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --start 20220101",
+      "failed_gate": "yearly",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {
+        "sample": {
+          "status": "pass",
+          "value": "1060 笔 / 5 年",
+          "threshold": "≥ 200 笔且 ≥ 3 年"
+        },
+        "scale": {
+          "status": "pass",
+          "value": "22.2%",
+          "threshold": "< 25%（25%–40% 勉强）"
+        },
+        "yearly": {
+          "status": "fail",
+          "value": "2/5",
+          "threshold": "≥ 0.8 或近三年不亏"
+        },
+        "drawdown": {
+          "status": "skip",
+          "value": "0.45",
+          "threshold": "≥ 1.0 且盈利"
+        },
+        "robust": {
+          "status": "skip",
+          "value": "",
+          "threshold": "人工复核"
+        }
+      }
     },
     {
       "id": "utbot-regime",
@@ -339,7 +373,7 @@
       "source": "TradingView @QuantNomad + 原创闸门",
       "symbol": "P.DCE",
       "freq": "5min",
-      "verdict": "pending",
+      "verdict": "insufficient",
       "headline": "目前最好的一档：PF 1.578、正年数 4/5，但只剩 55 笔",
       "metrics": {
         "trades": 55,
@@ -354,13 +388,47 @@
       "few": "55 笔 / PF 1.578 / 每手 +13.75 点 / 正年数 4/5",
       "yearly": [],
       "mechanism": "加一个 ER（效率系数）闸门把体制不对的时段整段跳过，PF 从 1.043 抬到 1.578、正年数从 2/5 抬到 4/5 —— 比两轮入场调优加起来都有效。代价是样本只剩 55 笔（约 12 笔/年），统计上太薄。下一步是跨品种验证体制闸门，不是继续调阈值。",
-      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --start 20220101 --set use_regime=1 --set er_min=0.25 --set atr_ratio_min=0"
+      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --start 20220101 --set use_regime=1 --set er_min=0.25 --set atr_ratio_min=0",
+      "failed_gate": "sample",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {
+        "sample": {
+          "status": "fail",
+          "value": "55 笔 / 5 年",
+          "threshold": "≥ 200 笔且 ≥ 3 年"
+        },
+        "scale": {
+          "status": "skip",
+          "value": "22.2%",
+          "threshold": "< 25%（25%–40% 勉强）"
+        },
+        "yearly": {
+          "status": "skip",
+          "value": "4/5",
+          "threshold": "≥ 0.8 或近三年不亏"
+        },
+        "drawdown": {
+          "status": "skip",
+          "value": "",
+          "threshold": "≥ 1.0 且盈利"
+        },
+        "robust": {
+          "status": "skip",
+          "value": "",
+          "threshold": "人工复核"
+        }
+      }
     },
     {
       "id": "orb-5min",
       "strategy": "开盘区间突破 ORB",
       "family": "日内突破",
-      "source": "TradingView @LuxAlgo（CC BY-NC-SA 4.0）",
+      "source": "原创实现（clean-room 重写中）· 思路来源：开盘区间突破（ORB）",
       "symbol": "P.DCE",
       "freq": "5min",
       "verdict": "reject",
@@ -378,13 +446,47 @@
       "few": "1223 笔 / 胜率 49.3% / PF 0.889 / 0/5 年为正",
       "yearly": [],
       "mechanism": "赔率结构不成立：突破后回撤到对侧止损太常见，而赢的行程常在一倍区间高度之前就衰竭。**高胜率掩盖不了负期望** —— 这条是胜率和赚钱无关的最干净证据。",
-      "command": "alpharadar run --symbol P.DCE --strategy orb --freq 5min --start 20220101"
+      "command": "alpharadar run --symbol P.DCE --strategy orb --freq 5min --start 20220101",
+      "failed_gate": "yearly",
+      "rerun_pending": true,
+      "license": "原创实现",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "gates": {
+        "sample": {
+          "status": "pass",
+          "value": "1223 笔 / 5 年",
+          "threshold": "≥ 200 笔且 ≥ 3 年"
+        },
+        "scale": {
+          "status": "pass",
+          "value": "22.2%",
+          "threshold": "< 25%（25%–40% 勉强）"
+        },
+        "yearly": {
+          "status": "fail",
+          "value": "0/5",
+          "threshold": "≥ 0.8 或近三年不亏"
+        },
+        "drawdown": {
+          "status": "skip",
+          "value": "",
+          "threshold": "≥ 1.0 且盈利"
+        },
+        "robust": {
+          "status": "skip",
+          "value": "",
+          "threshold": "人工复核"
+        }
+      }
     },
     {
       "id": "false-breakout-1min",
       "strategy": "假突破反向",
       "family": "反转",
-      "source": "TradingView @Zeiierman（CC BY-NC-SA 4.0）",
+      "source": "原创实现（clean-room 重写中）· 思路来源：假突破反向",
       "symbol": "P.DCE",
       "freq": "1min",
       "verdict": "reject",
@@ -402,7 +504,41 @@
       "few": "1min 1931 笔 / PF 0.692 / 每手 −4.31 点；5min 462 笔 / PF 0.849",
       "yearly": [],
       "mechanism": "信号在价格已经收回之后才触发，等于在反方向的「最大不利偏移」处入场。棕榈油的突破确实偏假，但假完之后沿原方向延续，不是回头。",
-      "command": "alpharadar run --symbol P.DCE --strategy false_breakout --freq 1min --start 20220101"
+      "command": "alpharadar run --symbol P.DCE --strategy false_breakout --freq 1min --start 20220101",
+      "failed_gate": "scale",
+      "rerun_pending": true,
+      "license": "原创实现",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "gates": {
+        "sample": {
+          "status": "pass",
+          "value": "1931 笔 / 5 年",
+          "threshold": "≥ 200 笔且 ≥ 3 年"
+        },
+        "scale": {
+          "status": "fail",
+          "value": "57.7%",
+          "threshold": "< 25%（25%–40% 勉强）"
+        },
+        "yearly": {
+          "status": "skip",
+          "value": "0/5",
+          "threshold": "≥ 0.8 或近三年不亏"
+        },
+        "drawdown": {
+          "status": "skip",
+          "value": "",
+          "threshold": "≥ 1.0 且盈利"
+        },
+        "robust": {
+          "status": "skip",
+          "value": "",
+          "threshold": "人工复核"
+        }
+      }
     },
     {
       "id": "vreversal-1min",
@@ -426,7 +562,41 @@
       "few": "1min 1718 笔 / PF 0.746 / 每手 −3.72 点",
       "yearly": [],
       "mechanism": "事件研究：冰点事件前向收益最大 +0.30 点（5 根），突破入场 −1.02 点，而往返成本 4.5 点 —— 形态的边际比成本小一个数量级。回踩再入能把盈亏比从 0.81 修到 1.29，但胜率跌破平衡线，PF 反而降。**盈亏比倒挂是症状，病根是这个形态在 1 分钟尺度没有边际。**",
-      "command": "alpharadar run --symbol P.DCE --strategy vreversal --freq 1min --start 20220101"
+      "command": "alpharadar run --symbol P.DCE --strategy vreversal --freq 1min --start 20220101",
+      "failed_gate": "scale",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {
+        "sample": {
+          "status": "pass",
+          "value": "1718 笔 / 5 年",
+          "threshold": "≥ 200 笔且 ≥ 3 年"
+        },
+        "scale": {
+          "status": "fail",
+          "value": "57.7%",
+          "threshold": "< 25%（25%–40% 勉强）"
+        },
+        "yearly": {
+          "status": "skip",
+          "value": "0/5",
+          "threshold": "≥ 0.8 或近三年不亏"
+        },
+        "drawdown": {
+          "status": "skip",
+          "value": "",
+          "threshold": "≥ 1.0 且盈利"
+        },
+        "robust": {
+          "status": "skip",
+          "value": "",
+          "threshold": "人工复核"
+        }
+      }
     },
     {
       "id": "atr-sweep",
@@ -450,7 +620,15 @@
       "few": "45 组参数：倍数 1.0/1.5 一律惨败（PF 0.55~0.88），2.0 勉强，3.0 顶点",
       "yearly": [],
       "mechanism": "紧止损是成本绞肉机：止损越紧，被噪声打掉的次数越多，而每次被打掉都要付一遍往返成本。这条结论在参数邻域上是单调的，所以它才可信 —— 孤点最优才是过拟合的信号。",
-      "command": "alpharadar matrix --symbols P.DCE --strategies utbot --freqs 5min --set stop_atr=1.0,1.5,2.0,3.0"
+      "command": "alpharadar matrix --symbols P.DCE --strategies utbot --freqs 5min --set stop_atr=1.0,1.5,2.0,3.0",
+      "failed_gate": "",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {}
     },
     {
       "id": "partial-tp",
@@ -474,7 +652,15 @@
       "few": "TP1/TP2/TP3 各平 1/3（1/2/3 ×ATR）：PF 0.905 → 0.852",
       "yearly": [],
       "mechanism": "盈利单被提前砍掉，亏损单照吃满止损。分批只在「少数单子能走很远」的分布下才划算，本形态不具备。",
-      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --set partial_tps=1,2,3"
+      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --set partial_tps=1,2,3",
+      "failed_gate": "",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {}
     },
     {
       "id": "breakeven-stop",
@@ -498,16 +684,27 @@
       "few": "浮盈 8 点推平：胜率 47.8% → 31.2%，PF 0.75 → 0.65",
       "yearly": [],
       "mechanism": "推平止损把还没走出来的单子提前判死。与工程内 5 分钟 BOLL 策略的历史记录完全一致（当时胜率掉到 1%）—— 同一个坑踩两次，所以它进了「已知无效」清单。",
-      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --set breakeven_points=8"
+      "command": "alpharadar run --symbol P.DCE --strategy utbot --freq 5min --set breakeven_points=8",
+      "failed_gate": "",
+      "license": "",
+      "curated": true,
+      "asset_class": "futures",
+      "threshold_version": "manual-2026-10",
+      "updated_at": "2026-10-10 09:04",
+      "rerun_pending": false,
+      "gates": {}
     }
   ],
   "summary": {
     "archive_total": 8,
     "archive_rejected": 4,
-    "archive_pending": 1,
+    "archive_pending": 0,
     "tradable": 0,
     "scale_rows": 15,
     "scale_fail": 1,
-    "scale_pass": 13
-  }
+    "scale_pass": 13,
+    "archive_insufficient": 1,
+    "findings": 3
+  },
+  "threshold_version": "manual-2026-10"
 }
