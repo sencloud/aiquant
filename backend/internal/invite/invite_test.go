@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,10 +28,13 @@ func openStore(t *testing.T) *store.Store {
 	return st
 }
 
+// userSeq 生成唯一 uuid（Windows 上纳秒时钟分辨率不够，不能拿时间当唯一值）。
+var userSeq atomic.Int64
+
 func newUser(t *testing.T, st *store.Store, createdAt int64) int64 {
 	t.Helper()
 	res, err := st.DB.Exec(`INSERT INTO users(uuid, status, credit_balance, created_at, updated_at)
-		VALUES(?, 'active', 0, ?, ?)`, fmt.Sprintf("u-%d", time.Now().UnixNano()), createdAt, createdAt)
+		VALUES(?, 'active', 0, ?, ?)`, fmt.Sprintf("u-%d", userSeq.Add(1)), createdAt, createdAt)
 	if err != nil {
 		t.Fatal(err)
 	}

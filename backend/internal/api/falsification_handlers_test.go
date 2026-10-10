@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,10 +65,13 @@ func newTestEnv(t *testing.T) *testEnv {
 	return &testEnv{router: NewRouter(d), st: st, key: key}
 }
 
+// userSeq 生成唯一 uuid（Windows 上纳秒时钟分辨率不够，不能拿时间当唯一值）。
+var userSeq atomic.Int64
+
 func (e *testEnv) user(t *testing.T, balance int64) (int64, string) {
 	t.Helper()
 	now := time.Now()
-	uuid := "u-" + now.Format("150405.000000000")
+	uuid := fmt.Sprintf("u-%d", userSeq.Add(1))
 	res, err := e.st.DB.Exec(`INSERT INTO users(uuid, status, credit_balance, created_at, updated_at)
 		VALUES(?, 'active', ?, ?, ?)`, uuid, balance, now.UnixMilli(), now.UnixMilli())
 	if err != nil {
