@@ -349,6 +349,7 @@ class _ReportsTabState extends State<ReportsTab> {
         case AiChatEventKind.session:
           break;
         case AiChatEventKind.done:
+        case AiChatEventKind.suggestions:
           break;
         case AiChatEventKind.error:
           if (!mounted) return;

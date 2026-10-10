@@ -65,6 +65,10 @@ type ChatInput struct {
 	// 等需要 AI 看持仓的入口时附带的当前组合快照。
 	// 为空表示本次对话不附带；非空时拼到 system prompt 的「附加上下文」段落。
 	PortfolioContext *PortfolioContext
+
+	// WantSuggestions 为 true 时，done 之后再下发一条可选的 `suggestions`
+	// 事件（2–3 个推荐追问，见 followup.go）。不额外扣费；旧客户端不传即不生成。
+	WantSuggestions bool
 }
 
 // PortfolioContext 是 ChatInput 携带的"用户当前组合快照"。
@@ -401,6 +405,14 @@ LOOPS:
 		"balance_after": newBalance,
 		"deep_mode":     in.DeepMode,
 	})
+	if in.WantSuggestions && strings.TrimSpace(finalAssistant) != "" {
+		if qs := s.generateFollowUps(ctx, in.UserText, finalAssistant); len(qs) > 0 {
+			_ = emit("suggestions", map[string]any{
+				"session_id": sess.UUID,
+				"questions":  qs,
+			})
+		}
+	}
 	return nil
 }
 

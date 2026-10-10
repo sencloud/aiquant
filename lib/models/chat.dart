@@ -90,6 +90,13 @@ class ChatMessage extends HiveObject {
   /// 随会话一起落地到 Hive，供气泡缩略图与历史回看使用。
   List<String>? imageDataUrls;
 
+  /// role=assistant 消息：回答结束后服务端下发的推荐追问（2–3 条）。
+  /// UI 只在最新一条回答下展示（元宝式）。
+  List<String>? suggestions;
+
+  /// role=assistant 消息：用户反馈。1 = 赞，-1 = 踩，0 = 未评价。
+  int feedback;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -103,6 +110,8 @@ class ChatMessage extends HiveObject {
     this.portfolioAttached = false,
     this.portfolioName,
     this.imageDataUrls,
+    this.suggestions,
+    this.feedback = 0,
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now();
 }
@@ -130,13 +139,15 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       portfolioAttached: fields[9] as bool? ?? false,
       portfolioName: fields[10] as String?,
       imageDataUrls: (fields[11] as List?)?.cast<String>(),
+      suggestions: (fields[12] as List?)?.cast<String>(),
+      feedback: fields[13] as int? ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -160,7 +171,11 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(10)
       ..write(obj.portfolioName)
       ..writeByte(11)
-      ..write(obj.imageDataUrls);
+      ..write(obj.imageDataUrls)
+      ..writeByte(12)
+      ..write(obj.suggestions)
+      ..writeByte(13)
+      ..write(obj.feedback);
   }
 }
 

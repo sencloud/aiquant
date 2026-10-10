@@ -1,5 +1,7 @@
 import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:provider/provider.dart';
@@ -17,7 +19,6 @@ import '../../state/auth_state.dart';
 import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
-import '../ding/widgets/ding_task_editor.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
@@ -43,10 +44,13 @@ class AssistantLaunch {
 }
 
 class AssistantScreen extends StatefulWidget {
-  const AssistantScreen({super.key, this.launch});
+  const AssistantScreen({super.key, this.launch, this.briefing});
 
   /// 构造时显式传入的启动参数；优先级高于 ModalRoute.arguments。
   final AssistantLaunch? launch;
+
+  /// 首页快捷提问的数据源；测试 / 截图时注入假实现，默认走网络。
+  final MarketBriefingService? briefing;
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -57,6 +61,14 @@ class _AssistantScreenState extends State<AssistantScreen>
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final FocusNode _focus = FocusNode();
+
+  /// 本页自己的 Scaffold。左上角「对话记录」必须用它来开抽屉：
+  /// 本 State 的 context 位于本页 Scaffold 之上，`Scaffold.of(context)`
+  /// 找到的是外层 HomeScreen 的 Scaffold（没有 drawer），所以以前点了没反应。
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// 列表是否已滚到顶栏下面：是则顶栏显示毛玻璃底。
+  final ValueNotifier<bool> _scrolledUnder = ValueNotifier<bool>(false);
 
   /// 首屏入场动画（问候语与提问 pill 依次淡入上浮）。
   /// 空会话每次出现都重放一次 —— 冷启动、以及「新建对话」之后。
@@ -76,7 +88,8 @@ class _AssistantScreenState extends State<AssistantScreen>
 
   /// 首页空会话的快捷提问：按当前时段 + 开/收盘行情生成。
   /// 为 null / 空时回退到当前 Persona 的默认建议。
-  final MarketBriefingService _briefing = MarketBriefingService();
+  late final MarketBriefingService _briefing =
+      widget.briefing ?? MarketBriefingService();
   List<String>? _marketSuggestions;
   bool _loadingSuggestions = false;
   DateTime? _suggestionsLoadedAt;
@@ -94,14 +107,23 @@ class _AssistantScreenState extends State<AssistantScreen>
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     // ignore: unawaited_futures
     _loadMarketSuggestions();
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final under = _scroll.offset > 1;
+    if (under != _scrolledUnder.value) _scrolledUnder.value = under;
   }
 
   @override
   void dispose() {
     _input.dispose();
+    _scroll.removeListener(_onScroll);
     _scroll.dispose();
+    _scrolledUnder.dispose();
     _focus.dispose();
     _entranceCtl.dispose();
     super.dispose();
@@ -212,6 +234,18 @@ class _AssistantScreenState extends State<AssistantScreen>
     _scrollToBottom();
   }
 
+  /// 点推荐追问：直接发送（与手动输入同一条路径，含登录 / 余额检查）。
+  Future<void> _sendSuggestion(String q) => _send(q);
+
+  /// 重新生成最新一条回答（需登录；按正常对话扣费）。
+  Future<void> _regenerate(ChatState chat, ChatMessage msg) async {
+    if (chat.streaming) return;
+    if (!await requireLogin(context)) return;
+    if (!mounted) return;
+    await chat.regenerate(msg);
+    _scrollToBottom();
+  }
+
   /// 选图：底部弹出「拍照 / 从相册选择」，成功后追加到待发送列表。
   Future<void> _pickImage() async {
     if (_pickingImage) return;
@@ -312,36 +346,6 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
-  /// 把当前对话最近一条用户提问 / 输入框正在输入的内容作为预填，弹出
-  /// DING 任务编辑器供用户设置定时执行。
-  void _addToDing(BuildContext context, ChatState chat) {
-    final fromInput = _input.text.trim();
-    String? promptInit;
-    String? titleInit;
-    if (fromInput.isNotEmpty) {
-      promptInit = fromInput;
-    } else {
-      // 取当前会话最近的一条 user 消息
-      for (final m in chat.messages.reversed) {
-        if (m.role == 'user' && m.content.trim().isNotEmpty) {
-          promptInit = m.content.trim();
-          break;
-        }
-      }
-    }
-    if (promptInit != null && promptInit.isNotEmpty) {
-      titleInit = promptInit.length > 14
-          ? '${promptInit.substring(0, 14)}…'
-          : promptInit;
-    }
-    DingTaskEditor.show(
-      context,
-      initialPrompt: promptInit,
-      initialTitle: titleInit,
-      initialPersonaId: chat.currentPersona.id,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final chat = context.watch<ChatState>();
@@ -357,6 +361,8 @@ class _AssistantScreenState extends State<AssistantScreen>
       _scrolledSessionId = session.id;
       _scrollToBottomInitial();
     }
+
+    final latest = chat.latestAssistant;
 
     final issue = chat.chargeIssue;
     if (issue != null) {
@@ -379,8 +385,17 @@ class _AssistantScreenState extends State<AssistantScreen>
       });
     }
 
+    // 会话内容为空时没有可滚动的内容，顶栏保持全透明。
+    if (isEmptySession && _scrolledUnder.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrolledUnder.value = false;
+      });
+    }
+
     return Scaffold(
+      key: _scaffoldKey,
       // 导航栏透明、不带分割线，让背景一路铺到状态栏下面（元宝首页就是这么做的）。
+      // 内容滚到顶栏下面时，顶栏换成毛玻璃（见 [_FrostedBar]）。
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -388,6 +403,7 @@ class _AssistantScreenState extends State<AssistantScreen>
         elevation: 0,
         scrolledUnderElevation: 0,
         shape: const Border(),
+        flexibleSpace: _FrostedBar(visible: _scrolledUnder),
         centerTitle: false,
         leadingWidth: 56,
         leading: Padding(
@@ -395,7 +411,8 @@ class _AssistantScreenState extends State<AssistantScreen>
           child: Center(
             child: _RoundIconButton(
               icon: Icons.menu_rounded,
-              onTap: () => Scaffold.of(context).openDrawer(),
+              tooltip: '对话记录',
+              onTap: () => _scaffoldKey.currentState?.openDrawer(),
             ),
           ),
         ),
@@ -416,12 +433,6 @@ class _AssistantScreenState extends State<AssistantScreen>
             icon: Icons.add_comment_rounded,
             tooltip: '新建对话',
             onTap: () => chat.newSession(),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          _RoundIconButton(
-            icon: Icons.alarm_add_rounded,
-            tooltip: '加入定时任务',
-            onTap: () => _addToDing(context, chat),
           ),
           const SizedBox(width: AppSpace.md),
         ],
@@ -448,10 +459,17 @@ class _AssistantScreenState extends State<AssistantScreen>
                         itemCount: session.messages.length,
                         itemBuilder: (context, i) {
                           final msg = session.messages[i];
+                          final isLatest = identical(msg, latest);
                           return MessageBubble(
                             message: msg,
                             allMessages: session.messages,
                             showReasoning: _showReasoning,
+                            isLatest: isLatest,
+                            onSuggestion: isLatest ? _sendSuggestion : null,
+                            onRegenerate: isLatest
+                                ? () => _regenerate(chat, msg)
+                                : null,
+                            onFeedback: (r) => chat.setFeedback(msg, r),
                           );
                         },
                       ),
@@ -465,7 +483,8 @@ class _AssistantScreenState extends State<AssistantScreen>
   }
 
   /// 输入框上方的快捷 pill 行（元宝的「快速 / AI创作 / 拍题答疑」那一排）：
-  /// 角色切换、带上我的组合、加入定时任务。横向可滚，不挤成两行。
+  /// 目前只有角色切换。「带上我的组合」「定时任务」两个入口已按产品要求移除
+  /// （组合仍可由跨 Tab 跳转 [AssistantLaunch.attachPortfolio] 附带）。
   Widget _quickActions(ChatState chat, Persona persona, ChatSession? session) {
     return SizedBox(
       height: 38,
@@ -486,51 +505,8 @@ class _AssistantScreenState extends State<AssistantScreen>
               }
             },
           ),
-          const SizedBox(width: AppSpace.sm),
-          _quickPill(
-            icon: Icons.pie_chart_rounded,
-            label: '带上我的组合',
-            active: _attachPortfolio,
-            onTap: () => setState(() => _attachPortfolio = !_attachPortfolio),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          _quickPill(
-            icon: Icons.alarm_add_rounded,
-            label: '定时任务',
-            onTap: () => _addToDing(context, chat),
-          ),
           const SizedBox(width: AppSpace.xs),
         ],
-      ),
-    );
-  }
-
-  /// 快捷 pill：白底圆角，选中态改主色浅底 + 主色字。
-  Widget _quickPill({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool active = false,
-  }) {
-    final fg = active ? AppColors.amberDim : AppColors.textPrimary;
-    return Material(
-      color: active ? AppColors.accentSoft : AppColors.bgSurface,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      shadowColor: AppColors.shadow,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: fg),
-              const SizedBox(width: 6),
-              Text(label, style: AppType.caption.copyWith(color: fg)),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -853,6 +829,43 @@ class _AssistantScreenState extends State<AssistantScreen>
             height: 40,
             child: Icon(Icons.arrow_upward_rounded,
                 color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 顶栏毛玻璃：内容滚到顶栏下面时淡入 —— 背后内容高斯模糊 + 半透明纸色
+/// + 底部一条发丝线（DESIGN.md：纸 bgBase、发丝线 borderDim）。
+/// 页面在顶部时完全透明，保持首页「背景一路铺到状态栏」的样子。
+class _FrostedBar extends StatelessWidget {
+  const _FrostedBar({required this.visible});
+
+  final ValueListenable<bool> visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: visible,
+      builder: (context, on, _) => AnimatedOpacity(
+        opacity: on ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.bgBase.withValues(alpha: 0.72),
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.borderDim.withValues(alpha: 0.8),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
       ),

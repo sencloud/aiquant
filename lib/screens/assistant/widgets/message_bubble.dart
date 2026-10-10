@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/image_data_url.dart';
 import '../../../models/chat.dart';
@@ -42,11 +45,27 @@ class MessageBubble extends StatelessWidget {
     required this.allMessages,
     this.showReasoning = true,
     this.showShareActions = true,
+    this.isLatest = false,
+    this.onSuggestion,
+    this.onRegenerate,
+    this.onFeedback,
   });
 
   final ChatMessage message;
   final List<ChatMessage> allMessages;
   final bool showReasoning;
+
+  /// 是否为会话里最新一条回答：只有它展示「重新生成」和推荐追问（元宝式）。
+  final bool isLatest;
+
+  /// 点推荐追问 → 直接发送。为 null 时不展示推荐追问。
+  final ValueChanged<String>? onSuggestion;
+
+  /// 重新生成本条回答。为 null 时不展示该按钮。
+  final VoidCallback? onRegenerate;
+
+  /// 点赞（1）/ 点踩（-1）。为 null 时不展示反馈按钮。
+  final ValueChanged<int>? onFeedback;
 
   /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
   /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
@@ -137,6 +156,25 @@ class MessageBubble extends StatelessWidget {
                 question: _previousUserText(),
                 timestamp: message.timestamp,
                 showShareActions: showShareActions,
+                feedback: message.feedback,
+                onRegenerate: isLatest ? onRegenerate : null,
+                onFeedback: onFeedback,
+                sources: hasToolCalls ? _collectSources() : const [],
+                tools: hasToolCalls
+                    ? message.toolCalls!.map((c) => c.name).toSet().toList()
+                    : const [],
+              ),
+            ),
+          if (!isUser &&
+              isLatest &&
+              !message.streaming &&
+              onSuggestion != null &&
+              (message.suggestions?.isNotEmpty ?? false))
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 2),
+              child: _FollowUpList(
+                questions: message.suggestions!,
+                onTap: onSuggestion!,
               ),
             ),
           if (isUser && hasContent)
@@ -155,6 +193,48 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 从本条回答调用过的工具结果里抽出「来源」：任意层级里带 http(s) url
+  /// 的对象（资讯条目等）。按 url 去重，最多 20 条。
+  List<_Source> _collectSources() {
+    final out = <_Source>[];
+    final seen = <String>{};
+    void walk(Object? node, int depth) {
+      if (depth > 6 || out.length >= 20) return;
+      if (node is Map) {
+        final url = node['url'] ?? node['link'] ?? node['url_m'] ?? node['url_w'];
+        if (url is String && url.startsWith('http') && seen.add(url)) {
+          final title = node['title'] ?? node['name'] ?? node['digest'];
+          final src = node['source'] ?? node['media'] ?? node['domain'];
+          out.add(_Source(
+            url: url,
+            title: title is String && title.trim().isNotEmpty
+                ? title.trim()
+                : url,
+            source: src is String ? src : null,
+          ));
+        }
+        for (final v in node.values) {
+          walk(v, depth + 1);
+        }
+      } else if (node is List) {
+        for (final v in node) {
+          walk(v, depth + 1);
+        }
+      }
+    }
+
+    for (final c in message.toolCalls ?? const <ToolCall>[]) {
+      final r = _findToolResult(c.id);
+      if (r == null || r.content.isEmpty) continue;
+      try {
+        walk(jsonDecode(r.content), 0);
+      } catch (_) {
+        // 非 JSON 的工具结果没有结构化来源。
+      }
+    }
+    return out;
   }
 
   ChatMessage? _findToolResult(String toolCallId) {
@@ -351,7 +431,23 @@ class _MessageActionsBar extends StatefulWidget {
     required this.timestamp,
     this.question,
     this.showShareActions = true,
+    this.feedback = 0,
+    this.onRegenerate,
+    this.onFeedback,
+    this.sources = const [],
+    this.tools = const [],
   });
+
+  /// 当前反馈：1 赞 / -1 踩 / 0 未评价。
+  final int feedback;
+  final VoidCallback? onRegenerate;
+  final ValueChanged<int>? onFeedback;
+
+  /// 工具结果里抽出的带链接来源。
+  final List<_Source> sources;
+
+  /// 本条回答调用过的工具名（去重）。
+  final List<String> tools;
 
   final String text;
   final DateTime timestamp;
@@ -520,35 +616,321 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
     return '${plain.substring(0, n)}…';
   }
 
+  /// 分享入口收进一个底部面板：长图 / 链接 / 推广文案。
+  Future<void> _openShareSheet() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _promoOption(ctx, '长图分享', Icons.image_outlined, 'image'),
+            _promoOption(ctx, '链接分享', Icons.link, 'link'),
+            _promoOption(ctx, '复制推广文案', Icons.campaign_outlined, 'promo'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'image':
+        await _shareAsImage();
+        break;
+      case 'link':
+        await _shareAsLink();
+        break;
+      case 'promo':
+        await _copyPromoText();
+        break;
+    }
+  }
+
+  void _openSources() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _SourcesSheet(
+        sources: widget.sources,
+        tools: widget.tools,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+    final busy = _sharingLink || _copying;
+    return Row(
       children: [
-        _ActionChip(
-          icon: Icons.copy_outlined,
-          label: '复制',
+        if (widget.onRegenerate != null)
+          _ActionIcon(
+            icon: Icons.refresh_rounded,
+            tooltip: '重新生成',
+            onTap: widget.onRegenerate,
+          ),
+        _ActionIcon(
+          icon: Icons.copy_rounded,
+          tooltip: '复制',
           onTap: () => _copyText(context, widget.text),
         ),
-        // 分享类按钮依赖系统分享面板（share_plus），桌面端隐藏。
-        if (widget.showShareActions) ...[
-          _ActionChip(
-            icon: Icons.ios_share,
-            label: '长图分享',
-            onTap: _shareAsImage,
+        if (widget.onFeedback != null) ...[
+          _ActionIcon(
+            icon: widget.feedback == 1
+                ? Icons.thumb_up_alt_rounded
+                : Icons.thumb_up_alt_outlined,
+            tooltip: '有帮助',
+            active: widget.feedback == 1,
+            onTap: () => widget.onFeedback!(1),
           ),
-          _ActionChip(
-            icon: _sharingLink ? Icons.hourglass_top : Icons.link,
-            label: _sharingLink ? '生成中…' : '链接分享',
-            onTap: _sharingLink ? null : _shareAsLink,
-          ),
-          _ActionChip(
-            icon: _copying ? Icons.hourglass_top : Icons.campaign_outlined,
-            label: _copying ? '生成中…' : '推广文案',
-            onTap: _copying ? null : _copyPromoText,
+          _ActionIcon(
+            icon: widget.feedback == -1
+                ? Icons.thumb_down_alt_rounded
+                : Icons.thumb_down_alt_outlined,
+            tooltip: '没帮助',
+            active: widget.feedback == -1,
+            onTap: () => widget.onFeedback!(-1),
           ),
         ],
+        // 分享类依赖系统分享面板（share_plus），桌面端隐藏。
+        if (widget.showShareActions)
+          _ActionIcon(
+            icon: busy ? Icons.hourglass_top_rounded : Icons.share_outlined,
+            tooltip: '分享',
+            onTap: busy ? null : _openShareSheet,
+          ),
+        const Spacer(),
+        if (widget.sources.isNotEmpty || widget.tools.isNotEmpty)
+          _SourcesChip(
+            count: widget.sources.isNotEmpty
+                ? widget.sources.length
+                : widget.tools.length,
+            withLinks: widget.sources.isNotEmpty,
+            onTap: _openSources,
+          ),
+      ],
+    );
+  }
+}
+
+/// 回答下方的图标按钮（元宝那一排：重新生成 / 复制 / 赞 / 踩 / 分享）。
+class _ActionIcon extends StatelessWidget {
+  const _ActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 20,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Icon(
+            icon,
+            size: 19,
+            color: active ? AppColors.amber : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 右侧「来源」小胶囊：有链接显示「N 个来源」，否则显示用到的数据工具数。
+class _SourcesChip extends StatelessWidget {
+  const _SourcesChip({
+    required this.count,
+    required this.withLinks,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool withLinks;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bgRaised,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(withLinks ? Icons.link_rounded : Icons.storage_rounded,
+                  size: 14, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(
+                withLinks ? '$count 个来源' : '$count 项数据',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 工具结果里抽出的一条来源。
+class _Source {
+  const _Source({required this.url, required this.title, this.source});
+  final String url;
+  final String title;
+  final String? source;
+}
+
+/// 「来源」面板：带链接的资讯条目（点开浏览器）+ 本次用到的数据工具。
+class _SourcesSheet extends StatelessWidget {
+  const _SourcesSheet({required this.sources, required this.tools});
+
+  final List<_Source> sources;
+  final List<String> tools;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.7;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          children: [
+            Text('来源',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            for (final s in sources)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.article_outlined,
+                    size: 18, color: AppColors.amber),
+                title: Text(s.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.textPrimary)),
+                subtitle: Text(
+                  s.source == null || s.source!.isEmpty
+                      ? (Uri.tryParse(s.url)?.host ?? s.url)
+                      : s.source!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+                onTap: () {
+                  final uri = Uri.tryParse(s.url);
+                  if (uri != null) {
+                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+            if (tools.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('本次调用的数据工具',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final t in tools)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgRaised,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(t,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: AppColors.textSecondary)),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 最新回答下方的推荐追问：左对齐的浅底胶囊，宽度跟着文字走，点了直接发送。
+class _FollowUpList extends StatelessWidget {
+  const _FollowUpList({required this.questions, required this.onTap});
+
+  final List<String> questions;
+  final ValueChanged<String> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxW = MediaQuery.of(context).size.width * 0.86;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final q in questions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxW),
+              child: Material(
+                color: AppColors.bgSurface.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => onTap(q),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 9),
+                    child: Text(
+                      q,
+                      style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: AppColors.textPrimary),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

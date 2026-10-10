@@ -16,6 +16,7 @@ import '../core/config/app_config.dart';
 ///   event: tool_call     data: { id, name, arguments }
 ///   event: tool_result   data: { id, name, result }
 ///   event: done          data: { session_id, final_text, tool_calls, credits, balance_after }
+///   event: suggestions   data: { session_id, questions: [..] }   （可选，仅 want_suggestions=true 时，在 done 之后）
 ///   event: error         data: { code, message }
 class AiChatService {
   AiChatService();
@@ -32,6 +33,7 @@ class AiChatService {
     String? systemHint,
     Map<String, dynamic>? portfolioContext,
     List<String>? images,
+    bool wantSuggestions = false,
   }) async* {
     final cfg = AppConfig.instance;
     // SSE 走裸 http 绕过了 dio 拦截器，必须在这里主动续签：
@@ -55,6 +57,8 @@ class AiChatService {
         'portfolio_context': portfolioContext,
       // 多模态：本轮附带的图片 data URL 数组（服务端转成 content 片段）。
       if (images != null && images.isNotEmpty) 'images': images,
+      // 回答结束后让服务端追加一条 suggestions 事件（推荐追问，不额外扣费）。
+      if (wantSuggestions) 'want_suggestions': true,
       'message': message,
     };
 
@@ -129,6 +133,27 @@ class AiChatService {
     }
   }
 
+  /// 记录 / 取消对一条回答的反馈：rating 1 = 赞，-1 = 踩，0 = 取消。
+  ///
+  /// 服务端契约：POST /v1/ai/feedback
+  ///   { session_id?, message_id, rating, question?, answer? } -> { ok }
+  Future<void> sendFeedback({
+    String? serverSessionId,
+    required String messageId,
+    required int rating,
+    String? question,
+    String? answer,
+  }) async {
+    await ApiClient.instance.dio.post('/v1/ai/feedback', data: {
+      if (serverSessionId != null && serverSessionId.isNotEmpty)
+        'session_id': serverSessionId,
+      'message_id': messageId,
+      'rating': rating,
+      if (question != null && question.isNotEmpty) 'question': question,
+      if (answer != null && answer.isNotEmpty) 'answer': answer,
+    });
+  }
+
   AiChatEvent? _parse(String name, String raw) {
     Map<String, dynamic> data;
     try {
@@ -172,6 +197,18 @@ class AiChatService {
           credits: (data['credits'] as num?)?.toInt(),
           balanceAfter: (data['balance_after'] as num?)?.toInt(),
         );
+      case 'suggestions':
+        final qs = (data['questions'] as List?)
+                ?.whereType<String>()
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList() ??
+            const <String>[];
+        return AiChatEvent(
+          kind: AiChatEventKind.suggestions,
+          sessionId: data['session_id'] as String?,
+          suggestions: qs,
+        );
       case 'error':
         return AiChatEvent(
           kind: AiChatEventKind.error,
@@ -186,7 +223,15 @@ class AiChatService {
   }
 }
 
-enum AiChatEventKind { session, textDelta, toolCall, toolResult, done, error }
+enum AiChatEventKind {
+  session,
+  textDelta,
+  toolCall,
+  toolResult,
+  done,
+  suggestions,
+  error,
+}
 
 class AiChatEvent {
   AiChatEvent({
@@ -205,6 +250,7 @@ class AiChatEvent {
     this.balanceAfter,
     this.errorCode,
     this.errorMessage,
+    this.suggestions,
   });
 
   factory AiChatEvent.error(String code, String message) => AiChatEvent(
@@ -233,4 +279,7 @@ class AiChatEvent {
 
   final String? errorCode;
   final String? errorMessage;
+
+  /// suggestions 事件：推荐追问。
+  final List<String>? suggestions;
 }

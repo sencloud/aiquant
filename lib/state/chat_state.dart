@@ -28,6 +28,20 @@ class ChatState extends ChangeNotifier {
 
   StreamSubscription<AiChatEvent>? _activeStream;
 
+  /// 每次发送递增；旧流的收尾逻辑据此判断自己是否已被新一轮取代。
+  /// （回答 done 之后流还会多开几秒等推荐追问，期间用户可以直接发下一条。）
+  int _sendSeq = 0;
+
+  /// 当前流对应的完成信号：取消订阅不会触发 onDone，主动取消时要手动结束它，
+  /// 否则 sendMessage 的 Future 永远不返回。
+  Completer<void>? _activeCompleter;
+
+  void _completeActive() {
+    final c = _activeCompleter;
+    _activeCompleter = null;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
   List<ChatSession> _sessions = const [];
   String? _activeId;
   bool _streaming = false;
@@ -137,7 +151,9 @@ class ChatState extends ChangeNotifier {
   }
 
   Future<void> abort() async {
+    _sendSeq++;
     await _activeStream?.cancel();
+    _completeActive();
     _activeStream = null;
     _streaming = false;
     notifyListeners();
@@ -189,6 +205,15 @@ class ChatState extends ChangeNotifier {
     // 允许「只发图不发文」。
     if ((text.trim().isEmpty && images.isEmpty) || _streaming) return;
 
+    // 上一轮回答已 done、流还在等推荐追问：直接放弃那条追问，开始新一轮。
+    final lingering = _activeStream;
+    if (lingering != null) {
+      _activeStream = null;
+      await lingering.cancel();
+      _completeActive();
+    }
+    final seq = ++_sendSeq;
+
     final hasPortfolio =
         portfolioContext != null && portfolioContext.isNotEmpty;
     final userMsg = ChatMessage(
@@ -220,6 +245,7 @@ class ChatState extends ChangeNotifier {
     // chat.Service 会把它拼到默认 system 之后作为"额外指令"。
     final persona = Personas.byId(session.personaId);
     final completer = Completer<void>();
+    _activeCompleter = completer;
     _activeStream = _svc
         .stream(
       serverSessionId: _serverIdMap[session.id],
@@ -230,8 +256,11 @@ class ChatState extends ChangeNotifier {
       systemHint: persona.systemPrompt,
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
+      wantSuggestions: true,
     )
         .listen((ev) async {
+      // 已被新一轮发送 / 中止取代的旧流：丢弃后续事件。
+      if (seq != _sendSeq) return;
       switch (ev.kind) {
         case AiChatEventKind.session:
           if (ev.sessionId != null) {
@@ -274,6 +303,20 @@ class ChatState extends ChangeNotifier {
           break;
         case AiChatEventKind.done:
           if (ev.balanceAfter != null) _lastBalance = ev.balanceAfter;
+          // 回答已经完整：立刻结束「输出中」状态（操作栏出现、可以继续发），
+          // 流本身再多开几秒等可选的 suggestions 事件。
+          _finishTurn(session, assistant);
+          _streaming = false;
+          // ignore: unawaited_futures
+          session.save();
+          break;
+        case AiChatEventKind.suggestions:
+          final qs = ev.suggestions ?? const <String>[];
+          if (qs.isNotEmpty) {
+            assistant.suggestions = qs.take(3).toList();
+            // ignore: unawaited_futures
+            session.save();
+          }
           break;
         case AiChatEventKind.error:
           final code = ev.errorCode ?? '';
@@ -302,20 +345,99 @@ class ChatState extends ChangeNotifier {
     try {
       await completer.future;
     } finally {
-      assistant.streaming = false;
-      // 关闭仍 streaming 的 tool 占位
-      for (final m in session.messages) {
-        if (m.role == 'tool' && m.streaming) {
-          m.streaming = false;
-          if (m.content.isEmpty) m.content = '(无返回)';
-        }
+      _finishTurn(session, assistant);
+      // 只有仍是当前这一轮时才清理全局状态；已被新一轮取代则不动。
+      if (seq == _sendSeq) {
+        _streaming = false;
+        _activeStream = null;
       }
-      _streaming = false;
-      _activeStream = null;
       session.updatedAt = DateTime.now();
       await session.save();
       notifyListeners();
     }
+  }
+
+  /// 收尾一轮回答：结束 assistant 的 streaming、关闭仍在等待的 tool 占位。
+  void _finishTurn(ChatSession session, ChatMessage assistant) {
+    assistant.streaming = false;
+    for (final m in session.messages) {
+      if (m.role == 'tool' && m.streaming) {
+        m.streaming = false;
+        if (m.content.isEmpty) m.content = '(无返回)';
+      }
+    }
+  }
+
+  /// 当前会话里最后一条 assistant 回答（推荐追问 / 重新生成只作用于它）。
+  ChatMessage? get latestAssistant {
+    final list = active?.messages ?? const <ChatMessage>[];
+    for (final m in list.reversed) {
+      if (m.role == 'assistant') return m;
+      if (m.role == 'user') return null;
+    }
+    return null;
+  }
+
+  /// 重新生成最新一条回答：撤掉这轮的 user / assistant / tool 消息，
+  /// 用同样的提问（含图片）再问一次。会按正常对话扣费。
+  Future<void> regenerate(ChatMessage assistant) async {
+    final session = active;
+    if (session == null || _streaming) return;
+    final idx = session.messages.indexOf(assistant);
+    if (idx < 0) return;
+    var userIdx = -1;
+    for (var i = idx - 1; i >= 0; i--) {
+      if (session.messages[i].role == 'user') {
+        userIdx = i;
+        break;
+      }
+    }
+    if (userIdx < 0) return;
+    final user = session.messages[userIdx];
+    final text = user.content;
+    final images = user.imageDataUrls;
+    session.messages.removeRange(userIdx, session.messages.length);
+    notifyListeners();
+    await sendMessage(text, imageDataUrls: images);
+  }
+
+  /// 点赞 / 点踩（再点一次同样的取消）。本地立即生效，服务端尽力记录。
+  Future<void> setFeedback(ChatMessage assistant, int rating) async {
+    final session = active;
+    final next = assistant.feedback == rating ? 0 : rating;
+    assistant.feedback = next;
+    notifyListeners();
+    if (session != null) await session.save();
+    String? question;
+    if (session != null) {
+      final idx = session.messages.indexOf(assistant);
+      for (var i = idx - 1; i >= 0; i--) {
+        final m = session.messages[i];
+        if (m.role == 'user') {
+          question = m.content;
+          break;
+        }
+      }
+    }
+    try {
+      await _svc.sendFeedback(
+        serverSessionId: session == null ? null : _serverIdMap[session.id],
+        messageId: assistant.id,
+        rating: next,
+        question: question,
+        answer: assistant.content,
+      );
+    } catch (_) {
+      // 反馈只是参考数据：网络失败不打扰用户，本地状态保留。
+    }
+  }
+
+  /// 仅供测试 / 截图：直接注入会话，不经过 Hive。
+  @visibleForTesting
+  void debugSeed(List<ChatSession> sessions, {String? activeId}) {
+    _sessions = sessions;
+    _activeId = activeId ?? (sessions.isEmpty ? null : sessions.first.id);
+    notifyListeners();
   }
 
   String _summarizeForTitle(String text) {
