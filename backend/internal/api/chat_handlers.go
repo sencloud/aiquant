@@ -68,6 +68,50 @@ func normalizeChatImages(in []string) ([]string, error) {
 // mountAIChat 挂载 /v1/ai/* 路由（受 JWT 保护）。
 func mountAIChat(r chi.Router, d *Deps) {
 	r.Post("/ai/chat", handleAIChatStream(d))
+	r.Post("/ai/feedback", handleAIChatFeedback(d))
+}
+
+// handleAIChatFeedback 记录用户对一条回答的点赞 / 点踩（rating: 1 / -1 / 0=取消）。
+//
+// 请求体：{ session_id?, message_id, rating, question?, answer? }
+// 响应：{ ok: true }
+func handleAIChatFeedback(d *Deps) http.HandlerFunc {
+	type reqBody struct {
+		SessionID string `json:"session_id"`
+		MessageID string `json:"message_id"`
+		Rating    int    `json:"rating"`
+		Question  string `json:"question"`
+		Answer    string `json:"answer"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		uc := MustUser(r)
+		if d.Chat == nil {
+			WriteError(w, r, platform.ErrUnavailable("AI.NOT_CONFIGURED", errors.New("ai chat not configured")))
+			return
+		}
+		var body reqBody
+		if err := DecodeJSON(r, &body); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		err := d.Chat.SaveFeedback(r.Context(), chat.Feedback{
+			UserID:      uc.UserID,
+			SessionUUID: body.SessionID,
+			MessageID:   body.MessageID,
+			Rating:      body.Rating,
+			Question:    body.Question,
+			Answer:      body.Answer,
+		})
+		if errors.Is(err, chat.ErrBadFeedback) {
+			WriteError(w, r, platform.ErrBadRequest("AI.FEEDBACK_INVALID", "反馈参数不合法", err))
+			return
+		}
+		if err != nil {
+			WriteError(w, r, platform.ErrInternal("AI.FEEDBACK", err))
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
 }
 
 // handleAIChatStream 是 AI 助理的 SSE 入口。
@@ -96,6 +140,9 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		PortfolioContext *chat.PortfolioContext `json:"portfolio_context,omitempty"`
 		// Images 是本轮用户消息附带的图片（data:image/...;base64,...）。
 		Images []string `json:"images,omitempty"`
+		// WantSuggestions 为 true 时 done 之后追加一条 `suggestions` 事件
+		// （推荐追问）。新版 App 才会传；旧版不传则协议完全不变。
+		WantSuggestions bool `json:"want_suggestions,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		uc := MustUser(r)
@@ -201,6 +248,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			SystemHint:       body.SystemHint,
 			PortfolioContext: body.PortfolioContext,
 			Images:           images,
+			WantSuggestions:  body.WantSuggestions,
 		}, emit)
 		close(stopHeartbeat)
 	}
