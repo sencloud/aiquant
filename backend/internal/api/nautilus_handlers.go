@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/predict"
 	"github.com/sencloud/finme-backend/internal/shell"
@@ -32,8 +31,9 @@ func mountNautilus(r chi.Router, d *Deps) {
 	r.Get("/nautilus/markets/{id}/my-bets", handleNautilusMyMarketBets(d))
 	r.Get("/nautilus/shells", handleNautilusShells(d))
 	r.Get("/nautilus/bets", handleNautilusMyBets(d))
-	r.Get("/nautilus/invite", handleNautilusInviteInfo(d))
-	r.Post("/nautilus/invite/redeem", handleNautilusInviteRedeem(d))
+	// 旧路径保留给老版本客户端；奖励已改为喜点，与 /v1/invite 同一实现。
+	r.Get("/nautilus/invite", handleInviteInfo(d))
+	r.Post("/nautilus/invite/redeem", handleInviteRedeem(d))
 }
 
 // mountNautilusAdmin 管理端：建市场 / 录结果 / 取消。
@@ -145,6 +145,9 @@ func handleNautilusBet(d *Deps) http.HandlerFunc {
 			case errors.Is(err, predict.ErrBetTooSmall):
 				WriteError(w, r, platform.ErrBadRequest("NAUTILUS.BET_TOO_SMALL",
 					"单笔下注不能低于 "+strconv.FormatInt(d.Predict.MinBet(), 10)+" 螺壳", nil))
+			case errors.Is(err, shell.ErrFrozen):
+				WriteError(w, r, platform.ErrConflict("NAUTILUS.SHELLS_FROZEN",
+					"螺壳已冻结：余额保留，暂停下注"))
 			case errors.Is(err, shell.ErrInsufficient):
 				WriteError(w, r, platform.ErrPaymentRequired("NAUTILUS.INSUFFICIENT_SHELLS",
 					"螺壳不足，邀请好友可获得更多螺壳"))
@@ -221,54 +224,6 @@ func handleNautilusMyBets(d *Deps) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{"items": items})
-	}
-}
-
-// GET /v1/nautilus/invite
-func handleNautilusInviteInfo(d *Deps) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		uc := MustUser(r)
-		info, err := d.Invite.GetInfo(r.Context(), uc.UserID)
-		if err != nil {
-			WriteError(w, r, platform.ErrInternal("NAUTILUS.INVITE_INFO", err))
-			return
-		}
-		WriteJSON(w, http.StatusOK, info)
-	}
-}
-
-// POST /v1/nautilus/invite/redeem {code}
-func handleNautilusInviteRedeem(d *Deps) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		uc := MustUser(r)
-		var body struct {
-			Code string `json:"code"`
-		}
-		if err := DecodeJSON(r, &body); err != nil {
-			WriteError(w, r, err)
-			return
-		}
-		info, err := d.Invite.Redeem(r.Context(), uc.UserID, body.Code)
-		if err != nil {
-			switch {
-			case errors.Is(err, invite.ErrCodeNotFound):
-				WriteError(w, r, platform.ErrNotFound("NAUTILUS.INVITE_CODE_NOT_FOUND", "邀请码不存在"))
-			case errors.Is(err, invite.ErrSelfInvite):
-				WriteError(w, r, platform.ErrBadRequest("NAUTILUS.INVITE_SELF", "不能填写自己的邀请码", nil))
-			case errors.Is(err, invite.ErrAlreadyRedeemed):
-				WriteError(w, r, platform.ErrConflict("NAUTILUS.INVITE_REDEEMED", "你已经兑换过邀请码了"))
-			case errors.Is(err, invite.ErrNotNewUser):
-				WriteError(w, r, platform.ErrConflict("NAUTILUS.INVITE_NOT_NEW", "邀请码仅限新用户注册 72 小时内填写"))
-			default:
-				WriteError(w, r, platform.ErrInternal("NAUTILUS.INVITE_REDEEM", err))
-			}
-			return
-		}
-		balance, _ := d.Shell.Balance(r.Context(), uc.UserID)
-		WriteJSON(w, http.StatusOK, map[string]any{
-			"info":    info,
-			"balance": balance,
-		})
 	}
 }
 

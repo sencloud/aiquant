@@ -25,6 +25,12 @@ const (
 	ReasonConsumeDing = "consume_ding"   // DING 任务消费
 	ReasonConsumeLive = "consume_live"   // 直播间消费(创建房间 / 观众发言)
 	ReasonDevTopup    = "dev_topup"      // dev 模式直充（仅 env=dev 启用）
+
+	// MVP 付费闭环（证伪档案）。
+	ReasonGrantInvite    = "grant_invite"    // 邀请奖励：邀请人 / 被邀请人各一条（ref_type 区分方向）
+	ReasonConsumeUnlock  = "consume_unlock"  // 解锁一条证伪档案详情
+	ReasonConsumeFalsify = "consume_falsify" // 跑一次证伪
+	ReasonRefundFalsify  = "refund_falsify"  // 跑一次证伪失败退款
 )
 
 // LedgerEntry 是账本一行（不可变，单向追加）。
@@ -115,51 +121,64 @@ func (r *LedgerRepo) Apply(ctx context.Context, in ApplyParams) (*LedgerEntry, e
 
 	var entry *LedgerEntry
 	err := r.st.Tx(ctx, func(tx *sqlx.Tx) error {
-		var balance int64
-		if err := tx.GetContext(ctx, &balance,
-			"SELECT credit_balance FROM users WHERE id=?", in.UserID); err != nil {
-			return fmt.Errorf("read balance: %w", err)
-		}
-		newBalance := balance + in.Delta
-		if newBalance < 0 && !in.AllowNegative {
-			return ErrInsufficientBalance
-		}
-		now := time.Now().UnixMilli()
-		res, err := tx.ExecContext(ctx, `
-			INSERT INTO credit_ledger(user_id, delta, balance_after, reason, ref_type, ref_id, remark, created_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.UserID, in.Delta, newBalance, in.Reason,
-			nullStr(in.RefType), nullStr(in.RefID), nullStr(in.Remark), now,
-		)
-		if err != nil {
-			if isUniqueViolation(err) {
-				return ErrLedgerDuplicate
-			}
-			return fmt.Errorf("insert ledger: %w", err)
-		}
-		id, _ := res.LastInsertId()
-		if _, err := tx.ExecContext(ctx,
-			"UPDATE users SET credit_balance=?, updated_at=? WHERE id=?",
-			newBalance, now, in.UserID); err != nil {
-			return fmt.Errorf("update balance: %w", err)
-		}
-		entry = &LedgerEntry{
-			ID:           id,
-			UserID:       in.UserID,
-			Delta:        in.Delta,
-			BalanceAfter: newBalance,
-			Reason:       in.Reason,
-			RefType:      nullStr(in.RefType),
-			RefID:        nullStr(in.RefID),
-			Remark:       nullStr(in.Remark),
-			CreatedAt:    now,
-		}
-		return nil
+		var err error
+		entry, err = ApplyTx(ctx, tx, in)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return entry, nil
+}
+
+// ApplyTx 在调用方已开启的事务里写一笔账（与业务表同事务提交）。
+// 约束与 Apply 相同；唯一索引冲突返回 ErrLedgerDuplicate。
+func ApplyTx(ctx context.Context, tx *sqlx.Tx, in ApplyParams) (*LedgerEntry, error) {
+	if in.Delta == 0 {
+		return nil, errors.New("ledger delta must be non-zero")
+	}
+	if in.Reason == "" {
+		return nil, errors.New("ledger reason required")
+	}
+	var balance int64
+	if err := tx.GetContext(ctx, &balance,
+		"SELECT credit_balance FROM users WHERE id=?", in.UserID); err != nil {
+		return nil, fmt.Errorf("read balance: %w", err)
+	}
+	newBalance := balance + in.Delta
+	if newBalance < 0 && !in.AllowNegative {
+		return nil, ErrInsufficientBalance
+	}
+	now := time.Now().UnixMilli()
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO credit_ledger(user_id, delta, balance_after, reason, ref_type, ref_id, remark, created_at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.UserID, in.Delta, newBalance, in.Reason,
+		nullStr(in.RefType), nullStr(in.RefID), nullStr(in.Remark), now,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrLedgerDuplicate
+		}
+		return nil, fmt.Errorf("insert ledger: %w", err)
+	}
+	id, _ := res.LastInsertId()
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE users SET credit_balance=?, updated_at=? WHERE id=?",
+		newBalance, now, in.UserID); err != nil {
+		return nil, fmt.Errorf("update balance: %w", err)
+	}
+	return &LedgerEntry{
+		ID:           id,
+		UserID:       in.UserID,
+		Delta:        in.Delta,
+		BalanceAfter: newBalance,
+		Reason:       in.Reason,
+		RefType:      nullStr(in.RefType),
+		RefID:        nullStr(in.RefID),
+		Remark:       nullStr(in.Remark),
+		CreatedAt:    now,
+	}, nil
 }
 
 // FindByRef 用于幂等场景：当 Apply 命中 ErrLedgerDuplicate 时，调用方查回原本入账记录。
