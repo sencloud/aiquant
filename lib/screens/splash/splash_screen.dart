@@ -1,34 +1,50 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../services/analytics.dart';
+import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 
 /// 开屏页。
 ///
-/// 存在的理由有两层：一是给冷启动一个体面的门面，二是**把初始化停顿显性
-/// 化** —— 至少停 1 秒（[minDuration]），让登录态校验、Hive 打开、网络预热
-/// 这些必须在首屏之前完成的事有个交代，而不是先闪一帧半成品页面再跳走。
+/// 它做两件事：
+///   1. 给冷启动一个体面的门面 —— 至少停 [minDuration]（默认 2 秒）；
+///   2. **等登录态校验真的结束**。
 ///
-/// 这一秒不是死等：底部那行状态文字按阶段推进，用户看到的是「正在发生什么」。
+/// 第二件事是这个页面存在的一半理由。`AuthState` 是懒创建的：谁先读它，它才
+/// 开始 `bootstrap()`。开屏如果不读不等，等开屏结束、`AuthGate` 拿到手时
+/// bootstrapping 还是 true，就会退回它自己的「还没就绪」占位屏 —— 也就是用户
+/// 看到的那个「第二个空标题页」。所以这里既读它（触发 bootstrap），也等它。
+///
+/// 停顿不是死等：底部状态文字按阶段推进；网络差到超过 [maxWait] 就直接进 App，
+/// 不拿开屏锁人。
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.onDone,
     this.minDuration = _defaultMinDuration,
+    this.maxWait = _defaultMaxWait,
   });
 
-  /// 默认停顿 1 秒。仅设计走查时用 `--dart-define=SPLASH_MS=4000` 拉长，
-  /// 好把这一屏截清楚；正常构建不要动它。
+  /// 默认停 2 秒。设计走查可用 `--dart-define=SPLASH_MS=100` 缩短，
+  /// 正常构建不要动它。
   static const _defaultMinDuration = Duration(
-      milliseconds: int.fromEnvironment('SPLASH_MS', defaultValue: 1000));
+      milliseconds: int.fromEnvironment('SPLASH_MS', defaultValue: 2000));
+
+  /// 硬上限：登录态校验拖太久（网络差时 `/me` 最长能等 30 秒）也不锁人。
+  static const _defaultMaxWait = Duration(
+      milliseconds: int.fromEnvironment('SPLASH_MAX_MS', defaultValue: 4500));
 
   /// 停顿结束后的回调。
   final VoidCallback onDone;
 
   /// 最短停留时间。低于这个时长也要等满。
   final Duration minDuration;
+
+  /// 最长停留时间。到点无论如何进 App。
+  final Duration maxWait;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -47,17 +63,23 @@ class _SplashScreenState extends State<SplashScreen>
     '正在预热行情连接…',
   ];
   int _step = 0;
-  Timer? _timer;
+  Timer? _tick;
+  Timer? _ceiling;
+
+  /// 最短停留是否已经走满。
+  bool _minElapsed = false;
+  bool _finished = false;
+  AuthState? _auth;
+  late final DateTime _started = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    final started = DateTime.now();
     Analytics.instance.track(Analytics.evAppOpen);
 
-    // 状态文字按三等份推进，读完刚好一秒。
+    // 状态文字在最短停留内推进完；之后如果还在等登录态，会换成「网络有点慢」。
     final tick = widget.minDuration.inMilliseconds ~/ _steps.length;
-    _timer = Timer.periodic(Duration(milliseconds: tick), (t) {
+    _tick = Timer.periodic(Duration(milliseconds: tick), (t) {
       if (!mounted) return t.cancel();
       if (_step < _steps.length - 1) {
         setState(() => _step++);
@@ -68,23 +90,58 @@ class _SplashScreenState extends State<SplashScreen>
 
     Timer(widget.minDuration, () {
       if (!mounted) return;
-      Analytics.instance.track(Analytics.evSplashDone, {
-        'ms': DateTime.now().difference(started).inMilliseconds,
-      });
-      widget.onDone();
+      setState(() => _minElapsed = true);
+      _maybeFinish();
     });
+
+    // 兜底：超过上限直接进 App。
+    _ceiling = Timer(widget.maxWait, _finish);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 读一次即触发 AuthState.bootstrap()（provider 是懒创建的）。
+    final auth = context.read<AuthState>();
+    if (!identical(auth, _auth)) {
+      _auth?.removeListener(_maybeFinish);
+      _auth = auth..addListener(_maybeFinish);
+    }
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _tick?.cancel();
+    _ceiling?.cancel();
+    _auth?.removeListener(_maybeFinish);
     _c.dispose();
     super.dispose();
+  }
+
+  /// 两个条件都满足才收工：停够时间 + 登录态校验结束。
+  void _maybeFinish() {
+    if (_finished || !mounted || !_minElapsed) return;
+    if (_auth?.bootstrapping ?? false) return;
+    _finish();
+  }
+
+  void _finish() {
+    if (_finished || !mounted) return;
+    _finished = true;
+    Analytics.instance.track(Analytics.evSplashDone, {
+      'ms': DateTime.now().difference(_started).inMilliseconds,
+      'waited_for_auth': _auth?.bootstrapping ?? false,
+    });
+    widget.onDone();
   }
 
   @override
   Widget build(BuildContext context) {
     final ease = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+    // 时间走满了还在等，说明真的是网络慢 —— 如实说，别让它看着像卡住。
+    final waiting = _minElapsed && (_auth?.bootstrapping ?? false);
+    final status = waiting ? '网络有点慢，马上就好…' : _steps[_step];
+
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       // SizedBox.expand 不能省：body 给下来的是宽松约束，Column 会收缩到最宽
@@ -144,10 +201,9 @@ class _SplashScreenState extends State<SplashScreen>
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 240),
                   child: Text(
-                    _steps[_step],
-                    key: ValueKey(_step),
-                    style:
-                        AppType.micro.copyWith(color: AppColors.textTertiary),
+                    status,
+                    key: ValueKey(status),
+                    style: AppType.micro.copyWith(color: AppColors.textTertiary),
                   ),
                 ),
               ),

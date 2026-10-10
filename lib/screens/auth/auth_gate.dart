@@ -40,7 +40,14 @@ class _AuthGateState extends State<AuthGate> {
 
     // bootstrap 期间不要触发任何 chat/inbox 的 reset/bootstrap，
     // 否则首次冷启动会把 Hive 里上次的会话清掉（#3）。
-    if (auth.bootstrapping) return const _SplashScreen();
+    //
+    // 正常情况下这里根本不会出现：开屏页会等到登录态就绪才放行。它只是
+    // 兜底 —— 所以刻意什么都不画（只留纸色底），绝不再摆一屏「喜爱」标题，
+    // 那会变成用户看到的「第二个开屏 / 空标题页」。
+    if (auth.bootstrapping) {
+      // bgBase 是运行时字段，这里不能 const。
+      return Scaffold(backgroundColor: AppColors.bgBase);
+    }
 
     final isAuthed = auth.isAuthenticated;
 
@@ -77,21 +84,3 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
-class _SplashScreen extends StatelessWidget {
-  const _SplashScreen();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgBase,
-      body: Center(
-        // 开屏页刚过去，这里保持同一套题字，视觉上是一段连续的启动过程，
-        // 而不是「开屏 → 又一个转圈页」。
-        child: Text('喜爱',
-            style: AppType.display.copyWith(
-                fontSize: 40,
-                letterSpacing: 6,
-                color: AppColors.textPrimary)),
-      ),
-    );
-  }
-}
