@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -84,6 +85,27 @@ var ErrDuplicate = errors.New("shell ledger entry duplicate")
 var ErrInsufficient = errors.New("insufficient shell balance")
 
 // Repo 提供账本 + 余额一致写入。
+// ErrFrozen 螺壳已冻结：停止赚取与消耗（余额只读保留）。
+var ErrFrozen = errors.New("shells are frozen")
+
+// frozen 是进程级开关（config nautilus.shells_frozen，启动时 SetFrozen）。
+var frozen atomic.Bool
+
+// frozenReasons 冻结期间拒绝的流水类型：所有「赚取」与「新下注」。
+// 已下注的派彩 / 退款、后台调账不受影响，避免吞掉用户押出去的螺壳。
+var frozenReasons = map[string]bool{
+	ReasonSignupGift:   true,
+	ReasonInviteReward: true,
+	ReasonBetStake:     true,
+	ReasonBotFunding:   true,
+}
+
+// SetFrozen 设置螺壳冻结开关。
+func SetFrozen(v bool) { frozen.Store(v) }
+
+// Frozen 返回当前是否冻结。
+func Frozen() bool { return frozen.Load() }
+
 type Repo struct {
 	st *store.Store
 }
@@ -109,6 +131,9 @@ func (r *Repo) Apply(ctx context.Context, in ApplyParams) (*Entry, error) {
 // 结算等多笔联动场景必须共用一个事务保证原子性，所以把核心逻辑
 // 提出来供事务内复用；Apply 只是 st.Tx 的薄封装。
 func ApplyTx(ctx context.Context, tx *sqlx.Tx, in ApplyParams) (*Entry, error) {
+	if frozen.Load() && frozenReasons[in.Reason] {
+		return nil, ErrFrozen
+	}
 	if in.Delta == 0 {
 		return nil, errors.New("shell delta must be non-zero")
 	}

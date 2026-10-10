@@ -37,6 +37,33 @@ type Config struct {
 	Nautilus  NautilusConfig  `toml:"nautilus"`
 	Strategy  StrategyConfig  `toml:"strategy"`
 	Ingest    IngestConfig    `toml:"ingest"`
+	// AlphaRadar 证伪档案的上游（alpha-radar 的只读导出接口）。
+	AlphaRadar AlphaRadarConfig `toml:"alpharadar"`
+	// Credits 喜点的赠送与定价（MVP 付费闭环）。
+	Credits CreditsConfig `toml:"credits"`
+}
+
+// AlphaRadarConfig 证伪档案的上游来源。
+//
+// api 进程只读库里的最新一份（没有就用内置 seed）；scheduler 进程按
+// SyncMinutes 定时拉 `{URL}/api/falsification` 落库。URL 为空时只用 seed。
+type AlphaRadarConfig struct {
+	Enabled     bool   `toml:"enabled"`
+	URL         string `toml:"url"`
+	SyncMinutes int    `toml:"sync_minutes"`
+	// APIKey 预留给 alpha-radar 的「跑一次证伪」任务接口（X-Api-Key）。
+	APIKey string `toml:"api_key"`
+	// RunEnabled 为 false 时「跑一次证伪」走 stub：只登记、不扣费、返回 unsupported。
+	RunEnabled bool `toml:"run_enabled"`
+}
+
+// CreditsConfig 喜点赠送与价格。全部整数喜点。
+type CreditsConfig struct {
+	SignupGift    int64 `toml:"signup_gift"`     // 首次登录赠送
+	InviteReward  int64 `toml:"invite_reward"`   // 邀请：邀请人 / 被邀请人各得
+	UnlockEntry   int64 `toml:"unlock_entry"`    // 解锁一条证伪档案详情
+	FalsifyDaily  int64 `toml:"falsify_daily"`   // 跑一次证伪：日线
+	FalsifyMinute int64 `toml:"falsify_minute"`  // 跑一次证伪：分钟线
 }
 
 // IngestConfig 是「本机行情采集端」的推送鉴权与新鲜度设置。
@@ -65,6 +92,9 @@ type NautilusConfig struct {
 	SignupShells       int64  `toml:"signup_shells"`        // 新用户赠送螺壳
 	InviteRewardShells int64  `toml:"invite_reward_shells"` // 邀请双方各得
 	MinBet             int64  `toml:"min_bet"`              // 单笔最低下注
+	// ShellsFrozen 螺壳冻结：余额只读保留，停止一切赚取（注册 / 邀请 / 机器人）
+	// 和消耗（下注）。已下注的结算 / 退款照常，避免吞掉用户押出去的螺壳。
+	ShellsFrozen bool `toml:"shells_frozen"`
 
 	// Bot 自动下注：独立虚拟账号与真人同池瓜分，螺壳由平台兜底供给。
 	BotEnabled    bool  `toml:"bot_enabled"`
@@ -370,6 +400,7 @@ func defaultConfig() *Config {
 			SignupShells:       100,
 			InviteRewardShells: 50,
 			MinBet:             10,
+			ShellsFrozen:       true,
 			BotEnabled:         true,
 			BotCount:           12,
 			BotMinBet:          20,
@@ -387,6 +418,17 @@ func defaultConfig() *Config {
 		},
 		Ingest: IngestConfig{
 			MaxAgeSec: 120,
+		},
+		AlphaRadar: AlphaRadarConfig{
+			Enabled:     true,
+			SyncMinutes: 30,
+		},
+		Credits: CreditsConfig{
+			SignupGift:    60,
+			InviteReward:  100,
+			UnlockEntry:   5,
+			FalsifyDaily:  10,
+			FalsifyMinute: 30,
 		},
 	}
 }
@@ -563,6 +605,21 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_STRATEGY__BASE_URL"); v != "" {
 		c.Strategy.BaseURL = v
+	}
+	if v := os.Getenv("FINME_NAUTILUS__SHELLS_FROZEN"); v != "" {
+		c.Nautilus.ShellsFrozen = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__ENABLED"); v != "" {
+		c.AlphaRadar.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__URL"); v != "" {
+		c.AlphaRadar.URL = v
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__API_KEY"); v != "" {
+		c.AlphaRadar.APIKey = v
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__RUN_ENABLED"); v != "" {
+		c.AlphaRadar.RunEnabled = v == "1" || strings.EqualFold(v, "true")
 	}
 	if v := os.Getenv("FINME_INGEST__KEY"); v != "" {
 		c.Ingest.Key = v

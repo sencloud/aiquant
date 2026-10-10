@@ -19,6 +19,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/falsification"
 	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
@@ -54,6 +55,8 @@ type Deps struct {
 	Brief *brief.Service
 	// Strategy 主策略快照（由 scheduler 定时从外部策略站抓取）。
 	Strategy *strategy.Service
+	// Falsification 证伪档案（公开读取 + 解锁 + 跑一次证伪）。
+	Falsification *falsification.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
 }
@@ -114,6 +117,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountIngest(r, d)
 			// 首页内容（今天想聊点什么）公开：无用户数据，未登录也能看。
 			mountAIHomePublic(r, d)
+			// 证伪档案公开：获客内容，免登录（不含 report_url，付费字段按解锁状态下发）。
+			mountFalsificationPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -126,6 +131,8 @@ func NewRouter(d *Deps) http.Handler {
 				mountAIShare(r, d)
 				mountNautilus(r, d)
 				mountStrategy(r, d)
+				mountInvite(r, d)
+				mountFalsificationPrivate(r, d)
 			})
 		})
 	})
