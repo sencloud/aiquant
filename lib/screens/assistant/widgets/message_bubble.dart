@@ -6,7 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/utils/image_data_url.dart';
 import '../../../models/chat.dart';
-import '../../../services/nautilus_service.dart';
+import '../../../services/invite_service.dart';
 import '../../../services/share_service.dart';
 import '../../../state/chat_state.dart';
 import '../../../theme/app_theme.dart';
@@ -373,7 +373,8 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
   /// 尽力取当前用户邀请码（未登录/异常返回空，不阻塞分享）。
   Future<String> _fetchInviteCode() async {
     try {
-      final info = await NautilusService().inviteInfo();
+      // 邀请已独立于鹦鹉螺（奖励改为喜点），走 /v1/invite。
+      final info = await InviteService().info();
       return info.code;
     } catch (_) {
       return '';

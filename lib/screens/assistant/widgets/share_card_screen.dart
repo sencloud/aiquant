@@ -475,7 +475,7 @@ class _ShareCard extends StatelessWidget {
 
 /// 卡片底部的「品牌 + 下载二维码 + 邀请码」页脚，微信长图与小红书竖版共用。
 ///
-/// 二维码指向下载落地页(带邀请码)，扫码下载后填码双方得螺壳，
+/// 二维码指向下载落地页(带邀请码)，扫码下载后填码双方各得 100 喜点，
 /// 把分享流量沉淀为带归因的拉新。
 class _BrandQrFooter extends StatelessWidget {
   const _BrandQrFooter({required this.inviteCode, required this.channel});
@@ -547,7 +547,7 @@ class _BrandQrFooter extends StatelessWidget {
                           style: const TextStyle(
                               color: _accent, fontWeight: FontWeight.w900),
                         ),
-                        const TextSpan(text: ' · 填码双方各得螺壳'),
+                        const TextSpan(text: ' · 填码双方各得 100 喜点'),
                       ],
                     ),
                   )
