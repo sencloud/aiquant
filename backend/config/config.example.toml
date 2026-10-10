@@ -97,3 +97,29 @@ api_per_user_rpm = 30
 sms_per_phone_per_min = 1
 sms_per_ip_per_hour = 5
 order_per_user_rpm = 5
+
+# 证伪档案上游：alpha-radar 的只读导出 GET {url}/api/falsification。
+# scheduler 每 sync_minutes 拉一次落库；api 读库里最新一份，没有就用内置 seed。
+# url 为空 = 只用内置 seed（档案仍可浏览，只是不会自动更新）。
+# 环境变量：FINME_ALPHARADAR__URL / FINME_ALPHARADAR__ENABLED / FINME_ALPHARADAR__API_KEY / FINME_ALPHARADAR__RUN_ENABLED
+[alpharadar]
+enabled = true
+url = ""                       # 例：https://radar.singzquant.com
+sync_minutes = 30
+api_key = ""                   # 预留：alpha-radar 付费任务接口的 X-Api-Key
+run_enabled = false            # alpha-radar 还没有任务接口：false 时「跑一次证伪」只登记、不扣费
+
+# 喜点赠送与定价（整数喜点）
+[credits]
+signup_gift = 60               # 首次登录赠送
+invite_reward = 100            # 邀请：双方各得
+unlock_entry = 5               # 解锁一条证伪档案详情（永久）
+falsify_daily = 10             # 跑一次证伪：日线
+falsify_minute = 30            # 跑一次证伪：分钟线
+
+# 鹦鹉螺（客户端已隐藏，路由保留）。螺壳冻结：余额只读，停止赚取与下注；
+# 已下注的结算 / 退款照常。环境变量 FINME_NAUTILUS__SHELLS_FROZEN。
+[nautilus]
+shells_frozen = true
+bot_enabled = false
+daily_enabled = false

@@ -1,8 +1,12 @@
-// Package invite 实现鹦鹉螺的邀请裂变：邀请码 + 双向螺壳奖励。
+// Package invite 实现邀请裂变：邀请码 + 双向喜点奖励。
+//
+// 历史：邀请原本挂在鹦鹉螺下面、奖励螺壳；MVP 起鹦鹉螺隐藏、螺壳冻结，
+// 奖励改为喜点（credit_ledger，reason=grant_invite）。历史兑换行
+// reward_unit='shell'，新行 'credit'。
 //
 // 规则：
 //   - 每个用户有一个唯一邀请码（首次访问时懒生成，8 位去混淆字符）；
-//   - 新用户在 App 里填码兑换：邀请人 / 被邀请人各得 rewardShells；
+//   - 新用户在 App 里填码兑换：邀请人 / 被邀请人各得 rewardCredits 喜点；
 //   - 一个用户只能被邀请一次（invitee_id UNIQUE 天然幂等）；
 //   - 只有「新号」（注册 72 小时内）才能兑换，防止存量号互刷。
 package invite
@@ -19,7 +23,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/sencloud/finme-backend/internal/shell"
+	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/store"
 )
 
@@ -37,27 +41,31 @@ const redeemWindow = 72 * time.Hour
 const codeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 const codeLen = 8
 
+// RewardUnitCredit 新兑换行的奖励单位（喜点）。
+const RewardUnitCredit = "credit"
+
 type Service struct {
-	st           *store.Store
-	rewardShells int64
+	st            *store.Store
+	rewardCredits int64
 }
 
-func NewService(st *store.Store, rewardShells int64) *Service {
-	if rewardShells <= 0 {
-		rewardShells = 50
+func NewService(st *store.Store, rewardCredits int64) *Service {
+	if rewardCredits <= 0 {
+		rewardCredits = 100
 	}
-	return &Service{st: st, rewardShells: rewardShells}
+	return &Service{st: st, rewardCredits: rewardCredits}
 }
 
-func (s *Service) RewardShells() int64 { return s.rewardShells }
+func (s *Service) RewardCredits() int64 { return s.rewardCredits }
 
-// Info 是「邀请页」聚合：我的码 + 成功邀请数 + 累计奖励。
+// Info 是「邀请页」聚合：我的码 + 成功邀请数 + 累计奖励（喜点）。
 type Info struct {
 	Code         string `json:"code"`
 	InvitedCount int64  `json:"invited_count"`
 	TotalReward  int64  `json:"total_reward"`
 	RewardEach   int64  `json:"reward_each"`
-	Redeemed     bool   `json:"redeemed"` // 我自己是否已兑换过别人的码
+	RewardUnit   string `json:"reward_unit"` // 恒为 credit（喜点）
+	Redeemed     bool   `json:"redeemed"`    // 我自己是否已兑换过别人的码
 }
 
 // EnsureCode 返回用户邀请码，没有则生成并落库。
@@ -110,7 +118,8 @@ func (s *Service) GetInfo(ctx context.Context, userID int64) (*Info, error) {
 		Total int64 `db:"total"`
 	}
 	if err := s.st.DB.GetContext(ctx, &agg, `
-		SELECT COUNT(*) AS cnt, COALESCE(SUM(reward_shells),0) AS total
+		SELECT COUNT(*) AS cnt,
+		       COALESCE(SUM(CASE WHEN reward_unit='credit' THEN reward_shells ELSE 0 END),0) AS total
 		FROM invite_redemptions WHERE inviter_id=?`, userID); err != nil {
 		return nil, err
 	}
@@ -123,7 +132,8 @@ func (s *Service) GetInfo(ctx context.Context, userID int64) (*Info, error) {
 		Code:         code,
 		InvitedCount: agg.Cnt,
 		TotalReward:  agg.Total,
-		RewardEach:   s.rewardShells,
+		RewardEach:   s.rewardCredits,
+		RewardUnit:   RewardUnitCredit,
 		Redeemed:     redeemed > 0,
 	}, nil
 }
@@ -161,9 +171,10 @@ func (s *Service) Redeem(ctx context.Context, inviteeID int64, code string) (*In
 		}
 
 		now := time.Now().UnixMilli()
+		// reward_shells 列沿用为「奖励数额」，单位看 reward_unit。
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO invite_redemptions(inviter_id, invitee_id, reward_shells, created_at)
-			VALUES(?, ?, ?, ?)`, inviter.ID, inviteeID, s.rewardShells, now)
+			INSERT INTO invite_redemptions(inviter_id, invitee_id, reward_shells, reward_unit, created_at)
+			VALUES(?, ?, ?, ?, ?)`, inviter.ID, inviteeID, s.rewardCredits, RewardUnitCredit, now)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 				return ErrAlreadyRedeemed
@@ -173,19 +184,20 @@ func (s *Service) Redeem(ctx context.Context, inviteeID int64, code string) (*In
 		redemptionID, _ := res.LastInsertId()
 		refID := strconv.FormatInt(redemptionID, 10)
 
-		// 双向发奖：同一 redemption 两条账（ref_type 区分方向），各自幂等。
-		if _, err := shell.ApplyTx(ctx, tx, shell.ApplyParams{
-			UserID: inviter.ID, Delta: s.rewardShells,
-			Reason: shell.ReasonInviteReward, RefType: "invite_inviter", RefID: refID,
+		// 双向发喜点：同一 redemption 两条账（ref_type 区分方向），
+		// (reason, ref_type, ref_id) 唯一索引保证各自只入账一次。
+		if _, err := billing.ApplyTx(ctx, tx, billing.ApplyParams{
+			UserID: inviter.ID, Delta: s.rewardCredits,
+			Reason: billing.ReasonGrantInvite, RefType: "invite_inviter", RefID: refID,
 			Remark: "邀请好友奖励",
-		}); err != nil && !errors.Is(err, shell.ErrDuplicate) {
+		}); err != nil && !errors.Is(err, billing.ErrLedgerDuplicate) {
 			return err
 		}
-		if _, err := shell.ApplyTx(ctx, tx, shell.ApplyParams{
-			UserID: inviteeID, Delta: s.rewardShells,
-			Reason: shell.ReasonInviteReward, RefType: "invite_invitee", RefID: refID,
+		if _, err := billing.ApplyTx(ctx, tx, billing.ApplyParams{
+			UserID: inviteeID, Delta: s.rewardCredits,
+			Reason: billing.ReasonGrantInvite, RefType: "invite_invitee", RefID: refID,
 			Remark: "新人填写邀请码奖励",
-		}); err != nil && !errors.Is(err, shell.ErrDuplicate) {
+		}); err != nil && !errors.Is(err, billing.ErrLedgerDuplicate) {
 			return err
 		}
 		return nil

@@ -38,6 +38,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
+	"github.com/sencloud/finme-backend/internal/falsification"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/predict"
@@ -116,9 +117,11 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Fatal().Err(err).Msg("init billing")
 	}
 	// 鹦鹉螺预测市场：螺壳账本 + 市场/下注 + 邀请。
+	shell.SetFrozen(cfg.Nautilus.ShellsFrozen)
 	shellRepo := shell.NewRepo(st)
 	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)
-	inviteSvc := invite.NewService(st, cfg.Nautilus.InviteRewardShells)
+	// 邀请：双方各得喜点（鹦鹉螺隐藏后不再发螺壳）。
+	inviteSvc := invite.NewService(st, cfg.Credits.InviteReward)
 
 	onboardSvc := onboarding.New(
 		st,
@@ -127,6 +130,11 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		ding.NewNotificationRepo(st),
 		shellRepo,
 		cfg.Nautilus.SignupShells,
+		onboarding.Options{
+			SignupCredits: cfg.Credits.SignupGift,
+			ChatCredits:   cfg.AI.BaseChatCredits,
+			DeepBonus:     cfg.AI.DeepBonusCredits,
+		},
 	)
 
 	chatSvc := buildChatService(cfg, &l, st, usersSvc)
@@ -204,6 +212,8 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Invite:     inviteSvc,
 		Brief:      buildBriefService(cfg, &l, st),
 		Strategy:   buildStrategyService(cfg, &l, st),
+
+		Falsification: buildFalsificationService(cfg, &l, st),
 	}
 	router := api.NewRouter(deps)
 
@@ -229,6 +239,30 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Error().Err(err).Msg("graceful shutdown failed")
 	}
 	l.Info().Msg("bye")
+}
+
+// buildFalsificationService 构造证伪档案服务。
+//
+// 永远返回实例：alpharadar 未配置时只用内置 seed（档案仍可浏览）；
+// run_enabled 关闭时「跑一次证伪」走 stub（只登记、不扣费）。
+func buildFalsificationService(cfg *platform.Config, l *zerolog.Logger, st *store.Store) *falsification.Service {
+	url := ""
+	if cfg.AlphaRadar.Enabled {
+		url = cfg.AlphaRadar.URL
+	}
+	var runner falsification.Runner = falsification.StubRunner{}
+	if cfg.AlphaRadar.RunEnabled && url != "" {
+		runner = falsification.NewHTTPRunner(url, cfg.AlphaRadar.APIKey)
+	}
+	return falsification.NewService(st, l, falsification.Options{
+		URL:    url,
+		Runner: runner,
+		Prices: falsification.Prices{
+			Unlock:        cfg.Credits.UnlockEntry,
+			FalsifyDaily:  cfg.Credits.FalsifyDaily,
+			FalsifyMinute: cfg.Credits.FalsifyMinute,
+		},
+	})
 }
 
 // buildStrategyService 构造「主策略」抓取/读取服务。
@@ -366,6 +400,18 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Info().Dur("interval", interval).Msg("scheduler: strategy sync job enabled")
 	}
 
+	// 证伪档案：周期从 alpha-radar 拉只读导出落库；api 读最新一份（没有就用内置 seed）。
+	if cfg.AlphaRadar.Enabled && cfg.AlphaRadar.URL != "" {
+		interval := time.Duration(cfg.AlphaRadar.SyncMinutes) * time.Minute
+		sch.Register(falsification.NewJob(buildFalsificationService(cfg, &l, st), interval, &l))
+		l.Info().Dur("interval", interval).Msg("scheduler: falsification sync job enabled")
+	} else {
+		l.Info().Msg("scheduler: alpharadar url not set, falsification uses bundled seed")
+	}
+
+	// 螺壳冻结：停止机器人下注与每日出题（已有市场照常到期结算 / 退款）。
+	shell.SetFrozen(cfg.Nautilus.ShellsFrozen)
+
 	// 鹦鹉螺：关闭到期市场 + 金融/天气类自动结算(东财行情 + Open-Meteo 判定)。
 	predictSvc := predict.NewService(st, cfg.Nautilus.MinBet)
 	predictRt := realtime.New(0)
@@ -375,7 +421,7 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	usersSvc := users.NewService(st, cfg)
 
 	// 鹦鹉螺：Bot 自动下注 + 每日模板出题(平台兜底供给螺壳，零人工运营)。
-	if cfg.Nautilus.BotEnabled {
+	if cfg.Nautilus.BotEnabled && !cfg.Nautilus.ShellsFrozen {
 		sch.Register(predict.NewBotBetJob(predictSvc, shell.NewRepo(st), usersSvc, predict.BotConfig{
 			Count:      cfg.Nautilus.BotCount,
 			MinBet:     cfg.Nautilus.BotMinBet,
@@ -387,7 +433,7 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		}, &l))
 		l.Info().Msg("scheduler: nautilus bot bet job enabled")
 	}
-	if cfg.Nautilus.DailyEnabled {
+	if cfg.Nautilus.DailyEnabled && !cfg.Nautilus.ShellsFrozen {
 		sch.Register(predict.NewDailyMarketJob(predictSvc, predictRt, predictWx, predict.DailyConfig{
 			Hour:     cfg.Nautilus.DailyHour,
 			Interval: 30 * time.Minute,
