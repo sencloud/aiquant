@@ -31,6 +31,32 @@ powershell -File .\.tools\deploy.ps1
 
 验证不要只看单元状态，要打真实接口：健康检查是 `/healthz`（`/v1/health` 返回 404；deploy.ps1 会先试前者再退回后者，手工验证直接用 `/healthz`）。
 
+## 部署凭据（不入库）
+
+`deploy.ps1` 里**不再写任何密码**。凭据按以下顺序取，逐项第一个非空值生效：
+
+1. 脚本参数：`-TargetHost` / `-User` / `-KeyFile` / `-Hostkey` / `-UseAgent`
+2. 环境变量：`AIQUANT_DEPLOY_HOST`、`AIQUANT_DEPLOY_USER`、`AIQUANT_DEPLOY_PASSWORD`、`AIQUANT_DEPLOY_KEYFILE`、`AIQUANT_DEPLOY_HOSTKEY`
+3. `.tools/deploy.local.ps1`（已 gitignore，被 dot-source，设置 `$DeployHost` / `$DeployUser` / `$DeployPassword` / `$DeployKeyFile` / `$DeployHostkey`）
+4. `.tools/deploy.local.json`（已 gitignore，字段 `host` / `user` / `password` / `keyFile` / `hostkey`）
+5. 脚本内置的非敏感默认值（主机、用户、host key 指纹）
+
+一个凭据都没配时脚本直接报错退出，并列出上面几种配置方式。
+
+首次配置：
+
+```powershell
+Copy-Item .tools\deploy.local.example.ps1 .tools\deploy.local.ps1
+# 编辑 .tools\deploy.local.ps1，填 $DeployKeyFile（推荐）或 $DeployPassword
+git status --ignored .tools   # 确认 deploy.local.ps1 显示为 ignored，不会被提交
+```
+
+**推荐改用 SSH 密钥登录**：plink/pscp 只认 PuTTY 的 `.ppk`。用 `puttygen` 生成密钥（或用 `ssh-keygen` 生成后在 puttygen 里导入转换），把公钥追加到服务器 `~/.ssh/authorized_keys`，在本地文件里设 `$DeployKeyFile = 'C:\path\to\deploy.ppk'`（或设环境变量 `AIQUANT_DEPLOY_KEYFILE`）。确认密钥能登录后，把 `$DeployPassword` 清空，并在服务器 `sshd_config` 里关掉密码登录（`PasswordAuthentication no`）。也可以把密钥加载到 Pageant，然后用 `-UseAgent` 运行。
+
+用密码时，脚本通过 `-pwfile`（临时文件，用完即删）传给 plink/pscp，不会出现在命令行和进程列表里。
+
+**禁止**：把密码、私钥、`deploy.local.*` 写进任何提交、文档、聊天或日志。仓库是公开的。
+
 ## 必须知道的三件事
 
 **1. deploy.ps1 打的是当前工作区，不是 git 提交。** 有未提交的改动会被一起发上线。发之前先 `git status`，把不该上的 WIP 排除掉（或先提交）。仓库里其他人的半成品混进去，是最容易出事的点。
