@@ -5,7 +5,8 @@
 ///
 /// 这样一来全链路一致：
 ///   - 充 ¥6 进账 60 → 显示 "+60 喜点"，与 Apple 内购弹窗一致
-///   - 一次回答扣 6 → 显示 "-6 喜点"
+///   - 一轮对话扣 1（深度模式 +5）→ 显示 "-1 喜点" / "-6 喜点"
+///   - 解锁一条证伪档案扣 5 → 显示 "-5 喜点"
 ///   - SKU "60 喜点 / ¥6" → 展示 "60 喜点 / ¥6"
 ///
 /// 不要在 UI 里直接 toString() 拼接 credit 数字，统一走这里。
@@ -27,7 +28,7 @@ class CreditFmt {
   /// 余额/正数展示（整数）。
   static String balance(num value) => amount(value);
 
-  /// 流水里的 "+60" / "-6"。
+  /// 流水里的 "+60" / "-1"。
   static String delta(num value) {
     final s = amount(value.abs());
     if (value > 0) return '+$s';

@@ -1,0 +1,539 @@
+import 'package:flutter/material.dart';
+
+import '../../models/falsification.dart';
+import '../../services/analytics.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/wk_kit.dart';
+
+/// 方法 —— 证伪档案的二级页：结论总览、尺度闸门成本尺、五道闸门与口径。
+///
+/// 这些原来铺在「策略」首屏；改成通讯录式档案后，首屏只放「每条策略和它的
+/// 证伪情况」，方法论收进这一页。成本尺仍是产品的签名交互。
+class MethodScreen extends StatefulWidget {
+  const MethodScreen({super.key, required this.data});
+
+  final FalsificationData data;
+
+  @override
+  State<MethodScreen> createState() => _MethodScreenState();
+}
+
+class _MethodScreenState extends State<MethodScreen> {
+  /// 成本尺当前选中的品种 / 周期；null 表示用数据里的第一项。
+  String? _symbol;
+  String? _freq;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
+    final symbols = _symbolsOf(data);
+    final List<Widget> ruler;
+    if (symbols.isEmpty) {
+      ruler = const [];
+    } else {
+      final symbol = _currentSymbol(data);
+      final rows = [
+        for (final r in data.scales)
+          if (r.symbol == symbol) r
+      ];
+      final freq = _currentFreq(rows);
+      final row =
+          rows.firstWhere((r) => r.freq == freq, orElse: () => rows.first);
+      ruler = [
+        _CostRuler(
+          symbols: symbols,
+          names: _namesOf(data),
+          symbol: symbol,
+          rows: rows,
+          freq: freq,
+          row: row,
+          onSymbol: (s) => setState(() {
+            _symbol = s;
+            _freq = null;
+          }),
+          onFreq: (f) {
+            setState(() => _freq = f);
+            final hit = rows.firstWhere((r) => r.freq == f, orElse: () => row);
+            Analytics.instance.track(Analytics.evCostRuler, {
+              'symbol': row.symbol,
+              'freq': f,
+              'ratio_pct': (hit.ratio * 100).toStringAsFixed(1),
+              'verdict': hit.verdict,
+            });
+          },
+        ),
+        const SizedBox(height: AppSpace.lg),
+      ];
+    }
+
+    return WkPage(
+      title: '方法',
+      actions: [
+        IconButton(
+          tooltip: '这个页面在做什么',
+          icon: const Icon(Icons.help_outline_rounded, size: 20),
+          onPressed: () => _showAbout(data),
+        ),
+      ],
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpace.gutter, AppSpace.lg, AppSpace.gutter, AppSpace.xxl),
+        children: [
+          _VerdictHero(summary: data.summary, generatedAt: data.generatedAt),
+          const SizedBox(height: AppSpace.lg),
+          _GateCard(
+            gates: data.gates,
+            onTap: _showGate,
+            thresholdVersion: data.thresholdVersion,
+          ),
+          const SizedBox(height: AppSpace.lg),
+          ...ruler,
+          WkNote(
+            title: '口径',
+            text: '${data.source.costModel}\n\n数据：${data.source.data}'
+                '\n生成时间：${data.generatedAt}',
+          ),
+          const SizedBox(height: AppSpace.md),
+          const WkNote(
+            text: '本页是研究结论，不是投资建议。回测不含冲击成本、涨跌停无法成交、'
+                '盘中流动性枯竭等实盘约束；历史表现不代表未来收益。',
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 选择逻辑 ─────────────────────────────────────────────────────────
+
+  List<String> _symbolsOf(FalsificationData data) {
+    final out = <String>[];
+    for (final s in data.scales) {
+      if (!out.contains(s.symbol)) out.add(s.symbol);
+    }
+    return out;
+  }
+
+  String _currentSymbol(FalsificationData data) {
+    final all = _symbolsOf(data);
+    return (_symbol != null && all.contains(_symbol)) ? _symbol! : all.first;
+  }
+
+  String _currentFreq(List<CostScale> rows) {
+    if (_freq != null && rows.any((r) => r.freq == _freq)) return _freq!;
+    return rows.first.freq;
+  }
+
+  /// 品种代码 → 中文名（同一品种的各周期行里取第一个非空名字）。
+  Map<String, String> _namesOf(FalsificationData data) {
+    final out = <String, String>{};
+    for (final s in data.scales) {
+      final n = out[s.symbol];
+      if (n == null || n == s.symbol) {
+        out[s.symbol] = s.name.isEmpty ? s.symbol : s.name;
+      }
+    }
+    return out;
+  }
+
+  void _showAbout(FalsificationData data) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpace.xl, 0, AppSpace.xl, AppSpace.xxl),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('这个页面在做什么',
+                  style: AppType.title.copyWith(color: AppColors.textPrimary)),
+              const SizedBox(height: AppSpace.md),
+              Text(
+                '${data.source.project}\n\n${data.source.what}\n\n'
+                '${data.source.notWhat}',
+                style: AppType.read.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Text('判定顺序',
+                  style:
+                      AppType.section.copyWith(color: AppColors.textPrimary)),
+              const SizedBox(height: AppSpace.sm),
+              for (final g in data.gates)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                  child: Text('${g.name}：${g.rule}',
+                      style: AppType.body
+                          .copyWith(color: AppColors.textSecondary)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showGate(FalsificationGate gate) {
+    Analytics.instance.track(Analytics.evGateOpen, {'gate': gate.id});
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpace.xl, 0, AppSpace.xl, AppSpace.xxl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(gate.name,
+                style: AppType.title.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: AppSpace.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.md, vertical: AppSpace.sm),
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Text(gate.rule,
+                  style: AppType.body.copyWith(
+                      color: AppColors.amberDim, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(height: AppSpace.lg),
+            Text(gate.why,
+                style: AppType.read.copyWith(color: AppColors.textSecondary)),
+            if (gate.verdict.isNotEmpty) ...[
+              const SizedBox(height: AppSpace.md),
+              Text(gate.verdict,
+                  style: AppType.body.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 第一屏的结论：一句话 + 一行计数。刻意不做「大数字 + 小标签 + 若干统计块」
+/// 那套模板 —— 这里的结论是一句判断，不是一组指标。
+class _VerdictHero extends StatelessWidget {
+  const _VerdictHero({required this.summary, required this.generatedAt});
+
+  final FalsificationSummary summary;
+  final String generatedAt;
+
+  static const _cn = [
+    '零',
+    '一',
+    '二',
+    '三',
+    '四',
+    '五',
+    '六',
+    '七',
+    '八',
+    '九',
+    '十',
+    '十一',
+    '十二'
+  ];
+
+  static String spell(int n) => n < _cn.length ? _cn[n] : '$n';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${spell(summary.archiveTotal)}条记录，'
+            '${spell(summary.tradable)}条可以实盘。',
+            style: AppType.display.copyWith(
+                fontSize: 24, height: 1.35, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            '${summary.archiveRejected} 条淘汰 · '
+            '${summary.archivePending} 条仍在验证 · '
+            '${summary.archiveInsufficient} 条样本不足 · '
+            '${summary.findings} 条研究发现',
+            style: AppType.caption.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpace.md),
+          const Divider(),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            '这个页面只做一件事：证明什么不行。'
+            '样本不足就写样本不足，单年依赖就写单年依赖 —— 不把「可能有效」'
+            '说成「有效」。',
+            style: AppType.read.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text('档案生成于 $generatedAt',
+              style: AppType.micro.copyWith(color: AppColors.textTertiary)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 尺度闸门 · 成本尺：把「往返成本」和「平均振幅」画成两条可比的横杠。
+///
+/// 这是本页的签名交互：换品种、换周期，两条杠一起变，占比和判定立刻跟着变。
+/// 它把一句话讲清楚 —— 周期越短，成本吃的比例越大，1 分钟直接吃掉一半以上。
+class _CostRuler extends StatelessWidget {
+  const _CostRuler({
+    required this.symbols,
+    required this.names,
+    required this.symbol,
+    required this.rows,
+    required this.freq,
+    required this.row,
+    required this.onSymbol,
+    required this.onFreq,
+  });
+
+  final List<String> symbols;
+  final Map<String, String> names;
+  final String symbol;
+  final List<CostScale> rows;
+  final String freq;
+  final CostScale row;
+  final ValueChanged<String> onSymbol;
+  final ValueChanged<String> onFreq;
+
+  Color get _tone => switch (row.verdict) {
+        'pass' => AppColors.negative,
+        'marginal' => AppColors.warning,
+        _ => AppColors.danger,
+      };
+
+  String get _verdictLine => switch (row.verdict) {
+        'pass' => '尺度这关过了，后面的闸门才轮得到它。',
+        'marginal' => '勉强通过：留在观察名单，档案里会标「勉强」。',
+        _ => '直接淘汰：成本吃掉四成以上的振幅，等于给交易所打工。',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final denom = row.amplitude <= 0 ? 1.0 : row.amplitude;
+    final costFrac = (row.cost / denom).clamp(0.0, 1.0);
+
+    return WkGroup(
+      header: '尺度闸门 · 成本 ÷ 振幅',
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppSpace.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  '一笔往返要付的成本，占这根 K 线平均振幅的多少。'
+                  '低于 25% 通过，25%–40% 勉强，40% 以上淘汰。',
+                  style:
+                      AppType.caption.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: AppSpace.md),
+              _ChoiceRow(
+                values: symbols,
+                selected: symbol,
+                labels: names,
+                onSelect: onSymbol,
+              ),
+              const SizedBox(height: AppSpace.sm),
+              _ChoiceRow(
+                values: [for (final r in rows) r.freq],
+                selected: freq,
+                labels: {for (final r in rows) r.freq: _freqLabel(r.freq)},
+                onSelect: onFreq,
+              ),
+              const SizedBox(height: AppSpace.lg),
+              _Bar(
+                label: '往返成本',
+                value: '${_fmt(row.cost)} 点',
+                fraction: costFrac,
+                color: _tone,
+              ),
+              const SizedBox(height: AppSpace.sm),
+              _Bar(
+                label: '平均振幅',
+                value: '${_fmt(row.amplitude)} 点',
+                fraction: 1,
+                // 振幅是基准线，不是主角：用纸色的深一档，让成本那条跳出来。
+                color: AppColors.borderMed,
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('${(row.ratio * 100).toStringAsFixed(1)}%',
+                      style:
+                          AppType.display.copyWith(fontSize: 30, color: _tone)),
+                  const SizedBox(width: AppSpace.md),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: WkTag(row.verdictLabel, tone: _tone, filled: true),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.sm),
+              Text(_verdictLine,
+                  style: AppType.body.copyWith(color: AppColors.textPrimary)),
+              const SizedBox(height: AppSpace.md),
+              Text(
+                row.note,
+                style: AppType.micro
+                    .copyWith(color: AppColors.textTertiary, height: 1.6),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _freqLabel(String f) =>
+      f == '1d' ? '日线' : f.replaceAll('min', ' 分');
+
+  static String _fmt(double v) =>
+      v >= 100 ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+}
+
+/// 可选中的一行 chip（横向滚动，不换行）。
+class _ChoiceRow extends StatelessWidget {
+  const _ChoiceRow({
+    required this.values,
+    required this.selected,
+    required this.labels,
+    required this.onSelect,
+  });
+
+  final List<String> values;
+  final String selected;
+  final Map<String, String> labels;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
+        itemBuilder: (_, i) {
+          final v = values[i];
+          final active = v == selected;
+          return GestureDetector(
+            onTap: () => onSelect(v),
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+              decoration: BoxDecoration(
+                color: active ? AppColors.accentSoft : AppColors.bgRaised,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                    color: active
+                        ? AppColors.amber.withValues(alpha: 0.35)
+                        : Colors.transparent),
+              ),
+              child: Text(
+                labels[v] ?? v,
+                style: AppType.caption.copyWith(
+                  color: active ? AppColors.amberDim : AppColors.textSecondary,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 一条比较横杠：底色是纸，长度按比例填主色。
+class _Bar extends StatelessWidget {
+  const _Bar({
+    required this.label,
+    required this.value,
+    required this.fraction,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final double fraction;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 60,
+          child: Text(label,
+              style: AppType.micro.copyWith(color: AppColors.textTertiary)),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: Container(
+              height: 10,
+              color: AppColors.bgRaised,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: fraction <= 0 ? 0.02 : fraction,
+                child: Container(color: color),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 84,
+          child: Text(value,
+              textAlign: TextAlign.right,
+              style: AppType.caption.copyWith(
+                color: AppColors.textPrimary,
+                fontFamilyFallback: AppType.numericFallback,
+              )),
+        ),
+      ],
+    );
+  }
+}
+
+/// 五道闸门：方法本身就是内容，直接铺开，不折叠。
+class _GateCard extends StatelessWidget {
+  const _GateCard(
+      {required this.gates, required this.onTap, this.thresholdVersion = ''});
+
+  final List<FalsificationGate> gates;
+  final ValueChanged<FalsificationGate> onTap;
+  final String thresholdVersion;
+
+  @override
+  Widget build(BuildContext context) {
+    return WkGroup(
+      header: '五道闸门 · 按顺序判定',
+      footer: '第一道没过的闸门记为「死在哪一关」。样本不足不算淘汰，只是不进主列表；'
+          '「可交易」只能在人工稳健性复核后给出，自动流程不会产出。'
+          '${thresholdVersion.isEmpty ? '' : '\n阈值版本：$thresholdVersion'}',
+      children: [
+        for (final g in gates)
+          WkRow(
+            title: g.name,
+            subtitle: g.rule,
+            onTap: () => onTap(g),
+          ),
+      ],
+    );
+  }
+}

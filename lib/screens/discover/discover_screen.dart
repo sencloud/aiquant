@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../core/config/features.dart';
 import '../../services/analytics.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
@@ -45,6 +46,7 @@ class DiscoverScreen extends StatelessWidget {
           ),
           WkGroup(
             header: '研究与组合',
+            footer: '邀请好友在「我的」里：填码双方各得 100 喜点。',
             children: [
               WkRow(
                 icon: Icons.pie_chart_rounded,
@@ -53,20 +55,23 @@ class DiscoverScreen extends StatelessWidget {
                 onTap: () => _push(context, const PortfolioScreen(),
                     event: 'portfolio'),
               ),
-              WkRow(
-                icon: Icons.podcasts_rounded,
-                title: 'AI 直播',
-                subtitle: '直播间与长文报告',
-                onTap: () =>
-                    _push(context, const LiveScreen(), event: 'live'),
-              ),
-              WkRow(
-                icon: Icons.track_changes_rounded,
-                title: '鹦鹉螺预测',
-                subtitle: '天气与金融事件的预测市场',
-                onTap: () =>
-                    _push(context, const NautilusScreen(), event: 'nautilus'),
-              ),
+              // MVP 收窄到「对话 + 证伪」：直播、鹦鹉螺默认隐藏（编译开关）。
+              if (kEnableLive)
+                WkRow(
+                  icon: Icons.podcasts_rounded,
+                  title: 'AI 直播',
+                  subtitle: '直播间与长文报告',
+                  onTap: () =>
+                      _push(context, const LiveScreen(), event: 'live'),
+                ),
+              if (kEnableNautilus)
+                WkRow(
+                  icon: Icons.track_changes_rounded,
+                  title: '鹦鹉螺预测',
+                  subtitle: '天气与金融事件的预测市场',
+                  onTap: () => _push(context, const NautilusScreen(),
+                      event: 'nautilus'),
+                ),
             ],
           ),
           const WkNote(

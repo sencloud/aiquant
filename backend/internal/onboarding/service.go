@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/ding"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	signupBonusCredits = 100
+	// defaultSignupCredits 是 config credits.signup_gift 未配置时的兜底。
+	defaultSignupCredits = 60
 	bonusReason        = billing.ReasonSignupGift
 	demoTaskTitle      = "今日 A 股复盘"
 	demoTaskPrompt     = "请围绕沪深 300 / 中证 500 / 创业板指三大指数的最新走势做一段日终复盘，覆盖 1) 当日涨跌幅与成交量同比；2) 北向资金流向；3) 受关注的行业板块；4) 明日值得关注的事件。"
@@ -24,7 +26,6 @@ const (
 	demoTaskCost       = 5
 	welcomeTopic       = "system.welcome"
 	welcomeTitle       = "欢迎使用喜宽"
-	welcomeBrief       = "已为你赠送 100 喜点。点开 DING 看一个示例任务，或在「助理」里直接提问"
 )
 
 // Service 把 onboarding 工作打包成一个接口给 auth handler 调用。
@@ -40,6 +41,14 @@ type Service struct {
 	notifs       *ding.NotificationRepo
 	shells       *shell.Repo
 	signupShells int64
+	opts         Options
+}
+
+// Options 是赠送数额与对外文案里用到的价格（来自 config）。
+type Options struct {
+	SignupCredits int64 // 注册赠送喜点
+	ChatCredits   int64 // 一轮对话
+	DeepBonus     int64 // 深度模式额外
 }
 
 func New(
@@ -49,10 +58,17 @@ func New(
 	notifs *ding.NotificationRepo,
 	shells *shell.Repo,
 	signupShells int64,
+	opts Options,
 ) *Service {
+	if opts.SignupCredits <= 0 {
+		opts.SignupCredits = defaultSignupCredits
+	}
+	if opts.ChatCredits <= 0 {
+		opts.ChatCredits = 1
+	}
 	return &Service{
 		st: st, ledger: ledger, tasks: tasks, notifs: notifs,
-		shells: shells, signupShells: signupShells,
+		shells: shells, signupShells: signupShells, opts: opts,
 	}
 }
 
@@ -82,7 +98,7 @@ func (s *Service) OnboardIfNeeded(ctx context.Context, user *users.User) error {
 func (s *Service) ensureSignupBonus(ctx context.Context, user *users.User) error {
 	_, err := s.ledger.Apply(ctx, billing.ApplyParams{
 		UserID:  user.ID,
-		Delta:   signupBonusCredits,
+		Delta:   s.opts.SignupCredits,
 		Reason:  bonusReason,
 		RefType: "user",
 		RefID:   user.UUID,
@@ -98,8 +114,11 @@ func (s *Service) ensureSignupBonus(ctx context.Context, user *users.User) error
 }
 
 // ensureSignupShells 鹦鹉螺预测市场的初始螺壳(与喜点独立)。
+//
+// 螺壳已冻结（config nautilus.shells_frozen）时不发：鹦鹉螺在客户端隐藏，
+// 新用户拿到一笔看不见、用不了的螺壳没有意义。
 func (s *Service) ensureSignupShells(ctx context.Context, user *users.User) error {
-	if s.shells == nil || s.signupShells <= 0 {
+	if s.shells == nil || s.signupShells <= 0 || shell.Frozen() {
 		return nil
 	}
 	_, err := s.shells.Apply(ctx, shell.ApplyParams{
@@ -153,21 +172,34 @@ func (s *Service) ensureWelcomeNotification(ctx context.Context, userID int64) e
 		UserID:    userID,
 		Topic:     welcomeTopic,
 		Title:     welcomeTitle,
-		BodyBrief: welcomeBrief,
-		Payload: `# 欢迎使用喜宽
-
-我是你的 AI 投资助手，可以帮你：
-
-- 查 A 股 / ETF / 指数 / 期货 / 美股 / 外汇的实时行情
-- 看财报、估值、资金流、经济日历等数据，帮你做研究
-- 在「DING」里设个定时任务，每天/每周自动给你发研究报告
-
-我们已经为你送上 **100 喜点**：
-
-- 每次回答消耗 **6 喜点**
-- 调用行情、新闻等数据工具不再额外计费
-
-试试在「助理」里问一句"今日大盘怎么样？"，或者打开「DING」体验示例任务。`,
+		BodyBrief: s.welcomeBrief(),
+		Payload:   s.welcomePayload(),
 	})
 	return err
+}
+
+func (s *Service) welcomeBrief() string {
+	return fmt.Sprintf("已为你赠送 %d 喜点。去「策略」看证伪档案，或在「对话」里直接提问", s.opts.SignupCredits)
+}
+
+func (s *Service) welcomePayload() string {
+	deep := ""
+	if s.opts.DeepBonus > 0 {
+		deep = fmt.Sprintf("（深度模式另加 **%d 喜点**）", s.opts.DeepBonus)
+	}
+	return fmt.Sprintf(`# 欢迎使用喜爱
+
+我是你的 AI 投研助理，可以帮你：
+
+- 查 A 股 / ETF / 指数 / 期货的实时行情、财报、资金流和新闻
+- 在「策略」里看每条策略的证伪档案：它过了哪几道闸门、死在哪一关
+- 在「发现 → 定时提醒」里让 AI 按点帮你盯盘、复盘
+
+我们已经为你送上 **%d 喜点**：
+
+- 每轮对话消耗 **%d 喜点**%s
+- 解锁一条证伪档案的分年盈亏、失效原因和复现命令按条计费，解锁后永久可看
+
+试试在「对话」里问一句"今日大盘怎么样？"，或者打开「策略」看看哪些策略被证伪了。`,
+		s.opts.SignupCredits, s.opts.ChatCredits, deep)
 }
