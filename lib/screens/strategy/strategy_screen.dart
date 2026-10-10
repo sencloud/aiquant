@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,7 +23,7 @@ import 'method_screen.dart';
 /// 定位来自 alpha-radar（策略证伪器）：**它不是策略生成器，是策略证伪器。**
 /// 首屏只做一件事：让人看到每条策略和它的证伪情况。
 ///
-/// - 顶部：搜索（能搜到样本不足的条目）；
+/// - 顶部：搜索（能搜到样本不足的条目；后端列表收窄过时，同时搜后端完整档案）；
 /// - 固定入口：可交易 / 仍在验证 / 本周新证伪 / 跑一次证伪（像「新的朋友」）；
 /// - 精选档案（像「星标朋友」）；
 /// - 按策略家族分组，右侧索引条可点跳转（像 A–Z）。
@@ -57,6 +59,11 @@ class _StrategyScreenState extends State<StrategyScreen> {
   String? _error;
   bool _loading = true;
 
+  /// 后端搜索：列表只放了自动淘汰的代表，其余条目要到完整档案里搜。
+  Timer? _debounce;
+  ArchiveSearchResult? _remote;
+  String _remoteLoadingFor = '';
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +79,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _query.dispose();
     _scroll.dispose();
     super.dispose();
@@ -172,6 +180,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
                   controller: _query,
                   onChanged: (q) {
                     setState(() {});
+                    _scheduleRemoteSearch(q);
                     if (q.trim().length == 1) {
                       Analytics.instance.track(Analytics.evArchiveSearch);
                     }
@@ -199,9 +208,61 @@ class _StrategyScreenState extends State<StrategyScreen> {
     );
   }
 
+  /// 列表被后端收窄过时，停顿 350ms 后去后端完整档案里搜；本地结果先显示。
+  void _scheduleRemoteSearch(String raw) {
+    _debounce?.cancel();
+    final q = raw.trim();
+    final narrowed = _data?.listMeta.isNarrowed ?? false;
+    if (q.isEmpty || !narrowed) {
+      if (_remote != null || _remoteLoadingFor.isNotEmpty) {
+        setState(() {
+          _remote = null;
+          _remoteLoadingFor = '';
+        });
+      }
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      if (!mounted) return;
+      setState(() => _remoteLoadingFor = q);
+      ArchiveSearchResult? res;
+      try {
+        res = await _svc.search(q);
+      } catch (_) {
+        res = null; // 搜不到就只用本地结果。
+      }
+      if (!mounted || _query.text.trim() != q) return;
+      setState(() {
+        _remote = res;
+        _remoteLoadingFor = '';
+      });
+    });
+  }
+
   List<Widget> _searchResults(FalsificationData data, ArchiveIndex index) {
-    final hits = index.search(_query.text);
+    final q = _query.text.trim();
+    final local = index.search(q);
+    final remote = _remote?.query == q ? _remote : null;
+    final seen = {for (final e in local) e.id};
+    final hits = [
+      ...local,
+      if (remote != null)
+        for (final e in remote.entries)
+          if (seen.add(e.id)) e,
+    ];
+    final loading = _remoteLoadingFor == q && q.isNotEmpty;
     if (hits.isEmpty) {
+      if (loading) {
+        return const [
+          SizedBox(height: 48),
+          Center(
+            child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        ];
+      }
       return [
         const SizedBox(height: 48),
         const WkEmpty(
@@ -211,10 +272,18 @@ class _StrategyScreenState extends State<StrategyScreen> {
         ),
       ];
     }
+    final matched = remote == null
+        ? hits.length
+        : (remote.matched > hits.length ? remote.matched : hits.length);
+    final more = matched - hits.length;
     return [
       WkGroup(
-        header: '搜索结果 · ${hits.length} 条',
-        footer: '搜索结果包含「样本不足」的条目：它们不算淘汰，只是还不能下结论。',
+        header: '搜索结果 · $matched 条',
+        footer: [
+          if (loading) '正在搜索全部档案…',
+          if (more > 0) '只显示前 ${hits.length} 条，换个更具体的词（如加上品种或周期）缩小范围。',
+          '搜索结果包含「样本不足」的条目：它们不算淘汰，只是还不能下结论。',
+        ].join('\n'),
         children: [for (final e in hits) _row(e, data)],
       ),
     ];
@@ -292,8 +361,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
       Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
         child: Text(
-          '${index.mainCount} 条档案'
-          '${index.insufficientCount > 0 ? ' · 另有 ${index.insufficientCount} 条样本不足，可搜索查看' : ''}',
+          _footer(data, index),
           textAlign: TextAlign.center,
           style: AppType.caption.copyWith(color: AppColors.textTertiary),
         ),
@@ -304,6 +372,19 @@ class _StrategyScreenState extends State<StrategyScreen> {
             '盘中流动性枯竭等实盘约束；历史表现不代表未来收益。',
       ),
     ];
+  }
+
+  /// 列表底部的计数：后端收窄过时说明还有多少条没列出、可以搜。
+  static String _footer(FalsificationData data, ArchiveIndex index) {
+    final meta = data.listMeta;
+    final insufficient =
+        index.insufficientCount + (meta.omitted['insufficient'] ?? 0);
+    final parts = [
+      '${index.mainCount} 条档案',
+      if (meta.omittedRejects > 0) '另有 ${meta.omittedRejects} 条同类淘汰记录未列出',
+      if (insufficient > 0) '${meta.omittedRejects > 0 ? '' : '另有 '}$insufficient 条样本不足',
+    ];
+    return parts.join(' · ') + (parts.length > 1 ? '，可搜索查看' : '');
   }
 
   Widget _row(ArchiveEntry e, FalsificationData data) =>

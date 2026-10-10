@@ -108,6 +108,8 @@ url = ""                       # 例：https://radar.singzquant.com
 sync_minutes = 30
 api_key = ""                   # 预留：alpha-radar 付费任务接口的 X-Api-Key
 run_enabled = false            # alpha-radar 还没有任务接口：false 时「跑一次证伪」只登记、不扣费
+list_rejects_per_strategy = 3  # 档案列表：每个策略最多保留几条自动淘汰代表（其余用搜索查）
+list_max_rejects = 200         # 档案列表：自动淘汰 / 样本不足代表的总上限
 
 # 喜点赠送与定价（整数喜点）
 [credits]

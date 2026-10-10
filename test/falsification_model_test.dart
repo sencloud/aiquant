@@ -223,4 +223,36 @@ void main() {
       expect(idx.recentRejects.map((e) => e.id), ['a']);
     });
   });
+
+  test('后端收窄列表的 list 元信息 + 搜索结果；旧资产没有 list 时为空', () {
+    final d = FalsificationData.fromJson({
+      'archive': [_autoEntry],
+      'list': {
+        'mode': 'representative',
+        'total': 2008,
+        'returned': 41,
+        'omitted': {'reject': 1967, 'insufficient': 2},
+        'searchable': true,
+      },
+    });
+    expect(d.listMeta.isNarrowed, isTrue);
+    expect(d.listMeta.omittedRejects, 1967);
+    expect(d.listMeta.omittedTotal, 1969);
+    expect(d.listMeta.total, 2008);
+    // 解锁回写不丢元信息。
+    expect(
+        d.replaceEntry(ArchiveEntry.fromJson(_autoEntry)).listMeta.total, 2008);
+
+    final legacy = FalsificationData.fromJson({'archive': []});
+    expect(legacy.listMeta.isNarrowed, isFalse);
+    expect(legacy.listMeta.omittedRejects, 0);
+
+    final r = ArchiveSearchResult.fromJson({
+      'archive': [_autoEntry],
+      'search': {'q': 'super', 'matched': 120, 'returned': 1},
+    });
+    expect(r.query, 'super');
+    expect(r.matched, 120);
+    expect(r.entries.single.id, 'supertrend-p-dce-5min');
+  });
 }

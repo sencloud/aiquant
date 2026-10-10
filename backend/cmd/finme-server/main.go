@@ -257,6 +257,10 @@ func buildFalsificationService(cfg *platform.Config, l *zerolog.Logger, st *stor
 	return falsification.NewService(st, l, falsification.Options{
 		URL:    url,
 		Runner: runner,
+		List: falsification.ListOptions{
+			RejectsPerStrategy: cfg.AlphaRadar.ListRejectsPerStrategy,
+			MaxRejects:         cfg.AlphaRadar.ListMaxRejects,
+		},
 		Prices: falsification.Prices{
 			Unlock:        cfg.Credits.UnlockEntry,
 			FalsifyDaily:  cfg.Credits.FalsifyDaily,

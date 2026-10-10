@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,10 @@ type AlphaRadarConfig struct {
 	APIKey string `toml:"api_key"`
 	// RunEnabled 为 false 时「跑一次证伪」走 stub：只登记、不扣费、返回 unsupported。
 	RunEnabled bool `toml:"run_enabled"`
+	// ListRejectsPerStrategy 档案列表里每个策略最多保留几条自动淘汰（代表）。
+	ListRejectsPerStrategy int `toml:"list_rejects_per_strategy"`
+	// ListMaxRejects 档案列表里自动淘汰 / 样本不足代表的总上限。
+	ListMaxRejects int `toml:"list_max_rejects"`
 }
 
 // CreditsConfig 喜点赠送与价格。全部整数喜点。
@@ -420,8 +425,10 @@ func defaultConfig() *Config {
 			MaxAgeSec: 120,
 		},
 		AlphaRadar: AlphaRadarConfig{
-			Enabled:     true,
-			SyncMinutes: 30,
+			Enabled:                true,
+			SyncMinutes:            30,
+			ListRejectsPerStrategy: 3,
+			ListMaxRejects:         200,
 		},
 		Credits: CreditsConfig{
 			SignupGift:    60,
@@ -617,6 +624,16 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_ALPHARADAR__API_KEY"); v != "" {
 		c.AlphaRadar.APIKey = v
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__LIST_REJECTS_PER_STRATEGY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.AlphaRadar.ListRejectsPerStrategy = n
+		}
+	}
+	if v := os.Getenv("FINME_ALPHARADAR__LIST_MAX_REJECTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.AlphaRadar.ListMaxRejects = n
+		}
 	}
 	if v := os.Getenv("FINME_ALPHARADAR__RUN_ENABLED"); v != "" {
 		c.AlphaRadar.RunEnabled = v == "1" || strings.EqualFold(v, "true")
