@@ -472,8 +472,8 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
         origin = box.localToGlobal(Offset.zero) & box.size;
       }
       await Share.share(
-        '我用喜宽 AI 助理聊了点投资，分享给你看看：\n$url',
-        subject: '来自喜宽 AI 助理',
+        '我用喜爱 AI 助理聊了点投资，分享给你看看：\n$url',
+        subject: '来自喜爱 AI 助理',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -490,13 +490,13 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
   String _buildPromoCaption(String platform, String text, String url) {
     final excerpt = _excerpt(text, 120);
     if (platform == 'xhs') {
-      return '我用喜宽 AI 投研助理问了个问题，回答太顶了📈\n\n'
+      return '我用喜爱 AI 投研助理问了个问题，回答太顶了📈\n\n'
           '$excerpt\n\n'
           '完整对话👉 $url\n\n'
-          '#投资理财 #AI工具 #股票 #理财 #搞钱 #财经 #喜宽';
+          '#投资理财 #AI工具 #股票 #理财 #搞钱 #财经 #喜爱';
     }
     // 知乎：偏问答/理性语气。
-    return '分享一个我最近在用的 AI 投研助理「喜宽」，问答体验不错。\n\n'
+    return '分享一个我最近在用的 AI 投研助理「喜爱」，问答体验不错。\n\n'
         '$excerpt\n\n'
         '完整回答：$url\n\n'
         '（内容由 AI 生成，仅供参考，不构成投资建议）';

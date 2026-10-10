@@ -78,7 +78,7 @@ class _DesktopShellState extends State<DesktopShell> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '喜宽',
+                      '喜爱',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 15,

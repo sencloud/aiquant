@@ -43,9 +43,9 @@ class _InviteScreenState extends State<InviteScreen> {
 
   Future<void> _share(String code, int rewardEach) async {
     await Share.share(
-      '我在「喜宽」的鹦鹉螺玩预测市场，用螺壳押全球天气和金融行情。\n'
+      '我在「喜爱」的鹦鹉螺玩预测市场，用螺壳押全球天气和金融行情。\n'
       '注册后填我的邀请码 $code，你我各得 $rewardEach 螺壳！\n'
-      'App Store 搜索「喜宽」即可下载。',
+      'App Store 搜索「喜爱」即可下载。',
     );
   }
 

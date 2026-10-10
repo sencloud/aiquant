@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>

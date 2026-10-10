@@ -8,7 +8,7 @@ import '../theme/app_theme.dart';
 /// 用户协议 + 隐私政策可点击链接。
 ///
 /// - 登录页：[LegalLinksFootnote] 单行小字提示式
-/// - 设置页：[LegalLinksRow] 块状双按钮入口
+/// - 设置页：[LegalLinksRow] 两行静默入口（微信式：条款是文字，不是按钮）
 class LegalLinksFootnote extends StatelessWidget {
   const LegalLinksFootnote({
     super.key,
@@ -59,68 +59,53 @@ class LegalLinksRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _LegalTile(
-            icon: Icons.description_outlined,
-            label: '用户协议',
-            onTap: () => _openUrl(AppConfig.instance.termsUrl),
-          ),
+        _LegalLine(
+          label: '用户协议',
+          onTap: () => _openUrl(AppConfig.instance.termsUrl),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _LegalTile(
-            icon: Icons.privacy_tip_outlined,
-            label: '隐私政策',
-            onTap: () => _openUrl(AppConfig.instance.privacyUrl),
-          ),
+        _LegalLine(
+          label: '隐私政策',
+          onTap: () => _openUrl(AppConfig.instance.privacyUrl),
         ),
       ],
     );
   }
 }
 
-class _LegalTile extends StatelessWidget {
-  const _LegalTile({
-    required this.icon,
+/// 一行条款入口：和分组卡里的行同一套节奏，只是没有图标、薄一点。
+class _LegalLine extends StatelessWidget {
+  const _LegalLine({
     required this.label,
     required this.onTap,
   });
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bgRaised,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: AppColors.borderDim),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.lg, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.amber),
-              const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                child: Text(label,
+                    style: AppType.body.copyWith(color: AppColors.textPrimary)),
               ),
-              Icon(Icons.open_in_new,
-                  size: 14, color: AppColors.textTertiary),
+              Icon(Icons.open_in_new, size: 15, color: AppColors.textTertiary),
+              const SizedBox(width: AppSpace.xs),
+              Icon(Icons.chevron_right,
+                  size: 20, color: AppColors.textTertiary),
             ],
+          ),
           ),
         ),
       ),

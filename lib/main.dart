@@ -8,6 +8,7 @@ import 'app.dart';
 import 'core/api/api_client.dart' show installNoProxyHttpOverrides;
 import 'core/config/app_config.dart';
 import 'core/storage/hive_setup.dart';
+import 'services/analytics.dart';
 import 'services/client_error_reporter.dart';
 import 'services/network_permission_service.dart';
 import 'services/tushare_service.dart';
@@ -44,6 +45,9 @@ Future<void> _bootstrap() async {
   await openAppBoxes();
   await AppConfig.instance.load();
 
+  // 埋点：未在 .env 里配 UMAMI_WEBSITE_ID 时整个服务是 no-op。
+  await Analytics.instance.init();
+
   ClientErrorReporter.instance.install();
 
   // 安装「无线数据」授权状态监听：用户在首启弹窗授权后自动重连并刷新页面。
@@ -70,7 +74,7 @@ Future<void> _bootstrap() async {
         // 看盘自选列表（本地持久化，无需登录）
         ChangeNotifierProvider(create: (_) => WatchlistState()..bootstrap()),
       ],
-      child: const XikuanApp(),
+      child: const XiaiApp(),
     ),
   );
 }

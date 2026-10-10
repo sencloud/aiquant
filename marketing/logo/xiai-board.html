@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>喜爱 · 图标</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1120px;background:#EFEAE0;color:#1F1C17;
+       font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+       padding:40px 44px}
+  h1{font-size:24px;letter-spacing:2px}
+  h1 em{font-style:normal;color:#9E6322}
+  header p{margin-top:8px;font-size:13px;color:#5F5850;line-height:1.8}
+  h2{margin:30px 0 14px;font-size:13px;letter-spacing:1.6px;color:#9E6322}
+  .row{display:flex;gap:26px;align-items:flex-start}
+  .big{width:340px;height:340px;border-radius:76px;overflow:hidden;
+       box-shadow:0 10px 30px rgba(42,33,24,.18)}
+  .big svg{width:100%;height:100%;display:block}
+  .strip{display:flex;align-items:flex-end;gap:22px;background:#fff;
+         border-radius:14px;padding:22px 26px}
+  .sz{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .box{border-radius:22%;overflow:hidden;box-shadow:0 2px 6px rgba(42,33,24,.16)}
+  .box svg{width:100%;height:100%;display:block}
+  .sz span{font-size:10px;color:#7C746A}
+  .wall{display:flex;gap:22px;margin-top:6px}
+  .phone{width:250px;height:250px;border-radius:30px;display:grid;
+         grid-template-columns:repeat(3,1fr);gap:18px;padding:34px 26px}
+  .phone.light{background:linear-gradient(160deg,#FBF7F0 0%,#E3DCCB 100%)}
+  .phone.dark{background:linear-gradient(160deg,#2A2620 0%,#14120F 100%)}
+  .app{width:52px;height:52px;border-radius:13px;overflow:hidden;
+       box-shadow:0 3px 8px rgba(0,0,0,.22)}
+  .app svg{width:100%;height:100%;display:block}
+  .app.ph{background:rgba(0,0,0,.07)}
+  .phone.dark .app.ph{background:rgba(255,255,255,.10)}
+</style>
+</head>
+<body>
+  <header>
+    <h1>喜爱 · <em>纸上墨金</em></h1>
+    <p>纸底 + 墨字「喜」+ 墨金四角星。四角星是从「喜宽」带过来的品牌记号，
+       换掉的是它所在的世界：从深黑底上的亮金黄，落到暖纸上的墨与金。</p>
+  </header>
+  <h2>主图标</h2>
+  <div class="row">
+    <div class="big"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div>
+    <div>
+      <div class="strip"><div class="sz"><div class="box" style="width:29px;height:29px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><span>29px</span></div><div class="sz"><div class="box" style="width:44px;height:44px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><span>44px</span></div><div class="sz"><div class="box" style="width:60px;height:60px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><span>60px</span></div><div class="sz"><div class="box" style="width:76px;height:76px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><span>76px</span></div><div class="sz"><div class="box" style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><span>120px</span></div></div>
+    </div>
+  </div>
+  <h2>主屏实际观感</h2>
+  <div class="wall">
+    <div class="phone light"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div></div>
+    <div class="phone dark"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
+  <!-- 喜爱 · 纸上墨金
+       纸底 + 墨字「喜」+ 墨金四角星。
+       四角星是从「喜宽」时期带过来的品牌记号，换的是它所处的世界：
+       从深黑底上的亮金黄，落到暖纸上的墨与金。 -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#F8F5ED"/>
+      <stop offset="0.62" stop-color="#F1EBDD"/>
+      <stop offset="1" stop-color="#E7DFCC"/>
+    </linearGradient>
+    <radialGradient id="corner" cx="0.82" cy="0.16" r="0.55">
+      <stop offset="0" stop-color="#C98A3A" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#C98A3A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="seal" gradientUnits="userSpaceOnUse" x1="740" y1="180" x2="900" y2="400">
+      <stop offset="0" stop-color="#B57B33"/>
+      <stop offset="1" stop-color="#8A5316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <rect width="1024" height="1024" fill="url(#corner)"/>
+
+  <!-- 「喜」：墨色，精确居中（字形框 500 高，横向按实际字宽居中） -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(249.9,712.1) scale(0.5252,-0.5252)" fill="#1F1C17"/>
+
+  <!-- 品牌记号：四角星 + 一颗小星。放在右上角、躲开字形包围盒，
+       这样缩到 29px 也不会糊在笔画上 -->
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(838,188) scale(62)" fill="url(#seal)"/>
+  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+        transform="translate(898,288) scale(28)" fill="#B57B33" fill-opacity="0.9"/>
+</svg>
+</div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div></div>
+  </div>
+</body>
+</html>

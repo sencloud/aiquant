@@ -84,40 +84,13 @@ class _SplashScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.amber.withValues(alpha: 0.45),
-                    blurRadius: 24,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset(
-                'assets/branding/app_icon.png',
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.medium,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.amber),
-            ),
-          ],
-        ),
+        // 开屏页刚过去，这里保持同一套题字，视觉上是一段连续的启动过程，
+        // 而不是「开屏 → 又一个转圈页」。
+        child: Text('喜爱',
+            style: AppType.display.copyWith(
+                fontSize: 40,
+                letterSpacing: 6,
+                color: AppColors.textPrimary)),
       ),
     );
   }

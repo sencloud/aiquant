@@ -77,7 +77,7 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
       }
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png', name: 'xikuan_assistant.png')],
-        subject: '来自喜宽 AI 助理',
+        subject: '来自喜爱 AI 助理',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -437,7 +437,7 @@ class _ShareCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '喜宽 · AI 投资助理',
+                  '喜爱 · AI 投资助理',
                   style: TextStyle(
                     color: _accent,
                     fontSize: 14,
@@ -447,7 +447,7 @@ class _ShareCard extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  '由喜宽生成的对话内容 · 仅供参考',
+                  '由喜爱生成的对话内容 · 仅供参考',
                   style: TextStyle(
                     color: _fgSecondary,
                     fontSize: 10,
@@ -528,7 +528,7 @@ class _BrandQrFooter extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  '扫码下载「喜宽」AI 投研助理',
+                  '扫码下载「喜爱」AI 投研助理',
                   style: TextStyle(
                       color: _fgPrimary,
                       fontSize: 12,
@@ -672,7 +672,7 @@ class _XhsCard extends StatelessWidget {
               Icon(Icons.auto_awesome, size: 16, color: Colors.white),
               SizedBox(width: 6),
               Text(
-                '喜宽 · AI 投研助理',
+                '喜爱 · AI 投研助理',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,

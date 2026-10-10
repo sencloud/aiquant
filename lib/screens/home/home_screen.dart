@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../services/analytics.dart';
 import '../../services/network_permission_service.dart';
 import '../../services/tushare_service.dart';
 import '../../state/auth_state.dart';
@@ -11,6 +12,7 @@ import '../../state/billing_state.dart';
 import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
+import '../discover/discover_screen.dart';
 import '../settings/settings_screen.dart';
 import '../strategy/strategy_screen.dart';
 
@@ -23,12 +25,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 对话, 1 = 策略, 2 = 我的
+  // 0 = 对话, 1 = 策略, 2 = 发现, 3 = 我的
   //
-  // 底部只留两个"主功能"（对话 / 策略）+ 个人中心：看盘、自选、DING、组合
-  // 都收进「我的」。股票行情改成按需触达——聊天里提到某只股票时点链接进详情，
-  // 而不是让人先切 tab 再去搜。
-  int _index = 0;
+  // 底部四个页签：两个"主功能"（对话 / 策略）+ 发现 + 个人中心。
+  // 「发现」是第二梯队功能的归档页（照微信），想找什么翻它，而不是全堆首屏。
+  // 股票行情改成按需触达——聊天里提到某只股票时点链接进详情，而不是让人先切
+  // tab 再去搜。
+  //
+  // 仅用于设计走查：`--dart-define=INITIAL_TAB=1` 可以让 App 直接落在指定页签，
+  // 免得每次截图都要手点。不影响正常构建（默认 0 = 对话）。
+  int _index = const int.fromEnvironment('INITIAL_TAB', defaultValue: 0);
 
   // 网络由「受限」恢复「可用」时自增，用于重建页面子树触发各 tab 重新拉数据。
   int _reloadTick = 0;
@@ -75,9 +81,13 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _reloadTick++);
   }
 
-  /// 需要登录才能进入的 tab：策略(1) / 我的(2)。
-  /// 策略数据本身来自账号相关的实盘配置，未登录不展示。
-  static const _gatedTabs = {1, 2};
+  /// 需要登录才能进入的 tab：只有「我的」(3)。
+  ///
+  /// 「策略」页签现在是证伪台，内容不依赖账号，而且它是获客内容 ——
+  /// 没有理由让新用户在登录墙后面才能看到它第一次回答「什么不行」。
+  /// 「发现」同理：内容可浏览，需要账号的动作自己会弹登录。
+  /// 「策略」里真正与账号相关的「实盘策略」入口也自己弹登录。
+  static const _gatedTabs = {3};
 
   /// 切换 tab；命中需鉴权的 tab 时先弹登录，放弃登录则停留原 tab。
   Future<void> _selectTab(int i) async {
@@ -85,14 +95,18 @@ class _HomeScreenState extends State<HomeScreen>
       final ok = await requireLogin(context);
       if (!ok || !mounted) return;
     }
+    Analytics.instance.track(Analytics.evTabView, {'tab': _tabNames[i]});
     setState(() => _index = i);
   }
+
+  static const _tabNames = ['chat', 'strategy', 'discover', 'me'];
 
   @override
   Widget build(BuildContext context) {
     const pages = [
       AssistantScreen(),
       StrategyScreen(),
+      DiscoverScreen(),
       SettingsScreen(),
     ];
     final unread = context.watch<DingState>().unreadCount;
@@ -115,13 +129,12 @@ class _HomeScreenState extends State<HomeScreen>
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.bgSurface,
-          border: Border(top: BorderSide(color: AppColors.borderDim)),
+          border: Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
         ),
         child: SafeArea(
           top: false,
-          minimum: const EdgeInsets.only(bottom: 4),
           child: SizedBox(
-            height: 56,
+            height: 54,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -140,12 +153,19 @@ class _HomeScreenState extends State<HomeScreen>
                   onTap: () => _selectTab(1),
                 ),
                 _NavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: '我的',
+                  icon: Icons.explore_outlined,
+                  activeIcon: Icons.explore,
+                  label: '发现',
                   active: _index == 2,
                   badge: unread,
                   onTap: () => _selectTab(2),
+                ),
+                _NavItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: '我的',
+                  active: _index == 3,
+                  onTap: () => _selectTab(3),
                 ),
               ],
             ),
@@ -179,17 +199,19 @@ class _NavItem extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: onTap,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(active ? activeIcon : icon, size: 18, color: color),
+                Icon(active ? activeIcon : icon, size: 22, color: color),
                 if (badge > 0)
                   Positioned(
-                    right: -8,
-                    top: -4,
+                    right: -10,
+                    top: -5,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 4, vertical: 1),
@@ -220,8 +242,8 @@ class _NavItem extends StatelessWidget {
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 10.5,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],

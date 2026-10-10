@@ -6,11 +6,23 @@ import 'package:provider/provider.dart';
 
 import 'desktop/desktop_shell.dart';
 import 'screens/auth/auth_gate.dart';
+import 'screens/splash/splash_screen.dart';
 import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
 
-class XikuanApp extends StatelessWidget {
-  const XikuanApp({super.key});
+/// 喜爱 · 喜 AI 的策略证伪台。
+///
+/// 启动顺序：开屏页（至少 1 秒，用于收尾初始化）→ AuthGate（校验登录态）→
+/// 主界面。开屏页不只是一个门面：它把「首屏之前必须完成的事」停顿显性化。
+class XiaiApp extends StatefulWidget {
+  const XiaiApp({super.key});
+
+  @override
+  State<XiaiApp> createState() => _XiaiAppState();
+}
+
+class _XiaiAppState extends State<XiaiApp> {
+  bool _splashDone = false;
 
   @override
   Widget build(BuildContext context) {
@@ -22,14 +34,20 @@ class XikuanApp extends StatelessWidget {
         // pick up the new colours on this rebuild.
         final theme = AppTheme.build(mode);
         return MaterialApp(
-          title: '喜宽',
+          title: '喜爱',
           debugShowCheckedModeBanner: false,
           theme: theme,
           // 桌面平台（Windows/macOS/Linux）进 DesktopShell：助理对话 + 策略回测
-          // 两个页签；移动端 / Web 保持原有 HomeScreen 不变。
-          home: _isDesktop
-              ? AuthGate(homeBuilder: (_) => const DesktopShell())
-              : const AuthGate(),
+          // 两个页签；移动端 / Web 保持 HomeScreen。
+          home: _splashDone
+              ? (_isDesktop
+                  ? AuthGate(homeBuilder: (_) => const DesktopShell())
+                  : const AuthGate())
+              : SplashScreen(
+                  onDone: () {
+                    if (mounted) setState(() => _splashDone = true);
+                  },
+                ),
         );
       },
     );
