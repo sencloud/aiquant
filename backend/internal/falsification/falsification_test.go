@@ -31,11 +31,14 @@ func openStore(t *testing.T) *store.Store {
 	return st
 }
 
+// userSeq 生成唯一 uuid（Windows 上纳秒时钟分辨率不够，不能拿时间当唯一值）。
+var userSeq atomic.Int64
+
 func newUser(t *testing.T, st *store.Store, balance int64) int64 {
 	t.Helper()
 	now := time.Now().UnixMilli()
 	res, err := st.DB.Exec(`INSERT INTO users(uuid, status, credit_balance, created_at, updated_at)
-		VALUES(?, 'active', ?, ?, ?)`, fmt.Sprintf("u-%d-%d", now, time.Now().UnixNano()), balance, now, now)
+		VALUES(?, 'active', ?, ?, ?)`, fmt.Sprintf("u-%d", userSeq.Add(1)), balance, now, now)
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
