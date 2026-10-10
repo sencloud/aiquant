@@ -50,6 +50,8 @@ jobs:
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
           DEEPSEEK_BASE_URL=https://api.deepseek.com
           API_BASE_URL=${API_BASE_URL}
+          UMAMI_HOST=https://cloud.umami.is
+          UMAMI_WEBSITE_ID=513542e2-c821-4133-8a62-5f235b7dc52c
           EOF
           echo ".env generated ($(wc -c < .env) bytes)"
           echo "::add-mask::${TUSHARE_TOKEN}"
