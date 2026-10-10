@@ -86,6 +86,8 @@ type StrategyConfig struct {
 	Enabled     bool   `toml:"enabled"`
 	BaseURL     string `toml:"base_url"`
 	SyncMinutes int    `toml:"sync_minutes"`
+	// SimCapital 是「组合管理」里策略模拟组合的名义本金（元），默认 100 万。
+	SimCapital float64 `toml:"sim_capital"`
 }
 
 // NautilusConfig 鹦鹉螺预测市场的运行参数。
@@ -420,6 +422,7 @@ func defaultConfig() *Config {
 			Enabled:     true,
 			BaseURL:     "https://x.singzquant.com",
 			SyncMinutes: 30,
+			SimCapital:  1_000_000,
 		},
 		Ingest: IngestConfig{
 			MaxAgeSec: 120,
@@ -612,6 +615,11 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("FINME_STRATEGY__BASE_URL"); v != "" {
 		c.Strategy.BaseURL = v
+	}
+	if v := os.Getenv("FINME_STRATEGY__SIM_CAPITAL"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n > 0 {
+			c.Strategy.SimCapital = n
+		}
 	}
 	if v := os.Getenv("FINME_NAUTILUS__SHELLS_FROZEN"); v != "" {
 		c.Nautilus.ShellsFrozen = v == "1" || strings.EqualFold(v, "true")

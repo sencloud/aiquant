@@ -15,7 +15,7 @@ class Portfolio extends HiveObject {
   DateTime createdAt;
   DateTime updatedAt;
 
-  /// 非空 = 系统托管的只读组合（如 `live_strategy` 实盘组合），由同步任务整体覆盖，
+  /// 非空 = 系统托管的只读组合（如 `live_strategy` 策略模拟组合），由同步任务整体覆盖，
   /// 用户不能增删持仓或删除组合。
   String managedBy;
 

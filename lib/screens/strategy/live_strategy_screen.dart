@@ -7,10 +7,11 @@ import 'strategy_ask.dart';
 import 'strategy_detail_screen.dart';
 import 'widgets/strategy_cards.dart';
 
-/// 实盘策略页 —— 入口在「发现 → 组合管理」里的实盘组合（顶部「策略详情」）。
+/// 策略详情页 —— 入口在「发现 → 组合管理」里的策略模拟组合（顶部「策略详情」）。
 ///
-/// 回答两个问题：**本期要不要动手**、**实盘现在什么状态**。数据来自后端
-/// `/v1/strategy/primary`（上证50 九因子，月度调仓），需要登录。
+/// 回答：**本期策略结论是什么**（目标名单、调仓清单、问 AI）。数据来自后端
+/// `/v1/strategy/primary`（上证50 九因子，月度调仓），需要登录。人工实盘账户
+/// 不在这里展示——组合管理里呈现的是按策略结论模拟的资金，非实盘。
 class LiveStrategyScreen extends StatefulWidget {
   const LiveStrategyScreen({super.key});
 
@@ -67,14 +68,15 @@ class _LiveStrategyScreenState extends State<LiveStrategyScreen> {
     final loadedAt = _loadedAt;
     if (!_loading &&
         (loadedAt == null ||
-            DateTime.now().difference(loadedAt) > const Duration(minutes: 10))) {
+            DateTime.now().difference(loadedAt) >
+                const Duration(minutes: 10))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_loading) _load();
       });
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('实盘策略'),
+        title: const Text('策略详情'),
         actions: [
           IconButton(
             tooltip: '刷新',
@@ -102,8 +104,7 @@ class _LiveStrategyScreenState extends State<LiveStrategyScreen> {
           children: [
             Text(_error!,
                 textAlign: TextAlign.center,
-                style:
-                    AppType.body.copyWith(color: AppColors.textSecondary)),
+                style: AppType.body.copyWith(color: AppColors.textSecondary)),
             const SizedBox(height: AppSpace.md),
             OutlinedButton(onPressed: _load, child: const Text('重试')),
           ],
@@ -133,14 +134,6 @@ class _LiveStrategyScreenState extends State<LiveStrategyScreen> {
           onTapTarget: (t) =>
               askStrategyAI(context, snap, code: t.code, name: t.name),
         ),
-        if (snap.live != null) ...[
-          const SizedBox(height: AppSpace.md),
-          LiveCard(
-            live: snap.live!,
-            onTapPosition: (p) => askStrategyAI(context, snap,
-                code: p.code, name: p.name, role: '持仓', cost: p.avgCost),
-          ),
-        ],
         const SizedBox(height: AppSpace.md),
         _DetailEntry(
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -276,8 +269,8 @@ class _Centered extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.xl, vertical: 80),
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpace.xl, vertical: 80),
         children: [Center(child: child)],
       );
 }

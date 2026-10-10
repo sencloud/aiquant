@@ -7,7 +7,7 @@ import '../models/portfolio.dart';
 /// `services::PortfolioService` from the Qt project: portfolio CRUD,
 /// transaction logging, and asset aggregation from the transaction ledger.
 class PortfolioRepository {
-  /// 系统托管组合（实盘）置顶，其余按创建时间。
+  /// 系统托管组合（策略模拟）置顶，其余按创建时间。
   List<Portfolio> allPortfolios() => portfoliosBox.values.toList()
     ..sort((a, b) {
       if (a.isManaged != b.isManaged) return a.isManaged ? -1 : 1;

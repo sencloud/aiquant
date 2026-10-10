@@ -77,7 +77,7 @@ class StrategyDetailScreen extends StatelessWidget {
   Widget _performance(StrategyMetrics m) {
     final bench = snapshot.benchmarks.isEmpty ? null : snapshot.benchmarks.first;
     return StrategyCard(
-      title: '绩效（与实盘同一口径）',
+      title: '绩效（回测口径）',
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,

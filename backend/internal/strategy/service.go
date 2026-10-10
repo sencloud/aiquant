@@ -25,6 +25,11 @@ type Service struct {
 	baseURL string
 	httpc   *http.Client
 	cal     *calendarCache
+
+	// SimCapital 是策略模拟组合的名义本金（0 = 默认 100 万）。
+	SimCapital float64
+	// prices 仅供测试注入；生产为 nil，走 Tushare。
+	prices PriceSource
 }
 
 func NewService(st *store.Store, l *zerolog.Logger, tu *tushare.Client, baseURL string) *Service {

@@ -35,7 +35,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 实盘组合跟着登录态走：登录 → 可见并同步；登出 → 隐藏。
+    // 策略模拟组合跟着登录态走：登录 → 可见并同步；登出 → 隐藏。
     final authed = context.watch<AuthState>().isAuthenticated;
     if (_authed != authed) {
       _authed = authed;
@@ -86,7 +86,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 实盘组合是系统托管、只读的：不能加品种 / 导入 / 删除。
+                // 策略模拟组合是系统托管、只读的：不能加品种 / 导入 / 删除。
                 PortfolioCommandBar(
                   onCreate: () => _create(context),
                   onAddAsset: ps.activeId == null || managed

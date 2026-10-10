@@ -63,6 +63,23 @@ type Snapshot struct {
 	Factors    []Factor     `json:"factors,omitempty"`
 	Universes  []Universe   `json:"universes,omitempty"`
 	Curve      []CurvePoint `json:"curve,omitempty"`
+
+	// BacktestTrades 是策略回测引擎的调仓成交（上游 /api/dashboard 的 trades，
+	// 最近 N 笔）。它代表「策略结论」：每期剔除谁、买入谁；与人工实盘无关。
+	BacktestTrades []BacktestTrade `json:"backtest_trades,omitempty"`
+}
+
+// BacktestTrade 是回测引擎的一笔调仓成交。Date 是执行日（信号次一交易日）。
+type BacktestTrade struct {
+	Date   string   `json:"date"`
+	Action string   `json:"action"` // buy / sell
+	Code   string   `json:"code"`
+	Name   string   `json:"name"`
+	Shares float64  `json:"shares"`
+	Price  float64  `json:"price"`
+	Amount float64  `json:"amount"`
+	Fee    float64  `json:"fee"`
+	PnL    *float64 `json:"pnl,omitempty"`
 }
 
 // Meta 是策略的自我介绍（口径说明，长期稳定）。
