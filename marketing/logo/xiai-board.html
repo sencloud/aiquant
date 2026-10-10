@@ -36,17 +36,19 @@
 </head>
 <body>
   <header>
-    <h1>喜爱 · <em>圆脸小喜</em></h1>
-    <p>一个圆滚滚的奶油色小家伙，配一颗墨金四角星（记号沿用「喜宽」时期）。
-       全部由基础几何构成，没有滤镜也没有位图 —— 缩到 29px 仍然是一个「有脸的圆」。</p>
+    <h1>喜爱 · <em>喜 AI</em></h1>
+    <p>墨色「喜」→ 墨金一道波浪 → 墨色「AI」：自下而上读出来正是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。圆润感来自暖纸底的圆角光晕、波浪的圆头收笔、
+       以及用圆头笔画搭出来的字母 —— 整张图没有一个尖角。</p>
   </header>
   <h2>主图标</h2>
   <div class="row">
     <div class="big"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -57,60 +59,41 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div>
     <div>
       <div class="strip"><div class="sz"><div class="box" style="width:29px;height:29px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -121,58 +104,39 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><span>29px</span></div><div class="sz"><div class="box" style="width:44px;height:44px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -183,58 +147,39 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><span>44px</span></div><div class="sz"><div class="box" style="width:60px;height:60px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -245,58 +190,39 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><span>60px</span></div><div class="sz"><div class="box" style="width:76px;height:76px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -307,58 +233,39 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><span>76px</span></div><div class="sz"><div class="box" style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -369,52 +276,32 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><span>120px</span></div></div>
     </div>
@@ -422,10 +309,11 @@
   <h2>主屏实际观感</h2>
   <div class="wall">
     <div class="phone light"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -436,59 +324,40 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div></div>
     <div class="phone dark"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
-  <!-- 喜爱 · 圆脸小喜
-       一个圆滚滚的奶油色小家伙，配一颗墨金四角星（品牌记号沿用「喜宽」时期）。
-       全部是基础几何：圆、椭圆、圆头弧线 —— 没有滤镜、没有位图，缩到 29px
-       依然是一个「有脸的圆」。 -->
+  <!-- 喜爱 · 喜 AI
+       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。
+       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
+       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -499,52 +368,32 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="body" cx="0.36" cy="0.28" r="0.92">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.58" stop-color="#FDF2DE"/>
-      <stop offset="1" stop-color="#F5DFBA"/>
-    </radialGradient>
-    <radialGradient id="ground" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="gloss" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
-      <stop offset="0" stop-color="#D69A45"/>
-      <stop offset="1" stop-color="#9E6322"/>
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+      <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
   </defs>
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 落在纸上的那一点影子，让小家伙「坐」得住 -->
-  <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#ground)"/>
+  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
+       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
 
-  <!-- 圆滚滚的身体 -->
-  <circle cx="512" cy="522" r="302" fill="url(#body)"/>
-  <!-- 左上高光：奶油质感（用径向渐变，别用硬边椭圆 —— 那看着像贴了张白纸） -->
-  <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#gloss)" transform="rotate(-28 398 360)"/>
+  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
+  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
+        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
 
-  <!-- 脸：大眼睛 + 小弧线笑 + 腮红 -->
-  <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
-  <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
-  <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
-  <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
-        stroke-linecap="round" fill="none"/>
-
-  <!-- 品牌记号：墨金四角星，浮在右上角 -->
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(806,286) scale(50)" fill="url(#star)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  <!-- AI：墨色，圆头笔画搭出来的两个字 -->
+  <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M413 890 L469 780"/>
+    <path d="M525 890 L469 780"/>
+    <path d="M437 862 L501 862"/>
+    <path d="M618 780 L618 890"/>
+  </g>
 </svg>
 </div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div></div>
   </div>
