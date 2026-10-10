@@ -1,14 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 Android 自适应图标前景">
-  <!-- Android 自适应图标的前景层：透明底，只有「喜 / 波浪 / AI」这组字标。
-       整体缩到中心 66% 安全区以内，圆/方圆/水滴遮罩都不会切到笔画。 -->
+  <!-- Android 自适应图标的前景层：透明底，只有内容（喜 + 星 + AI）。
+       两块底色由 background 层负责（icon-xiai-background.svg），所以这里的
+       内容按 0.63 缩进中心安全区，跟背景层用同一套坐标对齐。 -->
   <defs>
-    <linearGradient id="fgWave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
-      <stop offset="0" stop-color="#C88A32"/>
-      <stop offset="0.25" stop-color="#A8681F"/>
-      <stop offset="0.5" stop-color="#A8681F"/>
-      <stop offset="0.75" stop-color="#A8681F"/>
-      <stop offset="1" stop-color="#C88A32"/>
-    </linearGradient>
     <linearGradient id="fgStar" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
       <stop offset="0" stop-color="#D69A45"/>
       <stop offset="1" stop-color="#9E6322"/>
@@ -16,27 +10,21 @@
   </defs>
 
   <g transform="translate(512,512) scale(0.63) translate(-512,-512)">
-    <path d="{{XI_PATH}}" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
-
-    <path d="M120 630 Q218 600 316 630 T512 630 T708 630 T904 630"
-          stroke="url(#fgWave)" stroke-width="22" stroke-linecap="round" fill="none"/>
-
-    <!-- AI：粗笔画 + 斜势 + 两色（A 墨、I 墨金）的专门标记 -->
-    <g transform="translate(512,835) skewX(-9) translate(-512,-835)">
-      <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round"
-         stroke-linejoin="round">
-        <path d="M410 889 L466 781"/>
-        <path d="M522 889 L466 781"/>
-        <path d="M432 856 L500 856"/>
-      </g>
-      <path d="M616 781 L616 889" stroke="#9E6322" stroke-width="42"
-            stroke-linecap="round" fill="none"/>
-    </g>
-
-    <!-- 右上角两颗星 -->
+    <path d="{{XI_PATH}}" transform="translate(312.8,472.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
     <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
           transform="translate(838,188) scale(54)" fill="url(#fgStar)"/>
     <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
           transform="translate(898,288) scale(24)" fill="#B57B33" fill-opacity="0.9"/>
+
+    <g transform="translate(512,845) skewX(-9) translate(-512,-845)">
+      <g fill="none" stroke="#3D2E20" stroke-width="42" stroke-linecap="round"
+         stroke-linejoin="round">
+        <path d="M410 899 L466 791"/>
+        <path d="M522 899 L466 791"/>
+        <path d="M432 866 L500 866"/>
+      </g>
+      <path d="M616 791 L616 899" stroke="#9E6322" stroke-width="42"
+            stroke-linecap="round" fill="none"/>
+    </g>
   </g>
 </svg>

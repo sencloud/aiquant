@@ -101,6 +101,22 @@ $fgPage = Join-Path $here "render-xiai-foreground.html"
 Render -Page $fgPage -W 1024 -H 1024 -Out (Join-Path $repo "assets\branding\app_icon_foreground.png")
 Write-Host "[ok] assets/branding/app_icon_foreground.png"
 
+# Android 自适应图标的背景层：上下两块底色 + 波浪交界（不透明，铺满）
+$bgSvg = [System.IO.File]::ReadAllText(
+    (Join-Path $src "icon-xiai-background.svg"), [System.Text.Encoding]::UTF8
+)
+[System.IO.File]::WriteAllText((Join-Path $iconDir "喜爱_appicon_background.svg"),
+    $bgSvg, (New-Object System.Text.UTF8Encoding($false)))
+
+$bgCss = 'html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#FFF3E0}svg{display:block;width:100%;height:100%}'
+$bgPage = Join-Path $here "render-xiai-background.html"
+[System.IO.File]::WriteAllText($bgPage,
+    '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>' + $bgCss +
+    '</style></head><body>' + $bgSvg + '</body></html>',
+    (New-Object System.Text.UTF8Encoding($false)))
+Render -Page $bgPage -W 1024 -H 1024 -Out (Join-Path $repo "assets\branding\app_icon_background.png")
+Write-Host "[ok] assets/branding/app_icon_background.png"
+
 # ── 3. 多尺寸对照：主屏尺寸下还读不读得出来 ─────────────────────────
 $sizes = @(29, 44, 60, 76, 120)
 $parts = foreach ($s in $sizes) {
@@ -147,11 +163,12 @@ $board = @'
 <body>
   <header>
     <h1>喜爱 · <em>喜 AI</em></h1>
-    <p>墨色「喜」→ 墨金波浪分隔线 → 「AI」标记：自下而上读出来正是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。波浪是分隔线而不是装饰，横贯图标宽度，
-       把上面的「喜 + 两颗星」和下面的「AI」划成两个区块。<br>
-       下面那组「AI」是专门画的标记而不是普通字母：笔画更粗、整体带斜势、
-       并且 A 用墨、I 用墨金两色分开 —— 参考 189 邮箱图标里那个两色的「5G」。</p>
+    <p>上下是两块<b>不同底色</b>的区域，中间那条波浪是它们的<b>交界</b> ——
+       不是画在同一块底色上的一根线。上区暖桃放「喜」和两颗星，下区米白放
+       「AI」（参考 189 邮箱：上面实蓝放 189，下面浅蓝白放 5G）。<br>
+       下区那组「AI」是专门画的标记而不是普通字母：笔画更粗、整体带斜势、
+       A 用墨、I 用墨金两色分开。波浪走满左右两端、顶到边 —— 既然是区域交界，
+       就不该留内边距。</p>
   </header>
   <h2>主图标</h2>
   <div class="row">
