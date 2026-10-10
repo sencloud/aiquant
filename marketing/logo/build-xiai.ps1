@@ -24,26 +24,46 @@ $chrome = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $chrome) { throw "找不到 Chrome/Edge，无法渲染。" }
 
+$xiPath = Join-Path $src "xi-900.path"
+if (-not (Test-Path $xiPath)) {
+    throw "缺少 src/xi-900.path，请先执行：python marketing/logo/tools/outline_glyph.py"
+}
+$xi = [System.IO.File]::ReadAllText($xiPath, [System.Text.Encoding]::UTF8).Trim()
+
 function Render {
     param([string]$Page, [int]$W, [int]$H, [string]$Out, [double]$Scale = 2)
     if (Test-Path $Out) { Remove-Item -LiteralPath $Out -Force }
     $uri = ([System.Uri]$Page).AbsoluteUri
-    Start-Process -FilePath $chrome -ArgumentList @(
+    $chromeArgs = @(
         "--headless=new", "--disable-gpu", "--hide-scrollbars",
         "--default-background-color=00000000",
         "--force-device-scale-factor=$Scale",
         "--virtual-time-budget=2500",
         "--window-size=$([int]($W / $Scale)),$([int]($H / $Scale))",
+        # 单独的用户数据目录：否则 Chrome 可能把请求交给已经在跑的浏览器实例，
+        # 那一次就等于没截图。
+        "--user-data-dir=$(Join-Path $env:TEMP 'xiai-logo-render')",
         "--screenshot=$Out", $uri
-    ) -Wait -WindowStyle Hidden `
+    )
+    # 不用 -Wait：Chrome 的子进程偶尔不退，-Wait 会永久挂住。改成轮询产物文件，
+    # 拿到就收工，超时就把这次启动的进程收掉。
+    $proc = Start-Process -FilePath $chrome -ArgumentList $chromeArgs -PassThru `
+        -WindowStyle Hidden `
         -RedirectStandardError (Join-Path $env:TEMP "xiai_icon.err.log") `
         -RedirectStandardOutput (Join-Path $env:TEMP "xiai_icon.out.log")
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not (Test-Path $Out) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 200
+    }
+    if (-not $proc.HasExited) {
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
     if (-not (Test-Path $Out)) { throw "渲染失败：$Out" }
 }
 
 $svg = [System.IO.File]::ReadAllText(
     (Join-Path $src "icon-xiai-template.svg"), [System.Text.Encoding]::UTF8
-)
+).Replace("{{XI_PATH}}", $xi)
 [System.IO.File]::WriteAllText(
     (Join-Path $iconDir "喜爱_appicon.svg"), $svg,
     (New-Object System.Text.UTF8Encoding($false)))
@@ -68,7 +88,7 @@ Write-Host "[ok] assets/branding/app_icon.png"
 # Android 自适应图标的前景层：透明底、内容缩进到安全区
 $fgSvg = [System.IO.File]::ReadAllText(
     (Join-Path $src "icon-xiai-foreground.svg"), [System.Text.Encoding]::UTF8
-)
+).Replace("{{XI_PATH}}", $xi)
 [System.IO.File]::WriteAllText((Join-Path $iconDir "喜爱_appicon_foreground.svg"),
     $fgSvg, (New-Object System.Text.UTF8Encoding($false)))
 
@@ -126,9 +146,10 @@ $board = @'
 </head>
 <body>
   <header>
-    <h1>喜爱 · <em>圆脸小喜</em></h1>
-    <p>一个圆滚滚的奶油色小家伙，配一颗墨金四角星（记号沿用「喜宽」时期）。
-       全部由基础几何构成，没有滤镜也没有位图 —— 缩到 29px 仍然是一个「有脸的圆」。</p>
+    <h1>喜爱 · <em>喜 AI</em></h1>
+    <p>墨色「喜」→ 墨金一道波浪 → 墨色「AI」：自下而上读出来正是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。圆润感来自暖纸底的圆角光晕、波浪的圆头收笔、
+       以及用圆头笔画搭出来的字母 —— 整张图没有一个尖角。</p>
   </header>
   <h2>主图标</h2>
   <div class="row">
