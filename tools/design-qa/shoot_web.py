@@ -48,14 +48,15 @@ def main() -> int:
             device_scale_factor=2,
         )
         page.goto(args.url)
-        # 开屏只有 1 秒，先抓它
         # Flutter 起来后会插入 flutter-view（不同 Flutter 版本内部元素名会变，
         # 只有 flutter-view 是稳定的）。
         page.wait_for_selector("flutter-view", timeout=60000)
         # CJK 字形在 Web 上是异步下载的，太早截图会拍到豆腐块；
-        # 配合 --dart-define=SPLASH_MS=4000 让开屏停久一点再拍。
         page.evaluate("document.fonts.ready")
-        shoot(page, out, "00-splash", wait=3400)
+        # 注意：入场动画（900ms）在 Web 上拍不到中间帧 —— 等 CJK 字体下载那一步
+        # 就把它耗完了，而 reload 会清掉字体缓存换回一屏豆腐块。所以这里只拍
+        # 稳定态；动画本身按构造核对（Interval 曲线 + 透明度/位移）。
+        shoot(page, out, "00-entry", wait=400)
         shoot(page, out, "01-initial", wait=1600)
 
         # 顺序有讲究：「我的」未登录会弹出登录模态，模态一开后续点击全都

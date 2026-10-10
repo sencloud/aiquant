@@ -25,38 +25,35 @@ class TopTagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = active ? accent.withValues(alpha: 0.14) : AppColors.bgRaised;
-    final bg = disabled ? base.withValues(alpha: 0.4) : base;
-    final borderColor = active ? accent : AppColors.borderDim;
-    final fg = active ? accent : AppColors.textPrimary;
+    // 和输入框上方那排快捷 pill 保持同一套语言：白底、无描边、极轻投影。
+    // 选中态只靠主色字 + 主色图标表达 —— 加底色会让它在一排白 pill 里显得
+    // 像"另一个控件"，反而乱。
+    final base = AppColors.bgSurface;
+    final bg = disabled ? base.withValues(alpha: 0.5) : base;
+    final fg = disabled
+        ? AppColors.textTertiary
+        : (active ? AppColors.amberDim : AppColors.textPrimary);
 
     return Material(
       color: bg,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: borderColor, width: active ? 1.2 : 1),
-        borderRadius: BorderRadius.circular(20),
-      ),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      shadowColor: AppColors.shadow,
       child: InkWell(
         onTap: disabled ? null : onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpace.md, 6, AppSpace.sm, 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14, color: fg),
+              Icon(icon, size: 17, color: fg),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 12,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
+                style: AppType.caption.copyWith(color: fg),
               ),
-              const SizedBox(width: 2),
-              Icon(Icons.arrow_drop_down, size: 16, color: fg),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: fg),
             ],
           ),
         ),

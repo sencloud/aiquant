@@ -24,12 +24,6 @@ $chrome = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $chrome) { throw "找不到 Chrome/Edge，无法渲染。" }
 
-$xiPath = Join-Path $src "xi-900.path"
-if (-not (Test-Path $xiPath)) {
-    throw "缺少 src/xi-900.path，请先执行：python marketing/logo/tools/outline_glyph.py"
-}
-$xi = [System.IO.File]::ReadAllText($xiPath, [System.Text.Encoding]::UTF8).Trim()
-
 function Render {
     param([string]$Page, [int]$W, [int]$H, [string]$Out, [double]$Scale = 2)
     if (Test-Path $Out) { Remove-Item -LiteralPath $Out -Force }
@@ -49,7 +43,7 @@ function Render {
 
 $svg = [System.IO.File]::ReadAllText(
     (Join-Path $src "icon-xiai-template.svg"), [System.Text.Encoding]::UTF8
-).Replace("{{XI_PATH}}", $xi)
+)
 [System.IO.File]::WriteAllText(
     (Join-Path $iconDir "喜爱_appicon.svg"), $svg,
     (New-Object System.Text.UTF8Encoding($false)))
@@ -74,7 +68,7 @@ Write-Host "[ok] assets/branding/app_icon.png"
 # Android 自适应图标的前景层：透明底、内容缩进到安全区
 $fgSvg = [System.IO.File]::ReadAllText(
     (Join-Path $src "icon-xiai-foreground.svg"), [System.Text.Encoding]::UTF8
-).Replace("{{XI_PATH}}", $xi)
+)
 [System.IO.File]::WriteAllText((Join-Path $iconDir "喜爱_appicon_foreground.svg"),
     $fgSvg, (New-Object System.Text.UTF8Encoding($false)))
 
@@ -132,9 +126,9 @@ $board = @'
 </head>
 <body>
   <header>
-    <h1>喜爱 · <em>纸上墨金</em></h1>
-    <p>纸底 + 墨字「喜」+ 墨金四角星。四角星是从「喜宽」带过来的品牌记号，
-       换掉的是它所在的世界：从深黑底上的亮金黄，落到暖纸上的墨与金。</p>
+    <h1>喜爱 · <em>圆脸小喜</em></h1>
+    <p>一个圆滚滚的奶油色小家伙，配一颗墨金四角星（记号沿用「喜宽」时期）。
+       全部由基础几何构成，没有滤镜也没有位图 —— 缩到 29px 仍然是一个「有脸的圆」。</p>
   </header>
   <h2>主图标</h2>
   <div class="row">

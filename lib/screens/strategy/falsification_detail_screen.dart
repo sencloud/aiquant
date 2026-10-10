@@ -275,7 +275,7 @@ class _CommandCard extends StatelessWidget {
                       const SnackBar(content: Text('命令已复制')),
                     );
                   },
-                  icon: const Icon(Icons.copy, size: 16),
+                  icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('复制命令'),
                 ),
               ),

@@ -76,7 +76,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
       actions: [
         IconButton(
           tooltip: '这个页面在做什么',
-          icon: const Icon(Icons.help_outline, size: 20),
+          icon: const Icon(Icons.help_outline_rounded, size: 20),
           onPressed: data == null ? null : () => _showAbout(data),
         ),
       ],
@@ -102,7 +102,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
           children: [
             const SizedBox(height: 64),
             WkEmpty(
-              icon: Icons.rule_folder_outlined,
+              icon: Icons.rule_folder_rounded,
               title: '证伪档案读取失败',
               hint: _error,
               action: OutlinedButton(onPressed: _load, child: const Text('重试')),
@@ -657,7 +657,7 @@ class _ArchiveCard extends StatelessWidget {
                         WkTag(e.verdictLabel,
                             tone: _tone(e.verdict), filled: true),
                         const SizedBox(width: AppSpace.xs),
-                        Icon(Icons.chevron_right,
+                        Icon(Icons.chevron_right_rounded,
                             size: 20, color: AppColors.textTertiary),
                       ],
                     ),
@@ -694,7 +694,7 @@ class _LiveEntry extends StatelessWidget {
     return WkGroup(
       children: [
         WkRow(
-          icon: Icons.account_balance_wallet_outlined,
+          icon: Icons.account_balance_wallet_rounded,
           title: '在跑的实盘策略',
           subtitle: authed
               ? '上证50 九因子 · 月度调仓 · 本期要不要动手'

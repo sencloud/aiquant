@@ -1,15 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 Android 自适应图标前景">
-  <!-- Android 自适应图标的前景层：只画墨字与记号，底色交给系统（paper）。
-       内容全部落在中心 66% 安全区内，圆/方圆/水滴遮罩都不会切到笔画。 -->
+  <!-- Android 自适应图标的前景层：透明底，只画小家伙。
+       整体缩到中心 66% 安全区以内，圆/方圆/水滴遮罩都不会切到脸。 -->
   <defs>
-    <linearGradient id="fgSeal" gradientUnits="userSpaceOnUse" x1="660" y1="270" x2="790" y2="440">
-      <stop offset="0" stop-color="#B57B33"/>
-      <stop offset="1" stop-color="#8A5316"/>
+    <radialGradient id="fgBody" cx="0.36" cy="0.28" r="0.92">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#FDF2DE"/>
+      <stop offset="1" stop-color="#F5DFBA"/>
+    </radialGradient>
+    <radialGradient id="fgGround" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#B27A38" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#B27A38" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="fgGloss" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fgStar" gradientUnits="userSpaceOnUse" x1="760" y1="250" x2="860" y2="360">
+      <stop offset="0" stop-color="#D69A45"/>
+      <stop offset="1" stop-color="#9E6322"/>
     </linearGradient>
   </defs>
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,684.1) scale(0.4517,-0.4517)" fill="#1F1C17"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(700,300) scale(54)" fill="url(#fgSeal)"/>
-  <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
-        transform="translate(752,396) scale(24)" fill="#B57B33" fill-opacity="0.9"/>
+
+  <g transform="translate(512,512) scale(0.63) translate(-512,-512)">
+    <ellipse cx="512" cy="836" rx="212" ry="52" fill="url(#fgGround)"/>
+    <circle cx="512" cy="522" r="302" fill="url(#fgBody)"/>
+    <ellipse cx="398" cy="360" rx="176" ry="122" fill="url(#fgGloss)" transform="rotate(-28 398 360)"/>
+
+    <ellipse cx="428" cy="512" rx="27" ry="36" fill="#3D2E20"/>
+    <ellipse cx="596" cy="512" rx="27" ry="36" fill="#3D2E20"/>
+    <circle cx="419" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
+    <circle cx="587" cy="498" r="10" fill="#FFFFFF" fill-opacity="0.92"/>
+    <ellipse cx="352" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
+    <ellipse cx="672" cy="586" rx="38" ry="24" fill="#F2957F" fill-opacity="0.42"/>
+    <path d="M466 596 Q512 638 558 596" stroke="#3D2E20" stroke-width="17"
+          stroke-linecap="round" fill="none"/>
+
+    <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+          transform="translate(806,286) scale(50)" fill="url(#fgStar)"/>
+    <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+          transform="translate(870,398) scale(22)" fill="#B57B33" fill-opacity="0.85"/>
+  </g>
 </svg>
