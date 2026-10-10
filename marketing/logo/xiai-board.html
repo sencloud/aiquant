@@ -37,18 +37,24 @@
 <body>
   <header>
     <h1>喜爱 · <em>喜 AI</em></h1>
-    <p>墨色「喜」→ 墨金一道波浪 → 墨色「AI」：自下而上读出来正是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。圆润感来自暖纸底的圆角光晕、波浪的圆头收笔、
-       以及用圆头笔画搭出来的字母 —— 整张图没有一个尖角。</p>
+    <p>墨色「喜」→ 墨金波浪分隔线 → 墨色「AI」：自下而上读出来正是「喜 AI」，
+       也就是「喜爱」这个名字的谐音。波浪是分隔线而不是装饰 —— 它横贯图标宽度，
+       把上面的「喜 + 两颗星」和下面的「AI」划成两个区块（参考 189 邮箱那道
+       贯穿的分隔线）。圆润感来自暖纸底的圆角光晕、波浪的圆头收笔，以及用圆头
+       笔画搭出来的字母 —— 整张图没有一个尖角。</p>
   </header>
   <h2>主图标</h2>
   <div class="row">
     <div class="big"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -59,9 +65,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -73,21 +81,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -100,10 +107,14 @@
     <div>
       <div class="strip"><div class="sz"><div class="box" style="width:29px;height:29px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -114,9 +125,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -128,21 +141,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -153,10 +165,14 @@
 </svg>
 </div><span>29px</span></div><div class="sz"><div class="box" style="width:44px;height:44px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -167,9 +183,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -181,21 +199,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -206,10 +223,14 @@
 </svg>
 </div><span>44px</span></div><div class="sz"><div class="box" style="width:60px;height:60px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -220,9 +241,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -234,21 +257,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -259,10 +281,14 @@
 </svg>
 </div><span>60px</span></div><div class="sz"><div class="box" style="width:76px;height:76px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -273,9 +299,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -287,21 +315,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -312,10 +339,14 @@
 </svg>
 </div><span>76px</span></div><div class="sz"><div class="box" style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -326,9 +357,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -340,21 +373,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -370,10 +402,14 @@
   <div class="wall">
     <div class="phone light"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -384,9 +420,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -398,21 +436,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->
@@ -424,10 +461,14 @@
 </div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div><div class="app ph"></div></div>
     <div class="phone dark"><div class="app"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 应用图标">
   <!-- 喜爱 · 喜 AI
-       构成：墨色「喜」→ 墨金一道波浪 → 墨色「AI」。读出来正好是「喜 AI」，
-       也就是「喜爱」这个名字的谐音。
-       圆润感来自三处：暖纸底的圆角光晕、波浪的圆头收笔、字母用圆头笔画搭
-       （A 是两撇加一横，I 是一竖），没有一处尖角。 -->
+       构成：墨色「喜」→ 墨金一条波浪分隔线 → 墨色「AI」。读出来正好是
+       「喜 AI」，也就是「喜爱」这个名字的谐音。
+
+       波浪是**分隔线**，不是装饰：它横贯整个图标宽度，把上面「喜 + 两颗星」
+       和下面「AI」划成两个区块（参考 189 邮箱那道贯穿的分隔线）。所以它左右
+       各留 120 的内边距、几乎通到边，而不是缩在中间一小段。
+       竖向节奏：喜 150-530 / 波浪 595-677 / AI 762-902；波浪到 AI 的间距比到
+       「喜」再宽一些，因为小尺寸下 AI 更容易贴到波浪的下沿。 -->
   <defs>
     <linearGradient id="bg" x1="0.08" y1="0" x2="0.92" y2="1">
       <stop offset="0" stop-color="#FFF6E6"/>
@@ -438,9 +479,11 @@
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="wave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="star" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -452,21 +495,20 @@
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#cornerLight)"/>
 
-  <!-- 喜：墨色，居中偏上。三段式的竖向节奏：127-557 / 625-695 / 762-908，
-       间距 68 与 67 基本相等，缩到 29px 也不会糊成一团。 -->
-  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+  <!-- 喜：墨色，居中偏上 -->
+  <path d="M249.0 24.0H763.0V-71.0H249.0ZM160.0 158.0H853.0V-95.0H703.0V64.0H303.0V-95.0H160.0ZM72.0 802.0H928.0V701.0H72.0ZM139.0 676.0H873.0V578.0H139.0ZM35.0 291.0H963.0V183.0H35.0ZM422.0 857.0H570.0V641.0H422.0ZM235.0 335.0 368.0 367.0Q381.7 347.8 392.9 323.4Q404.0 299.0 408.0 279.0L269.0 241.0Q266.0 260.6 256.2 287.5Q246.3 314.3 235.0 335.0ZM622.0 367.0 784.0 347.0Q765.0 316.0 746.0 291.0Q727.0 266.0 713.0 248.0L586.0 272.0Q597.0 295.0 607.0 320.5Q617.0 346.0 622.0 367.0ZM319.0 466.0V432.0H686.0V466.0ZM181.0 553.0H833.0V346.0H181.0Z" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-  <!-- 波浪：把「喜」和「AI」隔开的那一道水纹，圆头收笔 -->
-  <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-        stroke="url(#wave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- 波浪分隔线：横贯左右，把「喜」和「AI」分成上下两个区块 -->
+  <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+        stroke="url(#wave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
   <!-- AI：墨色，圆头笔画搭出来的两个字 -->
   <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
      stroke-linejoin="round">
-    <path d="M413 890 L469 780"/>
-    <path d="M525 890 L469 780"/>
-    <path d="M437 862 L501 862"/>
-    <path d="M618 780 L618 890"/>
+    <path d="M413 885 L469 779"/>
+    <path d="M525 885 L469 779"/>
+    <path d="M437 857 L501 857"/>
+    <path d="M618 779 L618 885"/>
   </g>
 
   <!-- 右上角两颗星：沿用「喜宽」时期的品牌记号，配色跟波浪同一支墨金 -->

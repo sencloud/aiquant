@@ -2,9 +2,11 @@
   <!-- Android 自适应图标的前景层：透明底，只有「喜 / 波浪 / AI」这组字标。
        整体缩到中心 66% 安全区以内，圆/方圆/水滴遮罩都不会切到笔画。 -->
   <defs>
-    <linearGradient id="fgWave" gradientUnits="userSpaceOnUse" x1="300" y1="616" x2="724" y2="704">
+    <linearGradient id="fgWave" gradientUnits="userSpaceOnUse" x1="120" y1="612" x2="904" y2="672">
       <stop offset="0" stop-color="#C88A32"/>
+      <stop offset="0.25" stop-color="#A8681F"/>
       <stop offset="0.5" stop-color="#A8681F"/>
+      <stop offset="0.75" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
     <linearGradient id="fgStar" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
@@ -14,17 +16,17 @@
   </defs>
 
   <g transform="translate(512,512) scale(0.63) translate(-512,-512)">
-    <path d="{{XI_PATH}}" transform="translate(286.7,514.0) scale(0.4517,-0.4517)" fill="#3D2E20"/>
+    <path d="{{XI_PATH}}" transform="translate(312.8,492.1) scale(0.3992,-0.3992)" fill="#3D2E20"/>
 
-    <path d="M300 660 Q353 616 406 660 T512 660 T618 660 T724 660"
-          stroke="url(#fgWave)" stroke-width="26" stroke-linecap="round" fill="none"/>
+    <path d="M120 636 Q218 606 316 636 T512 636 T708 636 T904 636"
+          stroke="url(#fgWave)" stroke-width="22" stroke-linecap="round" fill="none"/>
 
     <g fill="none" stroke="#3D2E20" stroke-width="34" stroke-linecap="round"
        stroke-linejoin="round">
-      <path d="M413 890 L469 780"/>
-      <path d="M525 890 L469 780"/>
-      <path d="M437 862 L501 862"/>
-      <path d="M618 780 L618 890"/>
+      <path d="M413 885 L469 779"/>
+      <path d="M525 885 L469 779"/>
+      <path d="M437 857 L501 857"/>
+      <path d="M618 779 L618 885"/>
     </g>
 
     <!-- 右上角两颗星 -->
