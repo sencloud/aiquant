@@ -353,6 +353,9 @@ func buildToolRegistryWithIngest(
 	tu := tushare.New(cfg.Tushare)
 	nw := news.New(cfg.News)
 	cn := cnnews.New(cfg.News.TimeoutSec)
+	cn.SetLogger(l)
+	wx := weather.New(0)
+	wx.Logger = l
 	rt := realtime.New(0)
 	cal := calendar.New(cfg.News.TimeoutSec)
 	reg := aitools.BuildAll(aitools.Deps{
@@ -361,7 +364,7 @@ func buildToolRegistryWithIngest(
 		CNNews:   cn,
 		Realtime: rt,
 		Calendar: cal,
-		Weather:  weather.New(0),
+		Weather:  wx,
 		Ingest:   ig,
 		IngestMaxAge: func() time.Duration {
 			sec := cfg.Ingest.MaxAgeSec
@@ -400,8 +403,11 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	// 主策略快照：周期抓取外部量化看板，App 的「策略」tab 直接读。
 	if cfg.Strategy.Enabled {
 		interval := time.Duration(cfg.Strategy.SyncMinutes) * time.Minute
-		sch.Register(strategy.NewJob(buildStrategyService(cfg, &l, st), interval, &l))
-		l.Info().Dur("interval", interval).Msg("scheduler: strategy sync job enabled")
+		stSvc := buildStrategyService(cfg, &l, st)
+		sch.Register(strategy.NewJob(stSvc, interval, &l))
+		// 实盘组合：把实盘账户每天物化成「组合管理」里的系统组合（按截至日幂等）。
+		sch.Register(strategy.NewLivePortfolioJob(stSvc, time.Hour, &l))
+		l.Info().Dur("interval", interval).Msg("scheduler: strategy sync + live portfolio jobs enabled")
 	}
 
 	// 证伪档案：周期从 alpha-radar 拉只读导出落库；api 读最新一份（没有就用内置 seed）。

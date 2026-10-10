@@ -14,7 +14,8 @@ import (
 
 // registerEvent 注册新闻 / 事件 / 卫星类工具。
 //
-// 国内中文 + 国际宏观 全部走 cnnews（财联社 / 东财快讯 / 华尔街见闻）；
+// 国内中文 + 国际宏观 全部走 cnnews（华尔街见闻搜索 + 金十 / 东财 / 同花顺 / 新浪 / 财新 / RSS，
+// 各源并发、单源超时、按标题去重，失败源透传给模型）；
 // GDELT 在阿里云出口稳定 8s 超时，已不再使用，对应工具改用华尔街见闻 +
 // 财联社的中文国际频道。卫星火点仍走 NASA FIRMS（公网无替代源）。
 func registerEvent(r *tool.Registry, c *news.Client, cn *cnnews.Client) {
@@ -24,6 +25,28 @@ func registerEvent(r *tool.Registry, c *news.Client, cn *cnnews.Client) {
 	r.MustRegister(&searchShippingEventsTool{cn: cn})
 	r.MustRegister(&searchGeopoliticsEventsTool{cn: cn})
 	r.MustRegister(&getFireHotspotsTool{c: c})
+}
+
+// newsResultJSON 统一新闻类工具的输出：结果 + 每个源的状态。
+// 全部源都失败才给 error；否则即使 0 条也如实返回，并带上失败源，
+// 让模型能判断是「关键词太冷」还是「源挂了」。
+func newsResultJSON(res *cnnews.Result, extra map[string]any) string {
+	out := map[string]any{}
+	for k, v := range extra {
+		out[k] = v
+	}
+	out["count"] = len(res.Events)
+	out["articles"] = eventsToJSON(res.Events)
+	out["sources"] = res.OKSources()
+	if failed := res.FailedSources(); len(failed) > 0 {
+		out["failed_sources"] = failed
+	}
+	if len(res.OKSources()) == 0 && len(res.Sources) > 0 {
+		out["error"] = "所有新闻源都请求失败，请稍后再试"
+	} else if len(res.Events) == 0 {
+		out["notice"] = "各源均正常但没有命中；可换更短或更常见的关键词（例如把「厄尔尼诺现象 棕榈油减产」拆成「厄尔尼诺」「棕榈油」）"
+	}
+	return tool.EncodeJSON(out)
 }
 
 func eventsToJSON(items []news.Event) []map[string]any {
@@ -74,7 +97,7 @@ func (t *searchGlobalEventsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "search_global_events",
 		Description: "搜索国际宏观 / 地缘 / 全球商品 / 外汇相关新闻（中文）。" +
-			"数据源：华尔街见闻实时电报 + 深度文章 + 财联社电报中的国际议题。" +
+			"数据源：华尔街见闻关键词搜索 + 华尔街见闻电报与文章、金十、同花顺、财新、联合国新闻中文、CNBC/MarketWatch（英文词可命中）。" +
 			"按关键字 OR 过滤（多个用空格 / 逗号分隔）。" +
 			"返回标题/来源/时间/摘要/标签。" +
 			"国内 A 股板块/政策请用 search_chinese_news；行业期货农产品请用 get_industry_news。",
@@ -103,21 +126,13 @@ func (t *searchGlobalEventsTool) Run(ctx context.Context, args json.RawMessage) 
 		return tool.EncodeJSON(map[string]any{"error": "query 必填"}), nil
 	}
 	limit := clampInt(in.Limit, 1, 50, 15)
-	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+	res := t.cn.SearchGlobalResult(ctx, cnnews.GlobalSearchOptions{
 		Keyword:         q,
 		Channel:         in.Channel,
 		Limit:           limit,
 		IncludeArticles: true,
 	})
-	if err != nil {
-		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
-	}
-	return tool.EncodeJSON(map[string]any{
-		"query":    q,
-		"count":    len(items),
-		"articles": eventsToJSON(items),
-		"sources":  []string{"wallstreetcn_lives", "wallstreetcn_article", "cls_telegraph"},
-	}), nil
+	return newsResultJSON(res, map[string]any{"query": q}), nil
 }
 
 // ── 20. search_chinese_news ────────────────────────────────────────────
@@ -128,7 +143,7 @@ func (t *searchChineseNewsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "search_chinese_news",
 		Description: "搜索国内中文财经/A 股/期货/农产品/政策最新新闻。" +
-			"聚合源：财联社电报（最实时） + 东方财富 7×24 快讯。" +
+			"聚合源：华尔街见闻关键词搜索（可召回较早的深度报道） + 金十、东财、同花顺、新浪 7×24 快讯 + 财新、中新网、人民网财经。" +
 			"关键词支持空格 / 中文逗号分隔做或匹配（如「锂电 有色」表示锂电或有色）。" +
 			"返回标题/来源/发布时间/摘要/标签。" +
 			"国际/海外议题请改用 search_global_events。",
@@ -155,19 +170,11 @@ func (t *searchChineseNewsTool) Run(ctx context.Context, args json.RawMessage) (
 		return tool.EncodeJSON(map[string]any{"error": "query 必填"}), nil
 	}
 	limit := clampInt(in.Limit, 1, 50, 15)
-	items, err := t.cn.SearchAll(ctx, cnnews.SearchOptions{
+	res := t.cn.SearchAllResult(ctx, cnnews.SearchOptions{
 		Keyword: q,
 		Limit:   limit,
 	})
-	if err != nil {
-		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
-	}
-	return tool.EncodeJSON(map[string]any{
-		"query":    q,
-		"count":    len(items),
-		"articles": eventsToJSON(items),
-		"sources":  []string{"cls_telegraph", "eastmoney_kuaixun"},
-	}), nil
+	return newsResultJSON(res, map[string]any{"query": q}), nil
 }
 
 // ── 20.5 get_industry_news ─────────────────────────────────────────────
@@ -180,7 +187,7 @@ type getIndustryNewsTool struct{ cn *cnnews.Client }
 func (t *getIndustryNewsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "get_industry_news",
-		Description: "按行业 / 主题大类获取最新国内新闻（财联社+东财+新浪聚合）。" +
+		Description: "按行业 / 主题大类获取最新国内新闻（华尔街见闻搜索 + 金十/东财/同花顺/新浪快讯 + 财新/中新网/人民网聚合）。" +
 			"theme 支持：'futures' (期货) / 'agricultural' (农产品) / 'metals' (有色金属) / " +
 			"'energy' (能源/原油/煤炭) / 'chemical' (化工) / 'semiconductor' (半导体) / " +
 			"'military' (军工) / 'newenergy' (新能源车/锂电/光伏) / 'realestate' (房地产) / " +
@@ -226,14 +233,15 @@ func (t *getIndustryNewsTool) Run(ctx context.Context, args json.RawMessage) (st
 	theme := strings.ToLower(strings.TrimSpace(in.Theme))
 	free := strings.TrimSpace(in.FreeKeyword)
 
+	// free_keyword 放最前：搜索型源只取前 3 个词去搜，用户自定义的词最相关。
 	parts := []string{}
+	if free != "" {
+		parts = append(parts, free)
+	}
 	if kws, ok := industryThemeKeywords[theme]; ok {
 		parts = append(parts, kws...)
 	} else if theme != "" {
 		parts = append(parts, theme)
-	}
-	if free != "" {
-		parts = append(parts, free)
 	}
 	if len(parts) == 0 {
 		return tool.EncodeJSON(map[string]any{
@@ -241,23 +249,18 @@ func (t *getIndustryNewsTool) Run(ctx context.Context, args json.RawMessage) (st
 		}), nil
 	}
 
-	items, err := t.cn.SearchAll(ctx, cnnews.SearchOptions{
+	res := t.cn.SearchAllResult(ctx, cnnews.SearchOptions{
 		Keyword: strings.Join(parts, " "),
 		Limit:   limit,
 	})
-	if err != nil {
-		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
-	}
-	out := map[string]any{
+	extra := map[string]any{
 		"theme":    theme,
 		"keywords": parts,
-		"count":    len(items),
-		"articles": eventsToJSON(items),
 	}
 	if free != "" {
-		out["free_keyword"] = free
+		extra["free_keyword"] = free
 	}
-	return tool.EncodeJSON(out), nil
+	return newsResultJSON(res, extra), nil
 }
 
 // ── 21. search_shipping_events ─────────────────────────────────────────
@@ -268,7 +271,7 @@ func (t *searchShippingEventsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "search_shipping_events",
 		Description: "搜索全球航运 / 港口 / 海事 / 海运中断相关事件（红海、苏伊士、巴拿马、马六甲、台湾海峡等）。" +
-			"数据源走华尔街见闻 + 财联社电报。",
+			"数据源走华尔街见闻搜索 + 多家快讯聚合。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
 				"limit":         {Type: "integer", Description: "默认 15，最大 50"},
@@ -291,22 +294,14 @@ func (t *searchShippingEventsTool) Run(ctx context.Context, args json.RawMessage
 	limit := clampInt(in.Limit, 1, 50, 15)
 	kw := shippingZhKeywords
 	if extra := strings.TrimSpace(in.ExtraKeyword); extra != "" {
-		kw = kw + " " + extra
+		kw = extra + " " + kw // 限定词放前面，搜索型源优先搜它
 	}
-	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+	res := t.cn.SearchGlobalResult(ctx, cnnews.GlobalSearchOptions{
 		Keyword:         kw,
 		Limit:           limit,
 		IncludeArticles: true,
 	})
-	if err != nil {
-		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
-	}
-	return tool.EncodeJSON(map[string]any{
-		"theme":    "global_shipping",
-		"keywords": kw,
-		"count":    len(items),
-		"articles": eventsToJSON(items),
-	}), nil
+	return newsResultJSON(res, map[string]any{"theme": "global_shipping", "keywords": kw}), nil
 }
 
 // ── 22. search_geopolitics_events ──────────────────────────────────────
@@ -317,7 +312,7 @@ func (t *searchGeopoliticsEventsTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "search_geopolitics_events",
 		Description: "搜索全球地缘政治 / 武装冲突 / 制裁 / 外交摩擦事件，便于分析军工、能源、避险板块。" +
-			"数据源走华尔街见闻 + 财联社电报。",
+			"数据源走华尔街见闻搜索 + 多家快讯聚合。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
 				"region": {Type: "string", Description: "可选地理限定（中东 / 俄乌 / 台海 / 朝鲜半岛 等）"},
@@ -340,22 +335,14 @@ func (t *searchGeopoliticsEventsTool) Run(ctx context.Context, args json.RawMess
 	limit := clampInt(in.Limit, 1, 50, 15)
 	kw := geoZhKeywords
 	if region := strings.TrimSpace(in.Region); region != "" {
-		kw = kw + " " + region
+		kw = region + " " + kw // 地区放前面，搜索型源优先搜它
 	}
-	items, err := t.cn.SearchGlobal(ctx, cnnews.GlobalSearchOptions{
+	res := t.cn.SearchGlobalResult(ctx, cnnews.GlobalSearchOptions{
 		Keyword:         kw,
 		Limit:           limit,
 		IncludeArticles: true,
 	})
-	if err != nil {
-		return tool.EncodeJSON(map[string]any{"error": err.Error()}), nil
-	}
-	return tool.EncodeJSON(map[string]any{
-		"theme":    "geopolitics",
-		"keywords": kw,
-		"count":    len(items),
-		"articles": eventsToJSON(items),
-	}), nil
+	return newsResultJSON(res, map[string]any{"theme": "geopolitics", "keywords": kw}), nil
 }
 
 // ── 23. get_satellite_fire_hotspots ────────────────────────────────────

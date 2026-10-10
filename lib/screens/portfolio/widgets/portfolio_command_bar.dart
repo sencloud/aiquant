@@ -91,6 +91,11 @@ class PortfolioCommandBar extends StatelessWidget {
               const Icon(Icons.folder_open,
                   color: AppColors.amber, size: 16),
               const SizedBox(width: 8),
+              if (active?.isManaged ?? false) ...[
+                const Icon(Icons.lock_outline,
+                    color: AppColors.amber, size: 12),
+                const SizedBox(width: 4),
+              ],
               Expanded(
                 child: Text(
                   active == null
@@ -136,7 +141,14 @@ class PortfolioCommandBar extends StatelessWidget {
                 title: Text(p.name,
                     style: TextStyle(
                         color: AppColors.textPrimary, fontSize: 13)),
-                subtitle: Text(p.currency,
+                leading: p.isManaged
+                    ? const Icon(Icons.account_balance_wallet_rounded,
+                        color: AppColors.amber, size: 18)
+                    : null,
+                subtitle: Text(
+                    p.isManaged
+                        ? '${p.currency} · 系统托管 · 每日自动同步 · 只读'
+                        : p.currency,
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11)),
                 trailing: p.id == ps.activeId

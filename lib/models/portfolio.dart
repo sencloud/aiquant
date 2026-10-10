@@ -15,6 +15,12 @@ class Portfolio extends HiveObject {
   DateTime createdAt;
   DateTime updatedAt;
 
+  /// 非空 = 系统托管的只读组合（如 `live_strategy` 实盘组合），由同步任务整体覆盖，
+  /// 用户不能增删持仓或删除组合。
+  String managedBy;
+
+  bool get isManaged => managedBy.isNotEmpty;
+
   Portfolio({
     String? id,
     required this.name,
@@ -23,6 +29,7 @@ class Portfolio extends HiveObject {
     this.description = '',
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.managedBy = '',
   })  : id = id ?? _uuid.v4(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -46,13 +53,14 @@ class PortfolioAdapter extends TypeAdapter<Portfolio> {
       description: fields[4] as String? ?? '',
       createdAt: fields[5] as DateTime? ?? DateTime.now(),
       updatedAt: fields[6] as DateTime? ?? DateTime.now(),
+      managedBy: fields[7] as String? ?? '',
     );
   }
 
   @override
   void write(BinaryWriter writer, Portfolio obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -66,7 +74,9 @@ class PortfolioAdapter extends TypeAdapter<Portfolio> {
       ..writeByte(5)
       ..write(obj.createdAt)
       ..writeByte(6)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(7)
+      ..write(obj.managedBy);
   }
 }
 

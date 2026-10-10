@@ -23,9 +23,15 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
-const forecastURL = "https://api.open-meteo.com/v1/forecast"
+const (
+	forecastURL = "https://api.open-meteo.com/v1/forecast"
+	geocodeURL  = "https://geocoding-api.open-meteo.com/v1/search"
+	metnoURL    = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+)
 
 // 结算/出题用的天气指标。
 const (
@@ -77,6 +83,44 @@ var Cities = []City{
 	{"london", "伦敦", 51.5074, -0.1278, SubCity, ""},
 	{"tokyo", "东京", 35.6762, 139.6503, SubCity, ""},
 	{"singapore", "新加坡", 1.3521, 103.8198, SubCity, ""},
+	// ── 以下为 AI 工具扩充的产区（不进每日出题，见 predict.weatherDailyKeys）──
+	// 棕榈油：马来西亚 + 印尼（全球约 85% 产量）
+	{"my_palm_johor", "马来西亚棕榈油·柔佛", 1.9344, 103.3587, SubSoft, "棕榈油"},
+	{"my_palm_pahang", "马来西亚棕榈油·彭亨", 3.8126, 103.3256, SubSoft, "棕榈油"},
+	{"my_palm_sabah", "马来西亚棕榈油·沙巴", 5.4204, 117.0, SubSoft, "棕榈油"},
+	{"my_palm_sarawak", "马来西亚棕榈油·砂拉越", 2.5, 112.5, SubSoft, "棕榈油"},
+	{"id_palm_riau", "印尼棕榈油·廖内", 0.5071, 101.4478, SubSoft, "棕榈油"},
+	{"id_palm_ssumatra", "印尼棕榈油·南苏门答腊", -3.3194, 104.9147, SubSoft, "棕榈油"},
+	{"id_palm_nsumatra", "印尼棕榈油·北苏门答腊", 2.1154, 99.5451, SubSoft, "棕榈油"},
+	{"id_palm_ckalimantan", "印尼棕榈油·中加里曼丹", -1.6815, 113.3824, SubSoft, "棕榈油"},
+	{"id_palm_wkalimantan", "印尼棕榈油·西加里曼丹", -0.2788, 111.4753, SubSoft, "棕榈油"},
+	// 天然橡胶
+	{"th_rubber_south", "泰国橡胶·南部", 7.0, 100.47, SubSoft, "天然橡胶"},
+	{"cn_rubber_hainan", "中国橡胶·海南", 19.2, 109.7, SubSoft, "天然橡胶"},
+	{"cn_rubber_yunnan", "中国橡胶·西双版纳", 22.0, 100.8, SubSoft, "天然橡胶"},
+	// 美国 / 南美谷物油籽补充
+	{"us_soy_illinois", "美国大豆·伊利诺伊", 40.0, -89.0, SubGrain, "大豆/玉米"},
+	{"us_corn_nebraska", "美国玉米·内布拉斯加", 41.5, -99.8, SubGrain, "玉米"},
+	{"brazil_soy_parana", "巴西大豆·巴拉那", -24.5, -51.5, SubGrain, "大豆/玉米"},
+	{"brazil_soy_goias", "巴西大豆·戈亚斯", -16.0, -49.5, SubGrain, "大豆"},
+	{"brazil_sugar_sp", "巴西甘蔗·圣保罗", -21.5, -48.5, SubSoft, "甘蔗/原糖"},
+	{"argentina_cordoba", "阿根廷·科尔多瓦", -31.4, -64.2, SubGrain, "大豆/玉米"},
+	{"canada_canola", "加拿大油菜籽·萨斯喀彻温", 52.0, -106.0, SubGrain, "油菜籽"},
+	{"australia_wheat_nsw", "澳大利亚小麦·新南威尔士", -33.0, 147.0, SubGrain, "小麦"},
+	{"russia_wheat_south", "俄罗斯小麦·南部联邦区", 45.0, 40.0, SubGrain, "小麦"},
+	{"india_soy_mp", "印度大豆·中央邦", 23.5, 77.5, SubGrain, "大豆"},
+	{"thailand_sugar", "泰国甘蔗·东北部", 15.5, 102.5, SubSoft, "甘蔗/原糖"},
+	{"vietnam_coffee", "越南咖啡·中部高原", 12.7, 108.0, SubSoft, "罗布斯塔咖啡"},
+	// 中国主产区
+	{"cn_corn_heilongjiang", "中国玉米大豆·黑龙江", 46.5, 127.5, SubGrain, "玉米/大豆"},
+	{"cn_corn_jilin", "中国玉米·吉林", 43.9, 125.3, SubGrain, "玉米"},
+	{"cn_wheat_henan", "中国小麦·河南", 34.0, 114.0, SubGrain, "小麦"},
+	{"cn_wheat_shandong", "中国小麦·山东", 36.4, 117.0, SubGrain, "小麦/花生"},
+	{"cn_cotton_xinjiang", "中国棉花·新疆", 41.2, 80.3, SubSoft, "棉花"},
+	{"cn_sugar_guangxi", "中国甘蔗·广西", 22.8, 108.3, SubSoft, "甘蔗/白糖"},
+	{"cn_apple_shaanxi", "中国苹果·陕西", 35.5, 109.5, SubSoft, "苹果"},
+	{"cn_rapeseed_hubei", "中国油菜籽·湖北", 30.6, 113.0, SubGrain, "油菜籽"},
+	{"cn_hog_sichuan", "中国生猪·四川", 30.0, 104.5, SubGrain, "生猪"},
 }
 
 // CityByKey 按 key 查城市。
@@ -98,12 +142,26 @@ type Daily struct {
 }
 
 // Client 持有 *http.Client + 短 TTL 缓存（按经纬度去重，吸收高频重复请求）。
+//
+// 三个上游地址做成字段，测试里用 httptest 替换：
+//   - OpenMeteoURL  主源（预报 + 近期实况）
+//   - MetNoURL      备用源（挪威气象局 locationforecast，免费、需带联系方式的 UA）
+//   - GeocodeURL    未内置的地名 → 经纬度（Open-Meteo geocoding）
 type Client struct {
 	httpc *http.Client
 
-	mu    sync.Mutex
-	cache map[string]cacheEntry
-	ttl   time.Duration
+	OpenMeteoURL string
+	MetNoURL     string
+	GeocodeURL   string
+
+	// Logger 非空时记录上游失败与备用源切换（nil = 不打日志）。
+	Logger *zerolog.Logger
+
+	mu       sync.Mutex
+	cache    map[string]cacheEntry
+	ttl      time.Duration
+	fcCache  map[string]fcEntry
+	geoCache map[string]geoEntry
 }
 
 type cacheEntry struct {
@@ -120,6 +178,12 @@ func New(timeoutSec int) *Client {
 		httpc: &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
 		cache: map[string]cacheEntry{},
 		ttl:   10 * time.Minute,
+
+		OpenMeteoURL: forecastURL,
+		MetNoURL:     metnoURL,
+		GeocodeURL:   geocodeURL,
+		fcCache:      map[string]fcEntry{},
+		geoCache:     map[string]geoEntry{},
 	}
 }
 
@@ -141,7 +205,7 @@ func (c *Client) FetchDaily(ctx context.Context, lat, lon float64) (map[string]D
 	q.Set("past_days", "7")
 	q.Set("forecast_days", "3")
 	q.Set("timezone", "auto")
-	u := forecastURL + "?" + q.Encode()
+	u := c.openMeteoBase() + "?" + q.Encode()
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
 	req.Header.Set("User-Agent", "finme-backend")

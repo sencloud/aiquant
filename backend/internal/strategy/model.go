@@ -137,6 +137,34 @@ type Live struct {
 	// Divergence 表示实盘持仓与策略目标不一致（人工调过仓），必须如实提示，
 	// 否则「跟着策略走」这句话就是假的。
 	Divergence bool `json:"divergence"`
+	// Trades / CashFlows 是实盘逐笔成交与资金流水（本金、分红），
+	// 用于在「组合管理」里还原成交易记录。旧快照里没有这两段。
+	Trades    []LiveTrade `json:"trades,omitempty"`
+	CashFlows []CashFlow  `json:"cash_flows,omitempty"`
+}
+
+// LiveTrade 是实盘的一笔成交（上游 /api/live 的 trades）。
+type LiveTrade struct {
+	TradeDate   string  `json:"trade_date"`
+	TradeTime   string  `json:"trade_time,omitempty"`
+	Action      string  `json:"action"` // buy / sell
+	Code        string  `json:"code"`
+	Name        string  `json:"name"`
+	Shares      float64 `json:"shares"`
+	Price       float64 `json:"price"`
+	Amount      float64 `json:"amount"`
+	Commission  float64 `json:"commission"`
+	StampTax    float64 `json:"stamp_tax"`
+	TransferFee float64 `json:"transfer_fee"`
+	Note        string  `json:"note,omitempty"`
+}
+
+// CashFlow 是实盘资金流水：principal 本金 / dividend 分红 / 其它。
+type CashFlow struct {
+	FlowDate string  `json:"flow_date"`
+	Kind     string  `json:"kind"`
+	Amount   float64 `json:"amount"`
+	Note     string  `json:"note,omitempty"`
 }
 
 // LivePoint 是实盘净值曲线上的一个点。

@@ -15,7 +15,6 @@ import 'archive_list_screen.dart';
 import 'archive_widgets.dart';
 import 'falsification_detail_screen.dart';
 import 'falsify_run_screen.dart';
-import 'live_strategy_screen.dart';
 import 'method_screen.dart';
 
 /// 证伪档案 —— 「策略」页签的主内容，版式照微信「通讯录」。
@@ -366,7 +365,6 @@ class _StrategyScreenState extends State<StrategyScreen> {
           style: AppType.caption.copyWith(color: AppColors.textTertiary),
         ),
       ),
-      _LiveEntry(onTap: _openLive),
       const WkNote(
         text: '本页是研究结论，不是投资建议。回测不含冲击成本、涨跌停无法成交、'
             '盘中流动性枯竭等实盘约束；历史表现不代表未来收益。',
@@ -451,17 +449,6 @@ class _StrategyScreenState extends State<StrategyScreen> {
     ));
   }
 
-  Future<void> _openLive() async {
-    Analytics.instance.track(Analytics.evLiveEntry);
-    if (!context.read<AuthState>().isAuthenticated) {
-      final ok = await requireLogin(context);
-      if (!ok || !mounted) return;
-    }
-    if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => const LiveStrategyScreen(),
-    ));
-  }
 }
 
 /// 顶部搜索框（微信通讯录的灰底圆角搜索条）。
@@ -540,31 +527,6 @@ class _IndexBar extends StatelessWidget {
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// 实盘策略入口：需要登录，所以放在档案之后而不是之前。
-class _LiveEntry extends StatelessWidget {
-  const _LiveEntry({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final authed = context.watch<AuthState>().isAuthenticated;
-    return WkGroup(
-      header: '实盘',
-      children: [
-        WkRow(
-          icon: Icons.account_balance_wallet_rounded,
-          title: '在跑的实盘策略',
-          subtitle: authed
-              ? '上证50 九因子 · 月度调仓 · 本期要不要动手'
-              : '上证50 九因子 · 月度调仓（登录后查看持仓与指令）',
-          onTap: onTap,
-        ),
       ],
     );
   }

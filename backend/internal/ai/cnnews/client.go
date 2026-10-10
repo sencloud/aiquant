@@ -13,16 +13,28 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/sencloud/finme-backend/internal/ai/news"
 )
 
 // Event 直接复用 news.Event，避免上层 tools 还要做类型转换。
 type Event = news.Event
 
-// Client 是 3 个国内源的共享 HTTP client。
+// Client 是全部新闻源的共享 HTTP client。
 type Client struct {
 	httpc *http.Client
+
+	// Overrides 按源名覆盖默认地址（测试用 httptest）。
+	Overrides map[string]string
+	// SourceTimeout 是单个源的超时；一个源卡住不拖累整体。默认 8s。
+	SourceTimeout time.Duration
+
+	logger *zerolog.Logger
 }
+
+// SetLogger 让聚合器把每个源的失败打到日志里（nil = 不打）。
+func (c *Client) SetLogger(l *zerolog.Logger) { c.logger = l }
 
 // New 构造 Client。timeout 默认 12s（cls/eastmoney 偶尔 > 5s）。
 func New(timeoutSec int) *Client {
@@ -30,6 +42,7 @@ func New(timeoutSec int) *Client {
 		timeoutSec = 12
 	}
 	return &Client{
-		httpc: &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
+		httpc:         &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
+		SourceTimeout: 8 * time.Second,
 	}
 }
