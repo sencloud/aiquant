@@ -74,3 +74,15 @@ tools/quote-agent/agent.log
 .impeccable/shots/
 # 早期直接用 headless Chrome 截的调试图（同上，不入库）
 .impeccable/shot-*.png
+
+# Local deploy credentials (never commit; see .tools/deploy.local.example.ps1)
+.tools/deploy.local.ps1
+.tools/deploy.local.json
+.tools/*.local.*
+!.tools/*.example.*
+*.ppk
+id_rsa*
+id_ed25519*
+*.pem
+.env.*
+!.env.example
