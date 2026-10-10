@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜爱 Android 自适应图标背景">
+  <!-- Android 自适应图标的背景层：只有上下两块底色和它们之间的波浪交界。
+       内容在前景层。
+
+       为什么这里的交界放在 590、而方形图标是 635：前景层把内容按 0.63 缩到了
+       中心安全区，背景层不缩。要让交界仍落在「喜」和「AI」之间，背景层就得按
+       同一变换反推位置 —— 512 + (B - 512) * 0.63 = 590 → B = 635。 -->
+  <defs>
+    <linearGradient id="bgTop" x1="0.08" y1="0" x2="0.92" y2="1">
+      <stop offset="0" stop-color="#FFF6E6"/>
+      <stop offset="0.52" stop-color="#FFE4BA"/>
+      <stop offset="1" stop-color="#F7C78A"/>
+    </linearGradient>
+    <linearGradient id="bgBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFDF7"/>
+      <stop offset="1" stop-color="#FFF3E0"/>
+    </linearGradient>
+    <radialGradient id="bgLight" cx="0.22" cy="0.12" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bgBottom)"/>
+  <path d="M0 0 H1024 V590 Q960 634 896 590 T768 590 T640 590 T512 590 T384 590 T256 590 T128 590 T0 590 Z"
+        fill="url(#bgTop)"/>
+  <rect width="1024" height="1024" fill="url(#bgLight)"/>
+  <path d="M0 590 Q64 546 128 590 T256 590 T384 590 T512 590 T640 590 T768 590 T896 590 T1024 590"
+        stroke="#B0762A" stroke-width="16" stroke-linecap="round" fill="none"/>
+</svg>
