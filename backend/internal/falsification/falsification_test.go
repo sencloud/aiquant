@@ -417,3 +417,87 @@ func TestHTTPRunnerContract(t *testing.T) {
 		t.Fatalf("status: %+v %v", st, err)
 	}
 }
+
+// contractJSON 取自 alpha-radar docs/falsification-export.md（schema_version 1）。
+const contractJSON = `{
+  "schema_version": 1,
+  "generated_at": "2026-10-10T18:00:00",
+  "threshold_version": "2026-10-10.v1",
+  "gates": [{"id":"sample","name":"样本闸门","rule":"r","why":"w"},
+            {"id":"scale","name":"尺度闸门","rule":"r","why":"w"}],
+  "summary": {"archive_total": 3, "curated": 1, "auto": 2,
+              "by_verdict": {"tradable":0,"pending":1,"finding":0,"reject":1,"insufficient":1},
+              "failed_gate": {"scale":0,"yearly":1,"drawdown":0},
+              "tradable":0,"pending":1,"rejected":1},
+  "archive": [
+    {"id":"orb-5min","strategy":"ORB","strategy_key":"orb_classic","family":"日内突破","family_key":"breakout",
+     "license":"MIT","license_status":"open","symbol":"P.DCE","freq":"5min","verdict":"reject","failed_gate":"yearly",
+     "flags":["rerun_pending"],"curated":true,"editor_verdict":"reject","headline":"h",
+     "metrics":{"trades":1223,"pf":0.889,"avg_points":null},
+     "gates":{"yearly":{"status":"fail","value":{"positive_years":0,"years":5,"recent":[["2023",-1],["2024",-2],["2025",-3]]},"threshold":{"min_positive_ratio":0.8}}},
+     "yearly":[["2022",-10]],"mechanism":"m","command":"alpharadar run --strategy orb_classic"},
+    {"id":"supertrend-p-dce-5min","strategy":"SuperTrend","strategy_key":"supertrend","family":"趋势跟随","family_key":"trend",
+     "license":"MPL-2.0","license_status":"open","symbol":"P.DCE","freq":"5min","verdict":"pending","failed_gate":null,
+     "flags":["scale_marginal"],"curated":false,"headline":"h","metrics":{"trades":500,"pf":1.3},
+     "yearly":[],"mechanism":"","command":"alpharadar run --strategy supertrend"},
+    {"id":"x-nc","strategy":"X","strategy_key":"x","family":"反转","family_key":"reversal","license":"",
+     "license_status":"nc","symbol":"P.DCE","freq":"5min","verdict":"pending","curated":false,"headline":"h"}
+  ]
+}`
+
+func TestContractPayload(t *testing.T) {
+	p, err := Decode([]byte(contractJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed, err := Seed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = Merge(Sanitize(p), seed)
+
+	if _, ok := FindEntry(p, "x-nc"); ok {
+		t.Fatal("license_status=nc must be dropped")
+	}
+	orb, ok := FindEntry(p, "orb-5min")
+	if !ok {
+		t.Fatal("orb missing")
+	}
+	if StrategyKey(orb) != "orb_classic" {
+		t.Fatalf("strategy key = %q", StrategyKey(orb))
+	}
+	if orb["rerun_pending"] != true {
+		t.Fatal("rerun_pending should be derived from flags")
+	}
+	sum := p["summary"].(map[string]any)
+	if sum["archive_rejected"] != 1 || sum["archive_pending"] != 1 || sum["rejected"] != float64(1) {
+		t.Fatalf("legacy summary not filled: %v", sum)
+	}
+	if p["cost_scales"] == nil || p["source"] == nil {
+		t.Fatal("cost_scales / source should come from seed")
+	}
+	// 上游有精选档案时，不再追加 seed 的精选档案。
+	if _, ok := FindEntry(p, "utbot-5min"); ok {
+		t.Fatal("seed curated entries should not be merged when upstream has curated")
+	}
+
+	// 未解锁：付费字段与分年闸门里的近三年盈亏都去掉，免费的闸门结论保留。
+	locked := LockedCopy(orb, false)
+	for _, f := range PaidFields {
+		if _, has := locked[f]; has {
+			t.Fatalf("paid field %s leaked", f)
+		}
+	}
+	y := locked["gates"].(map[string]any)["yearly"].(map[string]any)
+	if y["status"] != "fail" || y["value"].(map[string]any)["recent"] != nil {
+		t.Fatalf("yearly gate not redacted: %v", y)
+	}
+	// 原条目不被改动。
+	if orb["gates"].(map[string]any)["yearly"].(map[string]any)["value"].(map[string]any)["recent"] == nil {
+		t.Fatal("LockedCopy must not mutate the source entry")
+	}
+	full := LockedCopy(orb, true)
+	if full["mechanism"] != "m" || full["locked"] != false {
+		t.Fatal("unlocked copy should keep paid fields")
+	}
+}

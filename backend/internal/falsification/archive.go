@@ -59,13 +59,19 @@ func Decode(raw []byte) (Payload, error) {
 	return p, nil
 }
 
-// Sanitize 删除所有层级的 report_url，并丢弃非商用许可的条目。原地修改并返回。
+// Sanitize 删除所有层级的 report_url / report，并丢弃非商用或禁止再分发的
+// 条目（license 文字判 NC，或 alpha-radar 契约里的 license_status 为
+// nc / restricted）。原地修改并返回。
 func Sanitize(p Payload) Payload {
 	stripKey(p, "report_url")
+	stripKey(p, "report")
 	arch := Archive(p)
 	kept := make([]any, 0, len(arch))
 	for _, e := range arch {
 		if IsNonCommercial(str(e["license"])) {
+			continue
+		}
+		if ls := str(e["license_status"]); ls == "nc" || ls == "restricted" {
 			continue
 		}
 		kept = append(kept, e)
@@ -124,6 +130,8 @@ func Merge(upstream, seed Payload) Payload {
 			}
 		}
 	}
+	fillGateVerdicts(upstream, seed)
+	defer fillLegacySummary(upstream, seed)
 	arch := Archive(upstream)
 	hasCurated := false
 	ids := map[string]bool{}
@@ -143,6 +151,69 @@ func Merge(upstream, seed Payload) Payload {
 		upstream["archive"] = raw
 	}
 	return upstream
+}
+
+// fillGateVerdicts 给上游闸门说明补上 seed 里的一句话判词（gates[].verdict）。
+func fillGateVerdicts(upstream, seed Payload) {
+	sv := map[string]any{}
+	if gs, ok := seed["gates"].([]any); ok {
+		for _, g := range gs {
+			if m, ok := g.(map[string]any); ok {
+				sv[str(m["id"])] = m["verdict"]
+			}
+		}
+	}
+	gs, ok := upstream["gates"].([]any)
+	if !ok {
+		return
+	}
+	for _, g := range gs {
+		if m, ok := g.(map[string]any); ok && str(m["verdict"]) == "" {
+			if v, ok := sv[str(m["id"])]; ok {
+				m["verdict"] = v
+			}
+		}
+	}
+}
+
+// fillLegacySummary 按 archive 重算旧客户端读的 summary 计数
+// （archive_total / archive_rejected / archive_pending / archive_insufficient /
+// findings / tradable），成本尺计数取 cost_scales。alpha-radar 契约里的字段原样保留。
+func fillLegacySummary(p, seed Payload) {
+	sum, _ := p["summary"].(map[string]any)
+	if sum == nil {
+		sum = map[string]any{}
+	}
+	cnt := map[string]int{}
+	arch := Archive(p)
+	for _, e := range arch {
+		cnt[str(e["verdict"])]++
+		if flags, ok := e["flags"].([]any); ok {
+			if _, has := e["rerun_pending"]; !has {
+				for _, f := range flags {
+					if str(f) == "rerun_pending" {
+						e["rerun_pending"] = true
+					}
+				}
+			}
+		}
+	}
+	sum["archive_total"] = len(arch)
+	sum["archive_rejected"] = cnt[VerdictReject]
+	sum["archive_pending"] = cnt[VerdictPending]
+	sum["archive_insufficient"] = cnt[VerdictInsufficient]
+	sum["findings"] = cnt[VerdictFinding]
+	sum["tradable"] = cnt[VerdictTradable]
+	if _, ok := sum["scale_rows"]; !ok {
+		if ss, ok := seed["summary"].(map[string]any); ok {
+			for _, k := range []string{"scale_rows", "scale_pass", "scale_fail"} {
+				if v, ok := ss[k]; ok {
+					sum[k] = v
+				}
+			}
+		}
+	}
+	p["summary"] = sum
 }
 
 // PublicView 生成对外输出：浅拷贝顶层，archive 换成过滤 / 脱敏后的新数组。
@@ -186,6 +257,29 @@ func LockedCopy(e map[string]any, unlocked bool) map[string]any {
 	for _, f := range PaidFields {
 		delete(c, f)
 	}
+	// 分年闸门的 value.recent 是近三年逐年盈亏，属于「分年」付费内容。
+	if g, ok := e["gates"].(map[string]any); ok {
+		if y, ok := g["yearly"].(map[string]any); ok {
+			if v, ok := y["value"].(map[string]any); ok && v["recent"] != nil {
+				gc := make(map[string]any, len(g))
+				for k, x := range g {
+					gc[k] = x
+				}
+				yc := make(map[string]any, len(y))
+				for k, x := range y {
+					yc[k] = x
+				}
+				vc := make(map[string]any, len(v))
+				for k, x := range v {
+					vc[k] = x
+				}
+				vc["recent"] = nil
+				yc["value"] = vc
+				gc["yearly"] = yc
+				c["gates"] = gc
+			}
+		}
+	}
 	c["locked"] = true
 	return c
 }
@@ -219,9 +313,12 @@ func FindEntry(p Payload, id string) (map[string]any, bool) {
 
 var strategyFlagRe = regexp.MustCompile(`--strategy\s+([A-Za-z0-9_\-]+)`)
 
-// StrategyKey 取条目对应的 alpha-radar 策略 id：优先 strategy_id 字段，
-// 其次从复现命令里解析 `--strategy xxx`。
+// StrategyKey 取条目对应的 alpha-radar 策略 key：优先契约字段 strategy_key，
+// 兼容旧草案的 strategy_id，最后从复现命令里解析 `--strategy xxx`。
 func StrategyKey(e map[string]any) string {
+	if v := str(e["strategy_key"]); v != "" {
+		return v
+	}
 	if v := str(e["strategy_id"]); v != "" {
 		return v
 	}

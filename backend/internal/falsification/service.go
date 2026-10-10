@@ -82,7 +82,7 @@ func (s *Service) Sync(ctx context.Context) (int, error) {
 	if s.url == "" {
 		return 0, errors.New("alpharadar url not configured")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/api/falsification", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/api/falsification?include=insufficient", nil)
 	if err != nil {
 		return 0, err
 	}
