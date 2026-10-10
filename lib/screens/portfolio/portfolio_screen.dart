@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../state/auth_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import 'compare_screen.dart';
@@ -17,15 +18,38 @@ import 'tabs/quant_tab.dart';
 import 'tabs/reports_tab.dart';
 import 'tabs/risk_tab.dart';
 import 'tabs/transactions_tab.dart';
+import 'widgets/live_portfolio_banner.dart';
 import 'widgets/portfolio_command_bar.dart';
 import 'widgets/portfolio_stats_ribbon.dart';
 
-class PortfolioScreen extends StatelessWidget {
+class PortfolioScreen extends StatefulWidget {
   const PortfolioScreen({super.key});
+
+  @override
+  State<PortfolioScreen> createState() => _PortfolioScreenState();
+}
+
+class _PortfolioScreenState extends State<PortfolioScreen> {
+  bool? _authed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 实盘组合跟着登录态走：登录 → 可见并同步；登出 → 隐藏。
+    final authed = context.watch<AuthState>().isAuthenticated;
+    if (_authed != authed) {
+      _authed = authed;
+      final ps = context.read<PortfolioState>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ps.onAuthChanged(authed);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final ps = context.watch<PortfolioState>();
+    final managed = ps.activeIsManaged;
     if (!ps.ready) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -41,7 +65,12 @@ class PortfolioScreen extends StatelessWidget {
             IconButton(
               tooltip: '刷新行情',
               icon: const Icon(Icons.refresh, size: 18),
-              onPressed: ps.activeId == null ? null : () => ps.refreshQuotes(),
+              onPressed: ps.activeId == null
+                  ? null
+                  : () {
+                      if (managed) ps.syncLivePortfolio(force: true);
+                      ps.refreshQuotes();
+                    },
             ),
             IconButton(
               tooltip: '组合对比',
@@ -57,15 +86,18 @@ class PortfolioScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 实盘组合是系统托管、只读的：不能加品种 / 导入 / 删除。
                 PortfolioCommandBar(
                   onCreate: () => _create(context),
-                  onAddAsset:
-                      ps.activeId == null ? null : () => _addAsset(context),
-                  onImportScreenshot: ps.activeId == null
+                  onAddAsset: ps.activeId == null || managed
+                      ? null
+                      : () => _addAsset(context),
+                  onImportScreenshot: ps.activeId == null || managed
                       ? null
                       : () => _importScreenshot(context),
-                  onDelete:
-                      ps.activeId == null ? null : () => _delete(context),
+                  onDelete: ps.activeId == null || managed
+                      ? null
+                      : () => _delete(context),
                 ),
                 const PortfolioStatsRibbon(),
                 const _PortfolioTabBar(),
@@ -73,23 +105,30 @@ class PortfolioScreen extends StatelessWidget {
             ),
           ),
         ),
-        body: ps.activeId == null
-            ? _emptyState(context)
-            : const TabBarView(
-                physics: ClampingScrollPhysics(),
-                children: [
-                  OverviewTab(),
-                  AnalyticsTab(),
-                  PerformanceTab(),
-                  OptimizationTab(),
-                  QuantTab(),
-                  ReportsTab(),
-                  TransactionsTab(),
-                  RiskTab(),
-                  PlanningTab(),
-                  EconomicsTab(),
-                ],
-              ),
+        body: Column(
+          children: [
+            const LivePortfolioBanner(),
+            Expanded(
+              child: ps.activeId == null
+                  ? _emptyState(context)
+                  : const TabBarView(
+                      physics: ClampingScrollPhysics(),
+                      children: [
+                        OverviewTab(),
+                        AnalyticsTab(),
+                        PerformanceTab(),
+                        OptimizationTab(),
+                        QuantTab(),
+                        ReportsTab(),
+                        TransactionsTab(),
+                        RiskTab(),
+                        PlanningTab(),
+                        EconomicsTab(),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

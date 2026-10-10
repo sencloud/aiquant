@@ -101,6 +101,8 @@ type liveResp struct {
 	Dividends   float64 `json:"dividends"`
 	Positions []livePosition   `json:"positions"`
 	Curve     []liveCurvePoint `json:"curve"`
+	Trades    []LiveTrade      `json:"trades"`
+	CashFlows []CashFlow       `json:"cash_flows"`
 }
 
 // normalize 把外部看板数据整理成客户端契约。
@@ -228,6 +230,9 @@ func normalizeLive(l *liveResp, target []TargetItem) *Live {
 	for _, pt := range l.Curve {
 		out.Curve = append(out.Curve, LivePoint{Date: pt.Date, Total: pt.Total})
 	}
+	// 成交与资金流水原样保留：组合管理里的「实盘组合」用它回放出交易记录。
+	out.Trades = l.Trades
+	out.CashFlows = l.CashFlows
 	// 持仓集合与目标集合不一致（人工调过仓）→ 如实标记，
 	// 否则界面上「跟着策略走」这句话就是假的。
 	out.Divergence = !sameCodeSet(held, inTarget)

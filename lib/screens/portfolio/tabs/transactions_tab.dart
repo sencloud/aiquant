@@ -17,6 +17,8 @@ class TransactionsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final ps = context.watch<PortfolioState>();
     final txns = ps.currentTransactions();
+    // 实盘组合的账本以服务端为准：不允许导入 / 公司行动 / 滑动删除。
+    final readOnly = ps.activeIsManaged;
     final df = DateFormat('yyyy-MM-dd');
     final fmt = NumberFormat('#,##0.00');
 
@@ -40,17 +42,23 @@ class TransactionsTab extends StatelessWidget {
                       color: AppColors.textSecondary, fontSize: 12),
                 ),
               ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.upload_file, size: 14),
-                label: const Text('导入 CSV'),
-                onPressed: () => _importCsv(context),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.account_tree_outlined, size: 14),
-                label: const Text('公司行动'),
-                onPressed: () => _corporateActionDialog(context),
-              ),
+              if (readOnly)
+                Text('实盘调仓记录 · 系统同步',
+                    style: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 11))
+              else ...[
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.upload_file, size: 14),
+                  label: const Text('导入 CSV'),
+                  onPressed: () => _importCsv(context),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.account_tree_outlined, size: 14),
+                  label: const Text('公司行动'),
+                  onPressed: () => _corporateActionDialog(context),
+                ),
+              ],
             ],
           ),
         ),
@@ -75,7 +83,9 @@ class TransactionsTab extends StatelessWidget {
                         child: const Icon(Icons.delete_outline,
                             color: Colors.white),
                       ),
-                      direction: DismissDirection.endToStart,
+                      direction: readOnly
+                          ? DismissDirection.none
+                          : DismissDirection.endToStart,
                       confirmDismiss: (_) async {
                         return await showDialog<bool>(
                               context: context,

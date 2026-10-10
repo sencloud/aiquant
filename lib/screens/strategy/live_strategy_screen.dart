@@ -7,7 +7,7 @@ import 'strategy_ask.dart';
 import 'strategy_detail_screen.dart';
 import 'widgets/strategy_cards.dart';
 
-/// 实盘策略页 —— 原来挂在「策略」页签上的内容，现在收在证伪台里的一个入口。
+/// 实盘策略页 —— 入口在「发现 → 组合管理」里的实盘组合（顶部「策略详情」）。
 ///
 /// 回答两个问题：**本期要不要动手**、**实盘现在什么状态**。数据来自后端
 /// `/v1/strategy/primary`（上证50 九因子，月度调仓），需要登录。

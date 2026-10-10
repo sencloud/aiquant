@@ -7,8 +7,54 @@ import '../models/portfolio.dart';
 /// `services::PortfolioService` from the Qt project: portfolio CRUD,
 /// transaction logging, and asset aggregation from the transaction ledger.
 class PortfolioRepository {
+  /// 系统托管组合（实盘）置顶，其余按创建时间。
   List<Portfolio> allPortfolios() => portfoliosBox.values.toList()
-    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    ..sort((a, b) {
+      if (a.isManaged != b.isManaged) return a.isManaged ? -1 : 1;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+
+  /// 写入 / 覆盖一个系统托管组合：组合元信息 + 整本交易流水一起替换。
+  ///
+  /// 托管组合的账本以服务端为准，每次同步整体重写，不做增量合并——
+  /// 这样上游改了历史成交（补录、对账调整）也能一次纠正过来。
+  Future<Portfolio> upsertManaged({
+    required String id,
+    required String name,
+    required String managedBy,
+    required List<PortfolioTransaction> transactions,
+    String currency = 'CNY',
+    String description = '',
+  }) async {
+    var p = portfoliosBox.get(id);
+    if (p == null) {
+      p = Portfolio(
+        id: id,
+        name: name,
+        currency: currency,
+        owner: '系统',
+        description: description,
+        managedBy: managedBy,
+      );
+    } else {
+      p
+        ..name = name
+        ..currency = currency
+        ..description = description
+        ..managedBy = managedBy
+        ..updatedAt = DateTime.now();
+    }
+    await portfoliosBox.put(id, p);
+    final oldKeys = transactionsBox.values
+        .where((t) => t.portfolioId == id)
+        .map((t) => t.key)
+        .toList();
+    await transactionsBox.deleteAll(oldKeys);
+    await transactionsBox.addAll([
+      for (final t in transactions) t..portfolioId = id,
+    ]);
+    return p;
+  }
 
   Future<Portfolio> create({
     required String name,

@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 
 import '../core/utils/china_market.dart';
 import '../models/instrument.dart';
+import '../models/live_portfolio.dart';
 import '../models/portfolio.dart';
+import '../services/live_portfolio_service.dart';
 import '../services/portfolio_repository.dart';
 import '../services/tushare_service.dart';
 
@@ -13,18 +15,21 @@ class PortfolioState extends ChangeNotifier {
   PortfolioState({
     PortfolioRepository? repo,
     TushareService? tushare,
+    LivePortfolioService? live,
   })  : _repo = repo ?? PortfolioRepository(),
-        _tushare = tushare ?? TushareService();
+        _tushare = tushare ?? TushareService(),
+        _liveSvc = live ?? LivePortfolioService();
 
   final PortfolioRepository _repo;
   final TushareService _tushare;
+  final LivePortfolioService _liveSvc;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
   bool _ready = false;
   bool get ready => _ready;
 
   Future<void> bootstrap() async {
-    _portfolios = _repo.allPortfolios();
+    _reloadPortfolios();
     if (_portfolios.isNotEmpty && _activeId == null) {
       _activeId = _portfolios.first.id;
     }
@@ -46,6 +51,112 @@ class PortfolioState extends ChangeNotifier {
   bool _loadingQuotes = false;
 
   List<Portfolio> get portfolios => List.unmodifiable(_portfolios);
+
+  /// 当前选中的是否为系统托管（只读）组合。
+  bool get activeIsManaged => _active?.isManaged ?? false;
+
+  // ── 实盘组合（系统托管）────────────────────────────────────────────────
+  //
+  // 实盘数据需要登录（与原「策略 → 实盘」入口一致）：未登录时托管组合留在本地
+  // 但不出现在列表里；登录后自动同步并置顶。同步节流 30 分钟——后端每天物化
+  // 一次，App 每次打开组合页最多拉一次，tab 里的行情另由 refreshQuotes 更新。
+  bool _liveVisible = false;
+  LivePortfolio? _live;
+  DateTime? _liveSyncedAt;
+  bool _liveSyncing = false;
+  String? _liveError;
+
+  bool get liveVisible => _liveVisible;
+  LivePortfolio? get liveMeta => _live;
+  bool get liveSyncing => _liveSyncing;
+  String? get liveError => _liveError;
+
+  static const Duration liveSyncTtl = Duration(minutes: 30);
+
+  /// 登录状态变化时由界面调用（幂等）：决定托管组合是否可见，并按需同步。
+  Future<void> onAuthChanged(bool authed) async {
+    if (_liveVisible != authed) {
+      _liveVisible = authed;
+      if (!authed) {
+        _live = null;
+        _liveSyncedAt = null;
+      }
+      _reloadPortfolios();
+      if (_activeId == null || portfoliosForId(_activeId!) == null) {
+        _activeId = _portfolios.isEmpty ? null : _portfolios.first.id;
+        _invalidateHistories();
+        _summary = null;
+        _rebuildSummary();
+      }
+      notifyListeners();
+    }
+    if (authed) await syncLivePortfolio();
+  }
+
+  /// 拉一次实盘组合并落成本地只读组合。[force] 忽略 30 分钟节流。
+  Future<void> syncLivePortfolio({bool force = false}) async {
+    if (!_liveVisible || _liveSyncing) return;
+    final last = _liveSyncedAt;
+    if (!force && last != null && DateTime.now().difference(last) < liveSyncTtl) {
+      return;
+    }
+    _liveSyncing = true;
+    notifyListeners();
+    try {
+      final lp = await _liveSvc.fetch();
+      _liveError = null;
+      _liveSyncedAt = DateTime.now();
+      if (lp != null) await applyLivePortfolio(lp);
+    } catch (e) {
+      // 失败也记时间：避免界面每次重建都重试；刷新按钮会 force。
+      _liveSyncedAt = DateTime.now();
+      _liveError = '实盘组合同步失败，显示的是上次同步的数据';
+    } finally {
+      _liveSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// 把一份实盘组合写进本地（可单测）：替换账本、置顶、首选，并先用截至日收盘价占位。
+  Future<void> applyLivePortfolio(LivePortfolio lp) async {
+    final hadAny = _portfolios.isNotEmpty;
+    await _repo.upsertManaged(
+      id: lp.id,
+      name: lp.name,
+      managedBy: LivePortfolio.managedBy,
+      currency: lp.currency,
+      description: lp.description,
+      transactions: lp.toTransactions(),
+    );
+    _live = lp;
+    _reloadPortfolios();
+    // 第一次出现时直接选中它：用户进组合页第一眼就是实盘。
+    if (_activeId == null || !hadAny) _activeId = lp.id;
+    if (_activeId == lp.id) {
+      _invalidateHistories();
+      final prices = lp.closePrices;
+      final holdings = [
+        for (final h in _repo.holdingsFor(lp.id))
+          prices[h.symbol] == null
+              ? h
+              : h.copyWith(currentPrice: prices[h.symbol]),
+      ];
+      final p = portfoliosForId(lp.id);
+      if (p != null) {
+        _summary = PortfolioSummary(portfolio: p, holdings: holdings);
+      }
+      notifyListeners();
+      // ignore: unawaited_futures
+      refreshQuotes();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void _reloadPortfolios() {
+    final all = _repo.allPortfolios();
+    _portfolios = _liveVisible ? all : all.where((p) => !p.isManaged).toList();
+  }
   String? get activeId => _activeId;
   Portfolio? get _active =>
       _activeId == null ? null : portfoliosForId(_activeId!);
@@ -77,15 +188,16 @@ class PortfolioState extends ChangeNotifier {
   }) async {
     final p = await _repo.create(
         name: name, currency: currency, owner: owner);
-    _portfolios = _repo.allPortfolios();
+    _reloadPortfolios();
     _activeId = p.id;
     _rebuildSummary();
     notifyListeners();
   }
 
   Future<void> deletePortfolio(String id) async {
+    if (portfoliosForId(id)?.isManaged ?? false) return; // 托管组合不能删
     await _repo.delete(id);
-    _portfolios = _repo.allPortfolios();
+    _reloadPortfolios();
     if (_activeId == id) {
       _activeId = _portfolios.isEmpty ? null : _portfolios.first.id;
     }
@@ -100,7 +212,7 @@ class PortfolioState extends ChangeNotifier {
     required double price,
   }) async {
     final id = _activeId;
-    if (id == null) return;
+    if (id == null || activeIsManaged) return;
     await _repo.addAsset(
       portfolioId: id,
       instrument: instrument,
@@ -132,7 +244,7 @@ class PortfolioState extends ChangeNotifier {
         double avgCost,
       })> rows) async {
     final id = _activeId;
-    if (id == null) return 0;
+    if (id == null || activeIsManaged) return 0;
     var ok = 0;
     for (final r in rows) {
       if (r.quantity <= 0 || r.avgCost <= 0) continue;
@@ -169,7 +281,7 @@ class PortfolioState extends ChangeNotifier {
     required double price,
   }) async {
     final id = _activeId;
-    if (id == null) return;
+    if (id == null || activeIsManaged) return;
     await _repo.sellAsset(
       portfolioId: id,
       symbol: asset.symbol,
@@ -186,6 +298,7 @@ class PortfolioState extends ChangeNotifier {
   }
 
   Future<void> deleteTransaction(String txnId) async {
+    if (activeIsManaged) return;
     await _repo.deleteTransaction(txnId);
     _invalidateHistories();
     _rebuildSummary();
@@ -205,7 +318,7 @@ class PortfolioState extends ChangeNotifier {
     String notes = '',
   }) async {
     final id = _activeId;
-    if (id == null) return;
+    if (id == null || activeIsManaged) return;
     await _repo.recordDividend(
       portfolioId: id,
       symbol: symbol,
@@ -230,7 +343,7 @@ class PortfolioState extends ChangeNotifier {
     String notes = '',
   }) async {
     final id = _activeId;
-    if (id == null) return;
+    if (id == null || activeIsManaged) return;
     await _repo.recordSplit(
       portfolioId: id,
       symbol: symbol,
@@ -262,6 +375,9 @@ class PortfolioState extends ChangeNotifier {
     final id = _activeId;
     if (id == null) {
       return (imported: 0, errors: ['当前没有选中的组合']);
+    }
+    if (activeIsManaged) {
+      return (imported: 0, errors: ['实盘组合由系统自动同步，不能导入交易']);
     }
     final rows =
         Csv(skipEmptyLines: true, dynamicTyping: false, lineDelimiter: '\n')

@@ -3,8 +3,10 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
@@ -92,22 +94,28 @@ type getRegionWeatherTool struct{ w *weather.Client }
 func (t *getRegionWeatherTool) Spec() tool.Spec {
 	return tool.Spec{
 		Name: "get_region_weather",
-		Description: "获取大宗商品产区 / 城市的未来天气（Open-Meteo，免费）。用于天气驱动的品种分析：" +
-			"美豆看美国玉米带、白糖看印度北方邦、咖啡看巴西米纳斯、可可看科特迪瓦、棉花看美国得州。" +
-			"不传 keys 时返回主要农产品产区。注意：天气是商品的间接驱动，" +
+		Description: "获取大宗商品产区 / 城市的天气：最近 3 天实况 + 未来 N 天预报（Open-Meteo，失败自动切 MET Norway）。" +
+			"用于天气驱动的品种分析：棕榈油看马来西亚/印尼（柔佛、沙巴、砂拉越、廖内、南苏门答腊、加里曼丹）、" +
+			"美豆看美国玉米带/伊利诺伊、南美看马托格罗索/巴拉那/潘帕斯、白糖看巴西圣保罗/印度北方邦/泰国/广西、" +
+			"咖啡看米纳斯/越南、可可看科特迪瓦、棉花看得州/新疆、国内看黑龙江/河南/山东。" +
+			"keys 可传内置 key、中文地名（柔佛 / 廖内 / 黑龙江）、作物或国家（棕榈油 / 大豆 / 马来西亚），" +
+			"未内置的地名会自动地理编码。不传 keys 时返回主要农产品产区。注意：天气是商品的间接驱动，" +
 			"结论要落到「影响产量或物流」的链条上，不要只罗列气温数字。",
 		Parameters: tool.ParameterSchema{
 			Properties: map[string]tool.ParameterProperty{
 				"keys": {
 					Type:        "array",
-					Description: "产区/城市 key（如 us_corn_belt / india_sugar_up），也可直接传中文名（美国玉米带·爱荷华）",
+					Description: "产区/城市：key（如 my_palm_johor / us_corn_belt）、中文地名（柔佛 / 廖内）或作物/国家（棕榈油 / 印尼）",
 					Items:       &tool.ParameterProperty{Type: "string"},
 				},
-				"days": {Type: "integer", Description: "预报天数（默认 7，最多 14）"},
+				"days": {Type: "integer", Description: "未来预报天数（默认 7，最多 14）"},
 			},
 		},
 	}
 }
+
+// maxWeatherPlaces 限制一次查询的地点数：模型按作物展开时可能一下要十几个点。
+const maxWeatherPlaces = 8
 
 func (t *getRegionWeatherTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
 	var in struct {
@@ -126,76 +134,172 @@ func (t *getRegionWeatherTool) Run(ctx context.Context, args json.RawMessage) (s
 	if days > 14 {
 		days = 14
 	}
-	cities := resolveCities(in.Keys)
+	cities, unresolved := resolveCities(in.Keys)
+	// 内置表里没有的地名，再试一次地理编码（例如「巴西南马托格罗索州」「宋卡府」）。
+	if len(unresolved) > 0 {
+		left := unresolved[:0]
+		for _, k := range unresolved {
+			gctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+			c, ok, err := t.w.Geocode(gctx, k)
+			cancel()
+			if err == nil && ok {
+				cities = appendUniqueCity(cities, c)
+				continue
+			}
+			left = append(left, k)
+		}
+		unresolved = left
+	}
 	if len(cities) == 0 {
-		return tool.EncodeJSON(map[string]any{"error": "没有匹配到任何产区/城市"}), nil
+		return tool.EncodeJSON(map[string]any{
+			"error":      "没有匹配到任何产区/城市，请改用下列 key 之一或直接写中文地名/作物",
+			"unresolved": unresolved,
+			"available":  weather.RegionKeys(),
+		}), nil
+	}
+	truncated := false
+	if len(cities) > maxWeatherPlaces {
+		cities = cities[:maxWeatherPlaces]
+		truncated = true
 	}
 
-	rows := make([]map[string]any, 0, len(cities))
-	for _, c := range cities {
-		wctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		daily, err := t.w.FetchDaily(wctx, c.Lat, c.Lon)
-		cancel()
-		if err != nil {
-			rows = append(rows, map[string]any{"name": c.Name, "error": err.Error()})
+	rows := make([]map[string]any, len(cities))
+	var wg sync.WaitGroup
+	for i, c := range cities {
+		wg.Add(1)
+		go func(i int, c weather.City) {
+			defer wg.Done()
+			wctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			fc, err := t.w.FetchForecast(wctx, c.Lat, c.Lon, days+1, 3)
+			if err != nil {
+				rows[i] = map[string]any{"name": c.Name, "key": c.Key, "error": err.Error()}
+				return
+			}
+			rows[i] = weatherRow(c, fc, days)
+		}(i, c)
+	}
+	wg.Wait()
+
+	okCount := 0
+	sources := map[string]bool{}
+	for _, r := range rows {
+		if _, bad := r["error"]; !bad {
+			okCount++
+			if s, _ := r["source"].(string); s != "" {
+				sources[s] = true
+			}
+		}
+	}
+	out := map[string]any{
+		"count":  len(rows),
+		"ok":     okCount,
+		"places": rows,
+	}
+	srcList := make([]string, 0, len(sources))
+	for s := range sources {
+		srcList = append(srcList, s)
+	}
+	sort.Strings(srcList)
+	out["source"] = strings.Join(srcList, ",")
+	if len(unresolved) > 0 {
+		out["unresolved"] = unresolved
+	}
+	if truncated {
+		out["notice"] = "地点过多，只返回前 8 个；需要其余地点请分批查询"
+	}
+	return tool.EncodeJSON(out), nil
+}
+
+// weatherRow 把一个地点的逐日数据拆成「近期实况」和「未来预报」，并给出汇总。
+func weatherRow(c weather.City, fc *weather.Forecast, days int) map[string]any {
+	recent := make([]map[string]any, 0, 3)
+	forecast := make([]map[string]any, 0, days)
+	var sumPrecip, maxT float64
+	maxT = -100
+	dryDays, hotDays := 0, 0
+	for _, d := range fc.Days {
+		item := map[string]any{
+			"date":      d.Date,
+			"t_max":     round1(d.TMax),
+			"t_min":     round1(d.TMin),
+			"precip_mm": round1(d.Precip),
+		}
+		if d.Date < fc.Today {
+			recent = append(recent, item)
 			continue
 		}
-		dates := make([]string, 0, len(daily))
-		for d := range daily {
-			dates = append(dates, d)
+		if len(forecast) >= days {
+			continue
 		}
-		sort.Strings(dates)
-		if len(dates) > days {
-			dates = dates[:days]
+		forecast = append(forecast, item)
+		sumPrecip += d.Precip
+		if d.TMax > maxT {
+			maxT = d.TMax
 		}
-		forecast := make([]map[string]any, 0, len(dates))
-		var sumPrecip float64
-		for _, d := range dates {
-			f := daily[d]
-			sumPrecip += f.Precip
-			forecast = append(forecast, map[string]any{
-				"date":      d,
-				"t_max":     round1(f.TMax),
-				"t_min":     round1(f.TMin),
-				"precip_mm": round1(f.Precip),
-			})
+		if d.Precip < 1 {
+			dryDays++
 		}
-		rows = append(rows, map[string]any{
-			"name":         c.Name,
-			"key":          c.Key,
-			"crop":         c.Crop,
-			"precip_total": round1(sumPrecip),
-			"forecast":     forecast,
-		})
+		if d.TMax >= 35 {
+			hotDays++
+		}
 	}
-	return tool.EncodeJSON(map[string]any{
-		"count":  len(rows),
-		"places": rows,
-		"source": "open-meteo",
-	}), nil
+	row := map[string]any{
+		"name":         c.Name,
+		"key":          c.Key,
+		"lat":          c.Lat,
+		"lon":          c.Lon,
+		"source":       fc.Source,
+		"today":        fc.Today,
+		"recent":       recent,
+		"forecast":     forecast,
+		"precip_total": round1(sumPrecip),
+		"dry_days":     dryDays,
+		"hot_days":     hotDays,
+	}
+	if c.Crop != "" {
+		row["crop"] = c.Crop
+	}
+	if len(forecast) > 0 {
+		row["t_max_peak"] = round1(maxT)
+	}
+	return row
 }
 
 // resolveCities 把用户输入解析成天气地点；空输入给主要农产品产区。
-func resolveCities(keys []string) []weather.City {
+// 返回去重后的地点和没解析出来的输入（交给地理编码兜底）。
+func resolveCities(keys []string) ([]weather.City, []string) {
 	if len(keys) == 0 {
 		keys = []string{"us_corn_belt", "brazil_soy_mt", "us_wheat_kansas", "india_sugar_up"}
 	}
 	out := make([]weather.City, 0, len(keys))
+	var unresolved []string
 	for _, k := range keys {
-		if c, ok := weather.CityByKey(k); ok {
-			out = append(out, c)
+		k = strings.TrimSpace(k)
+		if k == "" {
 			continue
 		}
-		for _, c := range weather.Cities {
-			if strings.TrimSpace(k) == c.Name {
-				out = append(out, c)
-				break
-			}
+		cs := weather.Resolve(k)
+		if len(cs) == 0 {
+			unresolved = append(unresolved, k)
+			continue
+		}
+		for _, c := range cs {
+			out = appendUniqueCity(out, c)
 		}
 	}
-	return out
+	return out, unresolved
+}
+
+func appendUniqueCity(list []weather.City, c weather.City) []weather.City {
+	for _, x := range list {
+		if x.Key == c.Key {
+			return list
+		}
+	}
+	return append(list, c)
 }
 
 func round1(v float64) float64 {
-	return float64(int(v*10+0.5)) / 10
+	return math.Round(v*10) / 10
 }

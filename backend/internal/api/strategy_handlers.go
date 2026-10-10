@@ -16,6 +16,33 @@ import (
 func mountStrategy(r chi.Router, d *Deps) {
 	r.Get("/strategy/primary", handlePrimaryStrategy(d))
 	r.Get("/strategy/catalog", handleStrategyCatalog(d))
+	// 组合管理里的「实盘」系统组合：持仓 + 交易流水，由 scheduler 每天物化。
+	r.Get("/portfolio/live", handleLivePortfolio(d))
+}
+
+func handleLivePortfolio(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d.Strategy == nil {
+			WriteJSON(w, http.StatusOK, map[string]any{"available": false})
+			return
+		}
+		p, err := d.Strategy.LatestLivePortfolio(r.Context())
+		if err != nil {
+			WriteError(w, r, platform.ErrInternal("PORTFOLIO.LIVE_READ", err))
+			return
+		}
+		if p == nil {
+			WriteJSON(w, http.StatusOK, map[string]any{
+				"available": false,
+				"reason":    "live_not_ready",
+			})
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"available": true,
+			"portfolio": p,
+		})
+	}
 }
 
 func handleStrategyCatalog(_ *Deps) http.HandlerFunc {
