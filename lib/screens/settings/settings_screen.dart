@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
 import '../../core/auth/require_login.dart';
+import '../../core/config/features.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
@@ -15,6 +16,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/legal_links.dart';
 import '../../widgets/wk_kit.dart';
 import '../watch/watch_screen.dart';
+import 'invite_credits_screen.dart';
 
 /// 「我的」——微信式分组列表。
 ///
@@ -34,7 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 仅 iOS / macOS 支持应用内购充值（Apple IAP）。安卓为个人开发者，
   /// 无合规的应用内虚拟商品支付通道，故隐藏充值入口。
-  bool get _iapAvailable => !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+  bool get _iapAvailable => rechargeAvailable;
 
   @override
   void initState() {
@@ -60,52 +62,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ));
       }
     });
-  }
-
-  Future<void> _onPackageTap(BillingState b, CreditSku sku) async {
-    Analytics.instance.track(Analytics.evRechargeStart, {'sku': sku.code});
-    final ok = await b.purchase(sku);
-    if (!mounted) return;
-    if (ok) {
-      Analytics.instance.track(Analytics.evRechargeSuccess, {
-        'sku': sku.code,
-        'amount_yuan': sku.priceYuan,
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('充值成功 +${CreditFmt.label(sku.totalCredits)}'),
-        duration: const Duration(seconds: 2),
-      ));
-      return;
-    }
-    final err = b.lastError;
-    if (err == null || err.isEmpty) return; // 用户主动取消
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('喜点尚未到账'),
-        content: Text(
-          '$err\n\n如果苹果已经扣款，喜点稍后会自动到账。'
-          '你也可以下拉刷新这个页面，或重新打开 App 触发自动补单。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('好的'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final n = await b.restoreUnverifiedPurchases();
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(n > 0 ? '已补到账 $n 笔' : '暂无未到账的订单'),
-              ));
-            },
-            child: const Text('立即重试'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -138,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               balance: billing.balance,
               loading: billing.loadingBalance,
               onRecharge: _iapAvailable && user != null
-                  ? () => _showRechargeSheet(billing)
+                  ? () => showRechargeSheet(context)
                   : null,
               onLedger: user == null ? null : () => _showLedger(context),
             ),
@@ -161,8 +117,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   note: '充值、消耗都在这里',
                   onTap: user == null ? null : () => _showLedger(context),
                 ),
+                // 邀请原来挂在鹦鹉螺下；鹦鹉螺隐藏后入口移到这里，奖励改为喜点。
+                ProfileIndexRow(
+                  icon: Icons.card_giftcard_rounded,
+                  title: '邀请好友',
+                  note: '填码双方各得 100 喜点',
+                  onTap: () async {
+                    if (!await requireLogin(context)) return;
+                    if (!context.mounted) return;
+                    await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const InviteCreditsScreen()));
+                  },
+                ),
               ],
             ),
+            if (!kEnableNautilus)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpace.xs, 0, AppSpace.xs, AppSpace.sm),
+                child: Text(
+                  '鹦鹉螺预测已下线：螺壳余额保留，暂停赚取与使用。',
+                  style: AppType.caption.copyWith(
+                      color: AppColors.textTertiary, height: 1.5),
+                ),
+              ),
             const SizedBox(height: AppSpace.md),
             WkGroup(
               header: '账号与条款',
@@ -208,78 +186,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (ok == true) await auth.logout();
   }
 
-  /// 充值套餐收进弹层：首屏只留一个「充值」动作，不再让套餐列表占地。
-  void _showRechargeSheet(BillingState billing) {
-    Analytics.instance.track(Analytics.evRechargeSheet);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => AnimatedBuilder(
-        animation: billing,
-        builder: (ctx, _) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('充值喜点',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800)),
-                const SizedBox(height: 14),
-                if (billing.loadingSkus && billing.skus.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 28),
-                    child: Center(
-                      child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
-                    ),
-                  )
-                else if (billing.skus.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    child: Center(
-                      child: Text(billing.lastError ?? '暂无可用套餐',
-                          style: TextStyle(
-                              color: AppColors.textTertiary, fontSize: 12)),
-                    ),
-                  )
-                else
-                  for (final sku in billing.skus) ...[
-                    _SkuRow(
-                      sku: sku,
-                      loading: billing.isPurchasingSku(sku.code),
-                      disabled: billing.purchasing &&
-                          !billing.isPurchasingSku(sku.code),
-                      onTap: () => _onPackageTap(billing, sku),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                const SizedBox(height: 8),
-                Text(
-                  '喜点是虚拟商品，购买后不支持退款或转让；'
-                  '调用行情、新闻等数据工具不再额外计费。',
-                  style: TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 10.5,
-                      height: 1.5),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showLedger(BuildContext ctx) {
     showModalBottomSheet<void>(
       context: ctx,
@@ -291,6 +197,139 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => const _LedgerSheet(),
     );
   }
+}
+
+/// 当前平台能不能充值喜点（仅 iOS / macOS 走 Apple IAP；Android 暂不发布、
+/// Web 不开放付费）。
+bool get rechargeAvailable =>
+    !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+
+/// 充值套餐收进弹层：首屏只留一个「充值」动作，不再让套餐列表占地。
+///
+/// 公开给其他页面（如证伪档案的解锁 / 跑证伪）在喜点不足时直接拉起。
+/// 只在 iOS / macOS 可用（Apple IAP）；其他平台调用方应先用
+/// [rechargeAvailable] 判断。
+Future<void> showRechargeSheet(BuildContext context) {
+  final billing = context.read<BillingState>();
+  if (billing.skus.isEmpty && !billing.loadingSkus) {
+    // ignore: unawaited_futures
+    billing.refreshSkus();
+  }
+  Analytics.instance.track(Analytics.evRechargeSheet);
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.bgSurface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => AnimatedBuilder(
+      animation: billing,
+      builder: (ctx, _) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('充值喜点',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 14),
+              if (billing.loadingSkus && billing.skus.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                )
+              else if (billing.skus.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: Text(billing.lastError ?? '暂无可用套餐',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 12)),
+                  ),
+                )
+              else
+                for (final sku in billing.skus) ...[
+                  _SkuRow(
+                    sku: sku,
+                    loading: billing.isPurchasingSku(sku.code),
+                    disabled: billing.purchasing &&
+                        !billing.isPurchasingSku(sku.code),
+                    onTap: () => _onPackageTap(context, billing, sku),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              const SizedBox(height: 8),
+              Text(
+                '喜点是虚拟商品，购买后不支持退款或转让；'
+                '调用行情、新闻等数据工具不再额外计费。',
+                style: TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 10.5,
+                    height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _onPackageTap(
+  BuildContext context, BillingState b, CreditSku sku) async {
+  Analytics.instance.track(Analytics.evRechargeStart, {'sku': sku.code});
+  final ok = await b.purchase(sku);
+  if (!context.mounted) return;
+  if (ok) {
+    Analytics.instance.track(Analytics.evRechargeSuccess, {
+      'sku': sku.code,
+      'amount_yuan': sku.priceYuan,
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('充值成功 +${CreditFmt.label(sku.totalCredits)}'),
+      duration: const Duration(seconds: 2),
+    ));
+    return;
+  }
+  final err = b.lastError;
+  if (err == null || err.isEmpty) return; // 用户主动取消
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('喜点尚未到账'),
+      content: Text(
+        '$err\n\n如果苹果已经扣款，喜点稍后会自动到账。'
+        '你也可以下拉刷新这个页面，或重新打开 App 触发自动补单。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('好的'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(ctx);
+            final n = await b.restoreUnverifiedPurchases();
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(n > 0 ? '已补到账 $n 笔' : '暂无未到账的订单'),
+            ));
+          },
+          child: const Text('立即重试'),
+        ),
+      ],
+    ),
+  );
 }
 
 // ── 卷宗部件 ────────────────────────────────────────────────────────────
@@ -433,7 +472,7 @@ class ProfileCreditBureau extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.md),
-          Text('每次回答消耗 6 喜点 · 调用行情、新闻等数据工具不再额外计费',
+          Text('每轮对话 1 喜点（深度模式 +5）· 解锁一条证伪档案 5 喜点',
               style: AppType.micro
                   .copyWith(color: AppColors.textTertiary, height: 1.6)),
         ],
