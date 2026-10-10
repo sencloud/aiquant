@@ -75,14 +75,14 @@ flutter:
 flutter_launcher_icons:
   image_path: "assets/branding/app_icon.png"
   android: "ic_launcher"
-  # 自适应图标：底色用纸色，前景是墨字 + 墨金记号（内容已缩进到安全区）
-  adaptive_icon_background: "#F1EBDD"
+  # 自适应图标：底色取小家伙身上那一档奶油桃色，前景是圆脸本体（已缩进安全区）
+  adaptive_icon_background: "#FFE4BA"
   adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
   ios: true
   remove_alpha_ios: true
-  background_color_ios: "#F1EBDD"
+  background_color_ios: "#FFE4BA"
   web:
     generate: true
     image_path: "assets/branding/app_icon.png"
-    background_color: "#F1EBDD"
+    background_color: "#FFE4BA"
     theme_color: "#9E6322"

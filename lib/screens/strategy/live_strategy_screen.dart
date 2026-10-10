@@ -78,7 +78,7 @@ class _LiveStrategyScreenState extends State<LiveStrategyScreen> {
         actions: [
           IconButton(
             tooltip: '刷新',
-            icon: const Icon(Icons.refresh, size: 20),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
             onPressed: _loading ? null : _load,
           ),
         ],
@@ -243,7 +243,7 @@ class _DetailEntry extends StatelessWidget {
               horizontal: AppSpace.lg, vertical: AppSpace.lg),
           child: Row(
             children: [
-              const Icon(Icons.receipt_long_outlined,
+              const Icon(Icons.receipt_long_rounded,
                   size: 20, color: AppColors.amber),
               const SizedBox(width: AppSpace.md),
               Expanded(
@@ -260,7 +260,7 @@ class _DetailEntry extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right,
+              Icon(Icons.chevron_right_rounded,
                   size: 20, color: AppColors.textTertiary),
             ],
           ),

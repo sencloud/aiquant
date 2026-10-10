@@ -196,7 +196,7 @@ class WkRow extends StatelessWidget {
             if (onTap != null) ...[
               const SizedBox(width: AppSpace.xs),
               // textTertiary 是运行时字段，不能进 const 构造。
-              Icon(Icons.chevron_right,
+              Icon(Icons.chevron_right_rounded,
                   size: 20, color: AppColors.textTertiary),
             ],
           ],

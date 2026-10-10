@@ -121,25 +121,28 @@ class CreditLedgerItem {
         createdAt: (j['created_at'] as num).toInt(),
       );
 
-  /// 中文描述。
+  /// 面向用户的中文描述。
+  ///
+  /// 两条规矩：**不许把后端 reason 码直接甩给用户**（`dev_topup` 这种没人看得懂），
+  /// 也不许用内部术语（「后台调整」）。全部翻成人话，兜底写「账户变动」。
   String get reasonLabel {
     switch (reason) {
       case 'topup':
-        return '充值';
+        return '充值到账';
       case 'refund':
         return '退款';
       case 'admin_adjust':
-        return '后台调整';
+        return '系统调整';
       case 'signup_gift':
-        return '注册赠送';
+        return '新用户赠送';
       case 'consume_ai':
-        return '助理消费';
+        return 'AI 回答';
       case 'consume_ding':
-        return 'DING 任务';
+        return '定时任务';
       case 'dev_topup':
-        return '内部充值';
+        return '系统赠送';
       default:
-        return reason;
+        return '账户变动';
     }
   }
 

@@ -3,7 +3,7 @@
     "short_name": "喜爱",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F1EBDD",
+    "background_color": "#FFE4BA",
     "theme_color": "#9E6322",
     "description": "喜爱（喜 AI）— AI 投研助理 + 策略证伪台：先证明什么不行。",
     "orientation": "any",

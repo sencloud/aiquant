@@ -67,8 +67,10 @@ class MessageBubble extends StatelessWidget {
     final imageUrls = message.imageDataUrls ?? const <String>[];
     final hasImages = imageUrls.isNotEmpty;
 
-    final bg = isUser ? AppColors.amber : AppColors.bgRaised;
-    final fg = isUser ? Colors.black : AppColors.textPrimary;
+    // AI 气泡用白面：对话区背后是奶油色渐变的背景，米色气泡会糊在底上。
+    // 用户气泡保持主色实心，前景色用主题里的 onAccent（白字压墨金 5.4:1）。
+    final bg = isUser ? AppColors.amber : AppColors.bgSurface;
+    final fg = isUser ? AppColors.onAccent : AppColors.textPrimary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -109,6 +111,11 @@ class MessageBubble extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: bg,
                   borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  // AI 气泡是白面，压在奶油色背景上要靠一条发丝线收边，
+                  // 不然边缘会化开。用户气泡是实心主色，不需要线。
+                  border: isUser
+                      ? null
+                      : Border.all(color: AppColors.borderDim, width: 0.5),
                 ),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

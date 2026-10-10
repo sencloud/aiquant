@@ -34,7 +34,7 @@ class DiscoverScreen extends StatelessWidget {
             footer: '按点让 AI 自己去跑：盯盘、复盘、出日报。',
             children: [
               WkRow(
-                icon: Icons.alarm,
+                icon: Icons.alarm_rounded,
                 title: '定时提醒',
                 subtitle: '按点让 AI 执行任务',
                 trailing: unread > 0 ? _Badge(unread) : null,
@@ -47,21 +47,21 @@ class DiscoverScreen extends StatelessWidget {
             header: '研究与组合',
             children: [
               WkRow(
-                icon: Icons.pie_chart_outline,
+                icon: Icons.pie_chart_rounded,
                 title: '组合管理',
                 subtitle: '持仓 · 风险 · 绩效 · 报告',
                 onTap: () => _push(context, const PortfolioScreen(),
                     event: 'portfolio'),
               ),
               WkRow(
-                icon: Icons.podcasts,
+                icon: Icons.podcasts_rounded,
                 title: 'AI 直播',
                 subtitle: '直播间与长文报告',
                 onTap: () =>
                     _push(context, const LiveScreen(), event: 'live'),
               ),
               WkRow(
-                icon: Icons.track_changes,
+                icon: Icons.track_changes_rounded,
                 title: '鹦鹉螺预测',
                 subtitle: '天气与金融事件的预测市场',
                 onTap: () =>

@@ -13,6 +13,7 @@ import '../../models/persona.dart';
 import '../../models/strategy.dart';
 import '../../services/image_attach_service.dart';
 import '../../services/market_briefing.dart';
+import '../../state/auth_state.dart';
 import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
@@ -51,10 +52,19 @@ class AssistantScreen extends StatefulWidget {
   State<AssistantScreen> createState() => _AssistantScreenState();
 }
 
-class _AssistantScreenState extends State<AssistantScreen> {
+class _AssistantScreenState extends State<AssistantScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final FocusNode _focus = FocusNode();
+
+  /// 首屏入场动画（问候语与提问 pill 依次淡入上浮）。
+  /// 空会话每次出现都重放一次 —— 冷启动、以及「新建对话」之后。
+  late final AnimationController _entranceCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  String? _entranceSessionId;
   // 推理过程默认始终展示；不再提供顶部隐藏开关。
   static const bool _showReasoning = true;
 
@@ -93,6 +103,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
+    _entranceCtl.dispose();
     super.dispose();
   }
 
@@ -358,78 +369,115 @@ class _AssistantScreenState extends State<AssistantScreen> {
       });
     }
 
+    // 空会话出现时重放入场动画：冷启动一次，之后每次「新建对话」再来一次。
+    final isEmptySession = session == null || session.messages.isEmpty;
+    final entranceKey = isEmptySession ? (session?.id ?? 'new') : null;
+    if (entranceKey != null && entranceKey != _entranceSessionId) {
+      _entranceSessionId = entranceKey;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _entranceCtl.forward(from: 0);
+      });
+    }
+
     return Scaffold(
+      // 导航栏透明、不带分割线，让背景一路铺到状态栏下面（元宝首页就是这么做的）。
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(),
+        centerTitle: false,
+        leadingWidth: 56,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: AppSpace.md),
+          child: Center(
+            child: _RoundIconButton(
+              icon: Icons.menu_rounded,
+              onTap: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
+        ),
         title: Row(
           children: [
-            const Text('AI 助理'),
-            const SizedBox(width: 8),
-            if (chat.totalTokens > 0)
-              Text(
-                '${chat.totalTokens} tok',
-                style: TextStyle(
-                    fontSize: 10, color: AppColors.textTertiary),
-              ),
+            Text('喜爱',
+                style: AppType.title.copyWith(fontSize: 18, letterSpacing: 1)),
+            if (chat.totalTokens > 0) ...[
+              const SizedBox(width: AppSpace.sm),
+              Text('${chat.totalTokens} tok',
+                  style: AppType.micro
+                      .copyWith(color: AppColors.textTertiary)),
+            ],
           ],
         ),
         actions: [
-          IconButton(
+          _RoundIconButton(
+            icon: Icons.add_comment_rounded,
             tooltip: '新建对话',
-            icon: const Icon(Icons.add_comment_outlined, size: 18),
-            onPressed: () => chat.newSession(),
+            onTap: () => chat.newSession(),
           ),
-          IconButton(
-            tooltip: '加入 DING（定时执行）',
-            icon: const Icon(Icons.add_alarm, size: 18),
-            onPressed: () => _addToDing(context, chat),
+          const SizedBox(width: AppSpace.sm),
+          _RoundIconButton(
+            icon: Icons.alarm_add_rounded,
+            tooltip: '加入定时任务',
+            onTap: () => _addToDing(context, chat),
           ),
+          const SizedBox(width: AppSpace.md),
         ],
       ),
       drawer: const SessionDrawer(),
-      body: Column(
+      body: Stack(
         children: [
-          _topTagBar(chat, persona, session),
-          Container(height: 1, color: AppColors.borderDim),
-          Expanded(
-            child: session == null || session.messages.isEmpty
-                ? _welcomePanel(persona)
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 14),
-                    itemCount: session.messages.length,
-                    itemBuilder: (context, i) {
-                      final msg = session.messages[i];
-                      return MessageBubble(
-                        message: msg,
-                        allMessages: session.messages,
-                        showReasoning: _showReasoning,
-                      );
-                    },
-                  ),
+          // 对话区背景：柔光纸面（自绘，不用位图 —— 任意尺寸都不糊）。
+          const Positioned.fill(child: _ChatBackdrop()),
+          Column(
+            children: [
+              Expanded(
+                child: session == null || session.messages.isEmpty
+                    ? SafeArea(top: true, child: _welcomePanel(persona))
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: EdgeInsets.fromLTRB(
+                            12,
+                            MediaQuery.of(context).padding.top +
+                                kToolbarHeight +
+                                8,
+                            12,
+                            14),
+                        itemCount: session.messages.length,
+                        itemBuilder: (context, i) {
+                          final msg = session.messages[i];
+                          return MessageBubble(
+                            message: msg,
+                            allMessages: session.messages,
+                            showReasoning: _showReasoning,
+                          );
+                        },
+                      ),
+              ),
+              _composer(chat, persona, session),
+            ],
           ),
-          _composer(chat),
         ],
       ),
     );
   }
 
-  /// 顶部「角色 + 策略之王」并列下拉 tag。
-  ///
-  /// - 角色 tag：合并原横向 chip 列表，显示当前选中 persona，点击展开角色清单。
-  /// - 策略之王 tag：呈现策略气泡列表，默认挂载「ETF 组合轮动」，点「立即运行」
-  ///   即把策略 prompt 直接发给当前会话的 AI 助理。（当前暂时隐藏）
-  Widget _topTagBar(ChatState chat, Persona persona, ChatSession? session) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Row(
+  /// 输入框上方的快捷 pill 行（元宝的「快速 / AI创作 / 拍题答疑」那一排）：
+  /// 角色切换、带上我的组合、加入定时任务。横向可滚，不挤成两行。
+  Widget _quickActions(ChatState chat, Persona persona, ChatSession? session) {
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
         children: [
           PersonaPicker(
             activeId: persona.id,
             disabled: chat.streaming,
             onPick: (id) async {
-              final isNewSessionEmpty =
-                  (session?.messages.isEmpty ?? true);
+              final isNewSessionEmpty = (session?.messages.isEmpty ?? true);
               if (isNewSessionEmpty) {
                 await chat.setPersona(id);
               } else {
@@ -438,13 +486,51 @@ class _AssistantScreenState extends State<AssistantScreen> {
               }
             },
           ),
-          const SizedBox(width: 8),
-          // 「策略之王」入口暂时隐藏（代码保留未删）。
-          // StrategyPicker(
-          //   disabled: chat.streaming,
-          //   onRun: (s) => _runStrategy(s),
-          // ),
+          const SizedBox(width: AppSpace.sm),
+          _quickPill(
+            icon: Icons.pie_chart_rounded,
+            label: '带上我的组合',
+            active: _attachPortfolio,
+            onTap: () => setState(() => _attachPortfolio = !_attachPortfolio),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          _quickPill(
+            icon: Icons.alarm_add_rounded,
+            label: '定时任务',
+            onTap: () => _addToDing(context, chat),
+          ),
+          const SizedBox(width: AppSpace.xs),
         ],
+      ),
+    );
+  }
+
+  /// 快捷 pill：白底圆角，选中态改主色浅底 + 主色字。
+  Widget _quickPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    final fg = active ? AppColors.amberDim : AppColors.textPrimary;
+    return Material(
+      color: active ? AppColors.accentSoft : AppColors.bgSurface,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      shadowColor: AppColors.shadow,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: fg),
+              const SizedBox(width: 6),
+              Text(label, style: AppType.caption.copyWith(color: fg)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -472,17 +558,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _scrollToBottom();
   }
 
-  /// 福利中心（= 我的页）属需登录入口：未登录先弹登录，再进充值页。
-  Future<void> _openCreditCenter() async {
-    if (!await requireLogin(context)) return;
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
-  }
-
-  /// 空会话时的欢迎面板：参考"元宝"截图布局——上半部分留白让视线聚焦，
-  /// 下半部分依次为大标题、福利中心广告条、3 条快速提问 pill。
+  /// 空会话时的欢迎面板：结构照「元宝」首页 —— 上半留白把视线压到下方，
+  /// 然后是左对齐的问候语、堆叠的提问 pill。每个元素按序淡入上浮
+  /// （见 [_entrance]），一次编排，不逐帧堆特效。
   ///
   /// 快速提问优先用「当前时段 + 开/收盘行情」生成（见 [MarketBriefingService]）；
   /// 行情不可用时回退到当前 Persona 的默认建议。行情每 5 分钟视为过期，
@@ -498,29 +576,33 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final market = _marketSuggestions;
     final suggestions =
         (market != null && market.isNotEmpty) ? market : persona.welcomeSuggestions;
+
+    // 问候语用昵称，没有昵称就叫「朋友」—— 跟元宝的「Hi, eric chan」同一个位置。
+    final nickname = context.watch<AuthState>().currentUser?.nickname ?? '';
+    final who = nickname.trim().isEmpty ? '朋友' : nickname.trim();
+
+    var slot = 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Spacer(),
-          Text(
-            '嗨，今天想聊点什么？',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-              height: 1.3,
+          _entrance(
+            slot++,
+            Text(
+              'Hi，$who',
+              style: AppType.display.copyWith(
+                  fontSize: 26, height: 1.3, color: AppColors.textPrimary),
             ),
           ),
-          const SizedBox(height: 14),
-          _CreditAdBanner(
-            onTap: _openCreditCenter,
-          ),
-          const SizedBox(height: 14),
-          for (final q in suggestions.take(3)) _suggestion(q),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.lg),
+          for (final q in suggestions.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpace.sm),
+              child: _entrance(slot++, _suggestion(q), from: 10),
+            ),
+          const SizedBox(height: AppSpace.xs),
         ],
       ),
     );
@@ -544,92 +626,110 @@ class _AssistantScreenState extends State<AssistantScreen> {
     }
   }
 
-  /// 椭圆 pill 样式的快速提问（替代原 raised 背景的方框样式），
-  /// 视觉风格更靠近"元宝"截图，但配色仍走金黄主调。
-  Widget _suggestion(String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Material(
-          color: AppColors.bgRaised,
-          shape: StadiumBorder(
-            side: BorderSide(color: AppColors.borderDim),
-          ),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: () => _send(text),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      text,
-                      style: TextStyle(
-                          color: AppColors.textPrimary, fontSize: 13),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.north_east,
-                      color: AppColors.amber, size: 14),
-                ],
-              ),
+  /// 提问 pill：白底、胶囊形、宽度跟着文字走（元宝的提问就是一条条短 pill，
+  /// 不是撑满整行的横条）。带一点极轻的投影，让它在纸底上浮起来。
+  Widget _suggestion(String text) => Material(
+        color: AppColors.bgSurface,
+        elevation: 0,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        shadowColor: AppColors.shadow,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          onTap: () => _send(text),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg, vertical: 13),
+            child: Text(
+              text,
+              style: AppType.body.copyWith(color: AppColors.textPrimary),
             ),
           ),
         ),
       );
 
-  /// 输入框做成圆角胶囊形，主按钮内嵌右侧——参考截图样式，
-  /// 但保持深色暗调 + 金黄主色，不照搬截图浅色配色。
-  Widget _composer(ChatState chat) {
-    return Container(
-      color: AppColors.bgSurface,
+  /// 入场动画：每个元素按 [slot] 依次淡入并上浮 [from] 像素。
+  /// 整体 900ms、指数缓出，读完刚好结束 —— 只编排一处，不做重复入场。
+  Widget _entrance(int slot, Widget child, {double from = 14}) {
+    final start = (slot * 0.12).clamp(0.0, 0.6);
+    final curve = CurvedAnimation(
+      parent: _entranceCtl,
+      curve: Interval(start, (start + 0.4).clamp(0.0, 1.0),
+          curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (_, sub) => Opacity(
+        opacity: curve.value,
+        child: Transform.translate(
+          offset: Offset(0, from * (1 - curve.value)),
+          child: sub,
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  /// 输入区：上方一排快捷 pill，下面是圆角胶囊输入框，最底下一行免责说明。
+  /// 结构照元宝，配色走我们自己的纸墨金。
+  Widget _composer(ChatState chat, Persona persona, ChatSession? session) {
+    return Padding(
       padding: EdgeInsets.fromLTRB(
-          14, 6, 14, 10 + MediaQuery.of(context).padding.bottom),
+          AppSpace.md, AppSpace.sm, AppSpace.md,
+          AppSpace.sm + MediaQuery.of(context).padding.bottom),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_pendingImages.isNotEmpty) _pendingImageStrip(),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.bgRaised,
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: AppColors.borderDim),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _attachButton(),
-                      Expanded(
-                        child: TextField(
-                          controller: _input,
-                          focusNode: _focus,
-                          minLines: 1,
-                          maxLines: 6,
-                          style: const TextStyle(fontSize: 13),
-                          decoration: const InputDecoration(
-                            hintText: '想问点什么？股票、ETF、期货都可以…',
-                            isDense: true,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 0),
-                          ),
-                          onSubmitted: (_) => _send(),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      _sendButton(chat),
-                    ],
+          _quickActions(chat, persona, session),
+          const SizedBox(height: AppSpace.sm),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: const [
+                BoxShadow(
+                    color: AppColors.shadow,
+                    blurRadius: 16,
+                    offset: Offset(0, 4)),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _attachButton(),
+                Expanded(
+                  child: TextField(
+                    controller: _input,
+                    focusNode: _focus,
+                    minLines: 1,
+                    maxLines: 6,
+                    style: AppType.body.copyWith(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: '发消息，或按住说话…',
+                      hintStyle: AppType.body
+                          .copyWith(fontSize: 14, color: AppColors.textTertiary),
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 0),
+                    ),
+                    onSubmitted: (_) => _send(),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                _sendButton(chat),
+              ],
+            ),
           ),
+          const SizedBox(height: 6),
+          Text('内容由 AI 生成，注意核实',
+              textAlign: TextAlign.center,
+              style: AppType.micro.copyWith(color: AppColors.textTertiary)),
         ],
       ),
     );
@@ -710,8 +810,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 20,
+            Icons.photo_camera_rounded,
+            size: 22,
             color: disabled ? AppColors.textTertiary : AppColors.amber,
           ),
         ),
@@ -734,7 +834,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
             child: const SizedBox(
               width: 36,
               height: 36,
-              child: Icon(Icons.stop, color: AppColors.amber, size: 18),
+            child: Icon(Icons.stop_rounded, color: AppColors.amber, size: 20),
             ),
           ),
         ),
@@ -749,9 +849,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
           customBorder: const CircleBorder(),
           onTap: _send,
           child: const SizedBox(
-            width: 36,
-            height: 36,
-            child: Icon(Icons.arrow_upward, color: Colors.white, size: 18),
+            width: 40,
+            height: 40,
+            child: Icon(Icons.arrow_upward_rounded,
+                color: Colors.white, size: 20),
           ),
         ),
       ),
@@ -759,96 +860,132 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 }
 
-/// 福利中心广告条 — 引导用户进入"我的"页面充值喜点。
-/// 视觉参考"元宝"截图的紫色福利条；这里改用金黄渐变与现有主题统一。
-class _CreditAdBanner extends StatelessWidget {
-  const _CreditAdBanner({required this.onTap});
-  final VoidCallback onTap;
+/// 对话区背景：柔光纸面。
+///
+/// 参考「元宝」首页那种"有张背景图"的感觉，但这里不用位图 —— 一张 PNG 换
+/// 尺寸就发虚，还要多打包几百 KB，而且没法跟着主题走。几层渐变就能画出同样
+/// 的柔光，任意屏幕上都是干净的。光带只做两处，不叠第三层。
+class _ChatBackdrop extends StatelessWidget {
+  const _ChatBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.amber.withValues(alpha: 0.20),
-                AppColors.amber.withValues(alpha: 0.06),
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.amber.withValues(alpha: 0.55)),
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFF9F5EC),
+              Color(0xFFF1E9D9),
+            ],
+            stops: [0, 0.45, 1],
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.amber,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.stars_rounded,
-                    color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
+        ),
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // 左上暖光：主光，落在问候语那一侧
+            Positioned(
+                left: -130,
+                top: -90,
+                child: _glow(340, AppColors.amber, 0.11)),
+            // 右侧冷光：压在中间偏上，避免整页一个色调
+            Positioned(
+                right: -150,
+                top: 120,
+                child: _glow(380, const Color(0xFF6E93A6), 0.07)),
+            // 底部暖雾：把视线兜在输入框这一带
+            Positioned(
+                left: -70,
+                bottom: -160,
+                child: _glow(400, AppColors.amberDim, 0.09)),
+            // 斜向光带：背景里那道"透光"的感觉
+            Center(
+              child: Transform.rotate(
+                angle: -0.62,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '喜爱福利中心',
-                      style: TextStyle(
-                        color: AppColors.amber,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '充值喜点，畅享深度分析与更多 AI 能力',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.amber,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.shopping_bag_outlined,
-                        color: Colors.white, size: 13),
-                    SizedBox(width: 4),
-                    Text(
-                      '福利中心',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    _streak(190, 0.55),
+                    const SizedBox(height: 120),
+                    _streak(90, 0.38),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  /// 一团柔光：径向渐变从颜色淡到全透明，边缘自然，不需要模糊滤镜。
+  Widget _glow(double size, Color color, double alpha) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
+      );
+
+  /// 一条斜光带：中间亮、两端透明。
+  Widget _streak(double height, double alpha) => Container(
+        width: 260,
+        height: height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: 0),
+              Colors.white.withValues(alpha: alpha),
+              Colors.white.withValues(alpha: 0),
+            ],
+          ),
+        ),
+      );
 }
+
+/// 顶部圆按钮：白底圆形 + 极轻投影（对应元宝首页右上角那三个）。
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = Material(
+      color: AppColors.bgSurface,
+      shape: const CircleBorder(),
+      shadowColor: AppColors.shadow,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, size: 20, color: AppColors.textPrimary),
+        ),
+      ),
+    );
+    return tooltip == null
+        ? btn
+        : Tooltip(message: tooltip!, child: btn);
+  }
+}
+

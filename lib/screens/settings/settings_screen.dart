@@ -119,8 +119,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('我的'),
         actions: [
           IconButton(
-            tooltip: '喜点流水',
-            icon: const Icon(Icons.receipt_long, size: 20),
+            tooltip: '喜点明细',
+            icon: const Icon(Icons.receipt_long_rounded, size: 20),
             onPressed: user == null ? null : () => _showLedger(context),
           ),
         ],
@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               header: '随身工具',
               children: [
                 ProfileIndexRow(
-                  icon: Icons.star_outline,
+                  icon: Icons.star_outline_rounded,
                   title: '我的自选',
                   note: '股票 / ETF / 期货',
                   onTap: () => Navigator.of(context).push(
@@ -156,9 +156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 ProfileIndexRow(
-                  icon: Icons.receipt_long_outlined,
-                  title: '喜点流水',
-                  note: '每一笔消耗与充值',
+                  icon: Icons.receipt_long_rounded,
+                  title: '喜点明细',
+                  note: '充值、消耗都在这里',
                   onTap: user == null ? null : () => _showLedger(context),
                 ),
               ],
@@ -169,14 +169,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 if (user == null)
                   ProfileIndexRow(
-                    icon: Icons.login,
+                    icon: Icons.login_rounded,
                     title: '登录 / 注册',
                     note: '同步喜点与定时提醒',
                     onTap: () => requireLogin(context),
                   )
                 else
                   ProfileIndexRow(
-                    icon: Icons.logout,
+                    icon: Icons.logout_rounded,
                     title: '退出登录',
                     note: '',
                     danger: true,
@@ -660,7 +660,7 @@ class _SkuRow extends StatelessWidget {
   }
 }
 
-/// 喜点流水弹层：一条条对账单式的记录。
+/// 喜点明细弹层：一条条记录，进账为正、消耗为负，右边给出变动后的余额。
 class _LedgerSheet extends StatefulWidget {
   const _LedgerSheet();
 
@@ -688,12 +688,12 @@ class _LedgerSheetState extends State<_LedgerSheet> {
       builder: (ctx, controller) => Column(
         children: [
           const SizedBox(height: 14),
-          Text('喜点流水',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
+          Text('喜点明细',
+              style: AppType.title.copyWith(fontSize: 16)),
+          const SizedBox(height: 6),
+          Text('充值和赠送是正的，AI 回答和定时任务是负的',
+              style: AppType.micro.copyWith(color: AppColors.textTertiary)),
+          const SizedBox(height: AppSpace.md),
           Expanded(
             child: billing.loadingLedger && items.isEmpty
                 ? const Center(
@@ -703,13 +703,14 @@ class _LedgerSheetState extends State<_LedgerSheet> {
                         child: CircularProgressIndicator(strokeWidth: 2)))
                 : items.isEmpty
                     ? Center(
-                        child: Text('还没有流水记录',
-                            style: TextStyle(
-                                color: AppColors.textTertiary, fontSize: 12)),
+                        child: Text('还没有喜点记录',
+                            style: AppType.body.copyWith(
+                                color: AppColors.textTertiary)),
                       )
                     : ListView.builder(
                         controller: controller,
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.lg),
                         itemCount: items.length,
                         itemBuilder: (_, i) => _LedgerRow(item: items[i]),
                       ),
@@ -727,19 +728,21 @@ class _LedgerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dt = DateTime.fromMillisecondsSinceEpoch(item.createdAt);
-    final stamp = '${dt.year}-${dt.month.toString().padLeft(2, '0')}'
-        '-${dt.day.toString().padLeft(2, '0')} '
+    final stamp = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+    // 后端给的 remark 是运营写的备注，优先用它；没有就用 reason 翻出来的人话。
     final label = (item.remark == null || item.remark!.isEmpty)
-        ? _reasonLabel(item.reason)
+        ? item.reasonLabel
         : item.remark!;
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.borderDim)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 11),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
@@ -748,49 +751,37 @@ class _LedgerRow extends StatelessWidget {
                 Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary, fontSize: 12.5)),
-                const SizedBox(height: 3),
+                    style: AppType.body.copyWith(color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
                 Text(stamp,
-                    style: mono(
-                        size: 10.5,
-                        weight: FontWeight.w600,
-                        color: AppColors.textTertiary)),
+                    style: AppType.micro
+                        .copyWith(color: AppColors.textTertiary)),
               ],
             ),
           ),
-          Text(CreditFmt.delta(item.delta),
-              style: mono(
-                  size: 13,
+          // 右边两行：变动多少 + 变完还剩多少。两个数字都带单位，
+          // 不再是一串看不懂的裸数字。
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${CreditFmt.delta(item.delta)} 喜点',
+                style: AppType.body.copyWith(
+                  fontWeight: FontWeight.w600,
                   color: item.delta >= 0
                       ? AppColors.positive
-                      : AppColors.textSecondary)),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 54,
-            child: Text(CreditFmt.balance(item.balanceAfter),
-                textAlign: TextAlign.right,
-                style: mono(size: 11, color: AppColors.textTertiary)),
+                      : AppColors.textPrimary,
+                  fontFamilyFallback: AppType.numericFallback,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('余额 ${CreditFmt.balance(item.balanceAfter)}',
+                  style: AppType.micro
+                      .copyWith(color: AppColors.textTertiary)),
+            ],
           ),
         ],
       ),
     );
-  }
-
-  static String _reasonLabel(String reason) {
-    switch (reason) {
-      case 'consume_ai':
-        return 'AI 对话消耗';
-      case 'consume_ding':
-        return '定时任务消耗';
-      case 'purchase':
-        return '充值';
-      case 'checkin':
-        return '每日签到';
-      case 'invite_reward':
-        return '邀请奖励';
-      default:
-        return reason.isEmpty ? '变动' : reason;
-    }
   }
 }
