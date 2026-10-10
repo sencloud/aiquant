@@ -7,6 +7,10 @@
       <stop offset="0.5" stop-color="#A8681F"/>
       <stop offset="1" stop-color="#C88A32"/>
     </linearGradient>
+    <linearGradient id="fgStar" gradientUnits="userSpaceOnUse" x1="790" y1="140" x2="890" y2="240">
+      <stop offset="0" stop-color="#D69A45"/>
+      <stop offset="1" stop-color="#9E6322"/>
+    </linearGradient>
   </defs>
 
   <g transform="translate(512,512) scale(0.63) translate(-512,-512)">
@@ -22,5 +26,11 @@
       <path d="M437 862 L501 862"/>
       <path d="M618 780 L618 890"/>
     </g>
+
+    <!-- 右上角两颗星 -->
+    <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+          transform="translate(838,188) scale(54)" fill="url(#fgStar)"/>
+    <path d="M0,-1 C0.14,-0.26 0.26,-0.14 1,0 C0.26,0.14 0.14,0.26 0,1 C-0.14,0.26 -0.26,0.14 -1,0 C-0.26,-0.14 -0.14,-0.26 0,-1 Z"
+          transform="translate(898,288) scale(24)" fill="#B57B33" fill-opacity="0.9"/>
   </g>
 </svg>
