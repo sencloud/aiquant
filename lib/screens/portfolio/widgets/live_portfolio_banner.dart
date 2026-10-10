@@ -9,9 +9,9 @@ import '../../../state/portfolio_state.dart';
 import '../../../theme/app_theme.dart';
 import '../../strategy/live_strategy_screen.dart';
 
-/// 组合页顶部的「实盘」条：
-///   - 选中实盘组合时：只读说明 + 截至日 + 总资产/现金/累计盈亏 + 进策略详情；
-///   - 未登录时：提示登录后自动同步实盘组合（原「策略 → 实盘」入口搬到这里）。
+/// 组合页顶部的「策略模拟」条（策略模拟资金，非实盘）：
+///   - 选中策略模拟组合时：模拟口径 + 截至日 + 总资产/现金/累计盈亏 + 进策略详情；
+///   - 未登录时：提示登录后自动同步策略模拟组合（原「策略 → 实盘」入口搬到这里）。
 class LivePortfolioBanner extends StatelessWidget {
   const LivePortfolioBanner({super.key});
 
@@ -36,8 +36,12 @@ class _LiveInfo extends StatelessWidget {
     final money = NumberFormat('#,##0');
     final subtitle = live == null
         ? (p?.description ?? '系统托管 · 只读')
-        : '数据截至 ${live.asOf} · 每日自动同步 · 只读'
-            '${live.stale ? ' · 已落后 ${live.staleDays} 个交易日' : ''}';
+        : '模拟资金 · 非实盘 · 截至 ${live.asOf}'
+            '${live.stale ? ' · 已落后 ${live.staleDays} 个交易日' : ' · 每日更新'}';
+    final basis = live == null
+        ? ''
+        : '名义本金 ${_capital(live.capital)} · ${live.inception} 起按策略调仓结论模拟'
+            '${live.rebalanceCount > 0 ? '（${live.rebalanceCount} 期）' : ''} · 只读';
     final pnlColor =
         (live?.pnl ?? 0) >= 0 ? AppColors.positive : AppColors.negative;
 
@@ -61,7 +65,7 @@ class _LiveInfo extends StatelessWidget {
                   color: AppColors.amber,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('实盘',
+                child: const Text('模拟',
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -111,12 +115,12 @@ class _LiveInfo extends StatelessWidget {
               ],
             ),
           ],
-          if (live?.divergence == true) ...[
+          if (basis.isNotEmpty) ...[
             const SizedBox(height: 6),
-            const Text(
-              '实盘持仓与本期策略目标不一致（有人工调仓或待执行的调仓），以实际持仓为准。',
+            Text(
+              basis,
               style: TextStyle(
-                  color: AppColors.warning, fontSize: 11, height: 1.4),
+                  color: AppColors.textTertiary, fontSize: 10.5, height: 1.4),
             ),
           ],
           if (ps.liveError != null) ...[
@@ -128,6 +132,10 @@ class _LiveInfo extends StatelessWidget {
       ),
     );
   }
+
+  static String _capital(double v) => v >= 10000 && v % 10000 == 0
+      ? '${(v / 10000).toStringAsFixed(0)}万'
+      : NumberFormat('#,##0').format(v);
 
   Widget _kv(String k, String v, {Color? color}) => Expanded(
         child: Column(
@@ -179,13 +187,13 @@ class _LoginCta extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('实盘：上证50 九因子',
+                Text('策略模拟：上证50 九因子',
                     style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text('登录后自动同步到组合管理，每天更新持仓与调仓记录',
+                Text('模拟资金 · 非实盘。登录后自动同步到组合管理，每天更新持仓与调仓记录',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 11)),
               ],

@@ -278,7 +278,9 @@ func buildStrategyService(cfg *platform.Config, l *zerolog.Logger, st *store.Sto
 		l.Info().Msg("strategy: disabled by config")
 		return nil
 	}
-	return strategy.NewService(st, l, tushare.New(cfg.Tushare), cfg.Strategy.BaseURL)
+	svc := strategy.NewService(st, l, tushare.New(cfg.Tushare), cfg.Strategy.BaseURL)
+	svc.SimCapital = cfg.Strategy.SimCapital
+	return svc
 }
 
 // buildBriefService 构造首页「今天想聊点什么」的生成/读取服务。
@@ -405,9 +407,10 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		interval := time.Duration(cfg.Strategy.SyncMinutes) * time.Minute
 		stSvc := buildStrategyService(cfg, &l, st)
 		sch.Register(strategy.NewJob(stSvc, interval, &l))
-		// 实盘组合：把实盘账户每天物化成「组合管理」里的系统组合（按截至日幂等）。
+		// 策略模拟组合：按策略调仓结论 + 名义本金每天模拟一份「组合管理」里的系统组合（按截至日幂等）。
 		sch.Register(strategy.NewLivePortfolioJob(stSvc, time.Hour, &l))
-		l.Info().Dur("interval", interval).Msg("scheduler: strategy sync + live portfolio jobs enabled")
+		l.Info().Dur("interval", interval).Float64("sim_capital", cfg.Strategy.SimCapital).
+			Msg("scheduler: strategy sync + strategy sim portfolio jobs enabled")
 	}
 
 	// 证伪档案：周期从 alpha-radar 拉只读导出落库；api 读最新一份（没有就用内置 seed）。

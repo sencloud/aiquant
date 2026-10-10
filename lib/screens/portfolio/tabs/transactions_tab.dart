@@ -17,7 +17,7 @@ class TransactionsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final ps = context.watch<PortfolioState>();
     final txns = ps.currentTransactions();
-    // 实盘组合的账本以服务端为准：不允许导入 / 公司行动 / 滑动删除。
+    // 策略模拟组合的账本以服务端为准：不允许导入 / 公司行动 / 滑动删除。
     final readOnly = ps.activeIsManaged;
     final df = DateFormat('yyyy-MM-dd');
     final fmt = NumberFormat('#,##0.00');
@@ -43,7 +43,7 @@ class TransactionsTab extends StatelessWidget {
                 ),
               ),
               if (readOnly)
-                Text('实盘调仓记录 · 系统同步',
+                Text('策略模拟调仓记录 · 系统同步',
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11))
               else ...[

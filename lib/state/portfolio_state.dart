@@ -55,9 +55,9 @@ class PortfolioState extends ChangeNotifier {
   /// 当前选中的是否为系统托管（只读）组合。
   bool get activeIsManaged => _active?.isManaged ?? false;
 
-  // ── 实盘组合（系统托管）────────────────────────────────────────────────
+  // ── 策略模拟组合（系统托管，非实盘）────────────────────────────────────────────────
   //
-  // 实盘数据需要登录（与原「策略 → 实盘」入口一致）：未登录时托管组合留在本地
+  // 策略数据需要登录（与原「策略 → 实盘」入口一致）：未登录时托管组合留在本地
   // 但不出现在列表里；登录后自动同步并置顶。同步节流 30 分钟——后端每天物化
   // 一次，App 每次打开组合页最多拉一次，tab 里的行情另由 refreshQuotes 更新。
   bool _liveVisible = false;
@@ -93,7 +93,7 @@ class PortfolioState extends ChangeNotifier {
     if (authed) await syncLivePortfolio();
   }
 
-  /// 拉一次实盘组合并落成本地只读组合。[force] 忽略 30 分钟节流。
+  /// 拉一次策略模拟组合并落成本地只读组合。[force] 忽略 30 分钟节流。
   Future<void> syncLivePortfolio({bool force = false}) async {
     if (!_liveVisible || _liveSyncing) return;
     final last = _liveSyncedAt;
@@ -110,14 +110,14 @@ class PortfolioState extends ChangeNotifier {
     } catch (e) {
       // 失败也记时间：避免界面每次重建都重试；刷新按钮会 force。
       _liveSyncedAt = DateTime.now();
-      _liveError = '实盘组合同步失败，显示的是上次同步的数据';
+      _liveError = '策略模拟组合同步失败，显示的是上次同步的数据';
     } finally {
       _liveSyncing = false;
       notifyListeners();
     }
   }
 
-  /// 把一份实盘组合写进本地（可单测）：替换账本、置顶、首选，并先用截至日收盘价占位。
+  /// 把一份策略模拟组合写进本地（可单测）：替换账本、置顶、首选，并先用截至日收盘价占位。
   Future<void> applyLivePortfolio(LivePortfolio lp) async {
     final hadAny = _portfolios.isNotEmpty;
     await _repo.upsertManaged(
@@ -130,7 +130,7 @@ class PortfolioState extends ChangeNotifier {
     );
     _live = lp;
     _reloadPortfolios();
-    // 第一次出现时直接选中它：用户进组合页第一眼就是实盘。
+    // 第一次出现时直接选中它：用户进组合页第一眼就是策略模拟组合。
     if (_activeId == null || !hadAny) _activeId = lp.id;
     if (_activeId == lp.id) {
       _invalidateHistories();
@@ -377,7 +377,7 @@ class PortfolioState extends ChangeNotifier {
       return (imported: 0, errors: ['当前没有选中的组合']);
     }
     if (activeIsManaged) {
-      return (imported: 0, errors: ['实盘组合由系统自动同步，不能导入交易']);
+      return (imported: 0, errors: ['策略模拟组合由系统自动同步，不能导入交易']);
     }
     final rows =
         Csv(skipEmptyLines: true, dynamicTyping: false, lineDelimiter: '\n')

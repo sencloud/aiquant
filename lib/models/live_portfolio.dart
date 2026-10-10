@@ -1,9 +1,10 @@
 import 'portfolio.dart';
 
-/// 「组合管理」里系统托管的实盘组合（对应后端 GET /v1/portfolio/live）。
+/// 「组合管理」里系统托管的策略模拟组合（对应后端 GET /v1/portfolio/live）。
 ///
-/// 后端每天把主策略（上证50 九因子）的实盘账户物化成：持仓 + 可回放的交易流水
-/// + 现金/盈亏。客户端把它落成一个只读组合，十个 tab 都按真实持仓计算。
+/// 策略模拟资金，非实盘：后端按主策略（上证50 九因子）每期的调仓结论，用名义本金
+/// 模拟出持仓 + 调仓交易流水 + 现金/盈亏，每天更新。客户端把它落成一个只读组合，
+/// 十个 tab 都按模拟持仓计算。与人工实盘账户无关。
 class LivePortfolio {
   const LivePortfolio({
     required this.id,
@@ -20,12 +21,15 @@ class LivePortfolio {
     required this.total,
     required this.pnl,
     required this.pnlPct,
-    required this.divergence,
-    required this.reconciled,
     required this.holdings,
     required this.transactions,
     required this.signalDate,
     required this.execDate,
+    this.mode = 'simulation',
+    this.costModel = '',
+    this.historyNote = '',
+    this.rebalanceCount = 0,
+    this.notes = const [],
   });
 
   /// 管理来源标记，写在 [Portfolio.managedBy] 里。
@@ -47,12 +51,25 @@ class LivePortfolio {
 
   /// 小数（0.0108 = 1.08%）。
   final double pnlPct;
-  final bool divergence;
-  final bool reconciled;
   final List<LiveHolding> holdings;
   final List<LiveTxn> transactions;
   final String signalDate;
   final String execDate;
+
+  /// 'simulation'：策略模拟资金。
+  final String mode;
+
+  /// 成本口径说明（滑点、佣金、印花税、整手）。
+  final String costModel;
+
+  /// 能还原到多早的调仓历史（上游只给最近一段回测成交）。
+  final String historyNote;
+
+  /// 模拟期内执行过的调仓期数（含建仓）。
+  final int rebalanceCount;
+
+  /// 模拟过程中的降级说明。
+  final List<String> notes;
 
   factory LivePortfolio.fromJson(Map<String, dynamic> j) => LivePortfolio(
         id: _str(j['id']),
@@ -69,8 +86,6 @@ class LivePortfolio {
         total: _num(j['total']),
         pnl: _num(j['pnl']),
         pnlPct: _num(j['pnl_pct']),
-        divergence: j['divergence'] == true,
-        reconciled: j['reconciled'] != false,
         holdings: [
           for (final h in (j['holdings'] as List? ?? const []))
             if (h is Map) LiveHolding.fromJson(h.cast<String, dynamic>()),
@@ -81,6 +96,14 @@ class LivePortfolio {
         ],
         signalDate: _str(j['signal_date']),
         execDate: _str(j['exec_date']),
+        mode: _str(j['mode']).isEmpty ? 'simulation' : _str(j['mode']),
+        costModel: _str(j['cost_model']),
+        historyNote: _str(j['history_note']),
+        rebalanceCount: (j['rebalances'] as List?)?.length ?? 0,
+        notes: [
+          for (final n in (j['notes'] as List? ?? const []))
+            if (n is String && n.isNotEmpty) n,
+        ],
       );
 
   /// 翻成本地账本：组合 id 固定（[id]），每次同步整体替换。
@@ -88,7 +111,7 @@ class LivePortfolio {
         for (final t in transactions)
           if (t.quantity > 0 &&
               t.symbol.isNotEmpty &&
-              const {'buy', 'sell', 'dividend'}.contains(t.type))
+              const {'buy', 'sell', 'dividend', 'split'}.contains(t.type))
             PortfolioTransaction(
               id: t.id.isEmpty ? null : t.id,
               portfolioId: id,
@@ -98,10 +121,13 @@ class LivePortfolio {
               assetClass: t.assetClass.isEmpty ? '股票' : t.assetClass,
               type: t.type,
               quantity: t.quantity,
-              price: t.price,
-              totalValue: t.type == 'dividend' && t.amount > 0
-                  ? t.amount
-                  : t.quantity * t.price,
+              // split：quantity 是送转比例（1.3 = 10 送 3），价格/金额为 0。
+              price: t.type == 'split' ? 0 : t.price,
+              totalValue: t.type == 'split'
+                  ? 0
+                  : t.type == 'dividend' && t.amount > 0
+                      ? t.amount
+                      : t.quantity * t.price,
               date: DateTime.tryParse(t.date) ?? DateTime.now(),
               notes: t.note,
             ),

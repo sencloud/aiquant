@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import '../core/api/api_client.dart';
 import '../models/live_portfolio.dart';
 
-/// GET /v1/portfolio/live —— 组合管理里的「实盘」系统组合（需登录）。
+/// GET /v1/portfolio/live —— 组合管理里的「策略模拟」系统组合（需登录）。
 ///
 /// available=false（后端还没物化）返回 null；网络/鉴权错误抛出，由调用方
 /// 决定是否提示——本地已有上一份时界面照常可用。

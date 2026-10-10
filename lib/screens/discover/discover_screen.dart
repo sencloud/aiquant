@@ -51,7 +51,7 @@ class DiscoverScreen extends StatelessWidget {
               WkRow(
                 icon: Icons.pie_chart_rounded,
                 title: '组合管理',
-                subtitle: '实盘组合 · 持仓 · 风险 · 绩效 · 报告',
+                subtitle: '策略模拟组合 · 持仓 · 风险 · 绩效 · 报告',
                 onTap: () => _push(context, const PortfolioScreen(),
                     event: 'portfolio'),
               ),

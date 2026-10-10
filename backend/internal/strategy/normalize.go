@@ -52,6 +52,9 @@ type dashResp struct {
 		Sharpe float64 `json:"sharpe"`
 		DD     float64 `json:"dd"`
 	} `json:"universes"`
+	// Trades 是回测引擎按策略信号产生的调仓成交（上游只给最近 N 笔），
+	// 不是人工实盘成交——策略模拟组合靠它还原每期目标名单。
+	Trades []BacktestTrade `json:"trades"`
 	Next struct {
 		Signal string `json:"signal"`
 		Exec   string `json:"exec"`
@@ -198,6 +201,12 @@ func normalize(d *dashResp) *Snapshot {
 		}
 	}
 	snap.Curve = downsample(d.Equity, d.Benchmark)
+	for _, t := range d.Trades {
+		if t.Date == "" || t.Code == "" {
+			continue
+		}
+		snap.BacktestTrades = append(snap.BacktestTrades, t)
+	}
 	return snap
 }
 

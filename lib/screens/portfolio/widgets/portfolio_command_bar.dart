@@ -147,7 +147,7 @@ class PortfolioCommandBar extends StatelessWidget {
                     : null,
                 subtitle: Text(
                     p.isManaged
-                        ? '${p.currency} · 系统托管 · 每日自动同步 · 只读'
+                        ? '${p.currency} · 策略模拟 · 非实盘 · 每日更新 · 只读'
                         : p.currency,
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11)),
