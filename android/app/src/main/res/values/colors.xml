@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#F1EBDD</color>
+    <!-- 冷启动首帧的纸色：和 Flutter 开屏页同色，避免白闪 -->
+    <color name="paper">#F3F0E8</color>
+</resources>

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../services/analytics.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../core/utils/image_data_url.dart';
 import '../../models/chat.dart';
@@ -192,6 +193,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
     await context
         .read<ChatState>()
         .sendMessage(text, portfolioContext: ctxJson, imageDataUrls: images);
+    Analytics.instance.track(Analytics.evChatSend, {
+      'chars': text.length,
+      'images': images.length,
+      'with_portfolio': ctxJson != null,
+    });
     _scrollToBottom();
   }
 
@@ -798,7 +804,7 @@ class _CreditAdBanner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '喜宽福利中心',
+                      '喜爱福利中心',
                       style: TextStyle(
                         color: AppColors.amber,
                         fontSize: 14,

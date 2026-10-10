@@ -1,11 +1,11 @@
 {
-    "name": "喜宽",
-    "short_name": "喜宽",
+    "name": "喜爱",
+    "short_name": "喜爱",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#D97706",
-    "theme_color": "#D97706",
-    "description": "喜宽 — AI 投资助手，帮你聊行情、管组合。",
+    "background_color": "#F1EBDD",
+    "theme_color": "#9E6322",
+    "description": "喜爱（喜 AI）— AI 投研助理 + 策略证伪台：先证明什么不行。",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

@@ -1,9 +1,13 @@
 name: fincept_app
-description: "喜宽 — 一款轻量的 AI 投资助手，帮你聊行情、管组合、做日报。"
+description: "喜爱（喜 AI）— 面向个人投资者的 AI 投研助理与策略证伪台。"
 publish_to: 'none'
 # 1.0.5 已过审上线，Apple 关闭了该 train，TestFlight 会拒绝同样或更低的
 # CFBundleShortVersionString（错误码 90062 / 90186），因此下一个版本必须抬号。
-version: 1.0.6+1
+#
+# 1.0.6 → 1.1.0：这次是更名（喜宽 → 喜爱）加整体改版，属于里程碑，单独抬一个
+# minor。也顺手绕开「1.0.6 是否已被审核」这个不确定性 —— 抬到 1.1.0 之后，
+# 无论 1.0.6 处于什么状态都不会撞 90062。要改回 1.0.6 就改这一行。
+version: 1.1.0+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -65,15 +69,20 @@ flutter:
   assets:
     - .env
     - assets/branding/
+    # 证伪台的数据资产（由 tools/strategy-mvp/build_falsification_data.py 生成）
+    - assets/strategy/
 
 flutter_launcher_icons:
   image_path: "assets/branding/app_icon.png"
   android: "ic_launcher"
+  # 自适应图标：底色用纸色，前景是墨字 + 墨金记号（内容已缩进到安全区）
+  adaptive_icon_background: "#F1EBDD"
+  adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
   ios: true
   remove_alpha_ios: true
-  background_color_ios: "#D97706"
+  background_color_ios: "#F1EBDD"
   web:
     generate: true
     image_path: "assets/branding/app_icon.png"
-    background_color: "#D97706"
-    theme_color: "#D97706"
+    background_color: "#F1EBDD"
+    theme_color: "#9E6322"

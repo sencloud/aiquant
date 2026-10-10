@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/api/auth_models.dart';
+import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/legal_links.dart';
@@ -116,7 +117,12 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await context.read<AuthState>().verifyEmail(email: email, code: code);
+      final auth = context.read<AuthState>();
+      await auth.verifyEmail(email: email, code: code);
+      if (auth.isAuthenticated) {
+        Analytics.instance
+            .track(Analytics.evLoginSuccess, {'method': 'email'});
+      }
       if (mounted &&
           widget.modal &&
           context.read<AuthState>().isAuthenticated) {
@@ -140,7 +146,12 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await context.read<AuthState>().signInWithApple();
+      final auth = context.read<AuthState>();
+      await auth.signInWithApple();
+      if (auth.isAuthenticated) {
+        Analytics.instance
+            .track(Analytics.evLoginSuccess, {'method': 'apple'});
+      }
       if (mounted &&
           widget.modal &&
           context.read<AuthState>().isAuthenticated) {
@@ -190,11 +201,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 84,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(
-                          color: AppColors.amber.withValues(alpha: 0.45),
-                          blurRadius: 24,
-                          offset: const Offset(0, 6),
+                          color: AppColors.shadow,
+                          blurRadius: 22,
+                          offset: Offset(0, 8),
                         ),
                       ],
                     ),
@@ -208,16 +219,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('喜宽',
-                      style: TextStyle(
-                          color: AppColors.amber,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 6)),
-                  const SizedBox(height: 6),
-                  Text('AI 投资助手 · 聊行情、管组合、做日报',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13)),
+                  Text('喜爱',
+                      style: AppType.display.copyWith(
+                          fontSize: 30,
+                          letterSpacing: 8,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: AppSpace.sm),
+                  Text('喜 AI · 策略证伪台',
+                      style: AppType.caption.copyWith(
+                          color: AppColors.textSecondary, letterSpacing: 1)),
                   const SizedBox(height: 32),
                   if (_error != null) _errorBanner(_error!),
                   _emailField(enabled: !anyBusy),
@@ -392,18 +402,23 @@ class _LoginButton extends StatelessWidget {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.amber,
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          // 白字压墨金 5.4:1，够正文门槛；黑字只有 5.4 但会显得"按钮没上色"。
+          foregroundColor: AppColors.onAccent,
+          disabledBackgroundColor: AppColors.borderMed,
+          disabledForegroundColor: AppColors.bgSurface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md)),
           textStyle: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+              fontSize: 15, fontWeight: FontWeight.w600),
         ),
         onPressed: busy ? null : onPressed,
         child: busy
-            ? const SizedBox(
+            ? SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.black),
+                    strokeWidth: 2, color: AppColors.onAccent),
               )
             : const Text('登录 / 注册'),
       ),

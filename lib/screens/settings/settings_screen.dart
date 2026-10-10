@@ -8,25 +8,19 @@ import 'package:provider/provider.dart';
 import '../../core/api/billing_models.dart';
 import '../../core/auth/require_login.dart';
 import '../../core/format/credit_fmt.dart';
+import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
-import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/legal_links.dart';
-import '../ding/ding_screen.dart';
+import '../../widgets/wk_kit.dart';
 import '../watch/watch_screen.dart';
 
-/// 「我的」——**深色档案卷宗**。
+/// 「我的」——微信式分组列表。
 ///
-/// 这一页不再用"卡片堆"：整页由三样东西构成——
-///
-///   1. **细线**（1px）分区与分行，代替卡片边框与阴影；
-///   2. **等宽数字**（tabular figures）承载一切金额与编号，让"账"看起来是账；
-///   3. **一处金黄**（印章色），只用在当前状态与唯一的主动作上。
-///
-/// 结构取自用户每天真正打交道的那类纸面：对账单、卷宗封面、交割单——
-/// 身份在最上，账在中，工具与条款按序排在下方，页脚是存档戳。
-/// 状态（未读、危险动作）用**线的存在与粗细**表达，不靠换颜色。
+/// 顺序沿用微信的习惯：身份在最上，账在其后，然后是工具、账号与条款，
+/// 页脚收尾。每一组是一张白面卡，卡内行与行之间只有一条发丝线；
+/// 未读角标用红色圆点标签，危险动作（退出登录）才用红色文字。
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -69,9 +63,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onPackageTap(BillingState b, CreditSku sku) async {
+    Analytics.instance.track(Analytics.evRechargeStart, {'sku': sku.code});
     final ok = await b.purchase(sku);
     if (!mounted) return;
     if (ok) {
+      Analytics.instance.track(Analytics.evRechargeSuccess, {
+        'sku': sku.code,
+        'amount_yuan': sku.priceYuan,
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('充值成功 +${CreditFmt.label(sku.totalCredits)}'),
         duration: const Duration(seconds: 2),
@@ -114,7 +113,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final auth = context.watch<AuthState>();
     final user = auth.currentUser;
     final billing = context.watch<BillingState>();
-    final unread = context.watch<DingState>().unreadCount;
 
     return Scaffold(
       appBar: AppBar(
@@ -131,7 +129,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         color: AppColors.amber,
         onRefresh: () => billing.refreshAll(),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpace.gutter, AppSpace.sm, AppSpace.gutter, AppSpace.xxl),
           children: [
             ProfileFolderHead(nickname: user?.nickname ?? '未登录', uid: user?.uuid ?? ''),
             const SizedBox(height: 22),
@@ -144,52 +143,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onLedger: user == null ? null : () => _showLedger(context),
             ),
             const SizedBox(height: 30),
-            const ProfileRule('随身工具'),
-            ProfileIndexRow(
-              icon: Icons.star_outline,
-              title: '我的自选',
-              note: '股票 / ETF / 期货',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const WatchScreen()),
-              ),
+            // 微信式分组：一组一个白面卡，卡内行与行之间一条发丝线。
+            WkGroup(
+              header: '随身工具',
+              children: [
+                ProfileIndexRow(
+                  icon: Icons.star_outline,
+                  title: '我的自选',
+                  note: '股票 / ETF / 期货',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const WatchScreen()),
+                  ),
+                ),
+                ProfileIndexRow(
+                  icon: Icons.receipt_long_outlined,
+                  title: '喜点流水',
+                  note: '每一笔消耗与充值',
+                  onTap: user == null ? null : () => _showLedger(context),
+                ),
+              ],
             ),
-            ProfileIndexRow(
-              icon: Icons.alarm,
-              title: '定时提醒',
-              note: '按点让 AI 执行任务',
-              badge: unread,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const DingScreen()),
-              ),
+            const SizedBox(height: AppSpace.md),
+            WkGroup(
+              header: '账号与条款',
+              children: [
+                if (user == null)
+                  ProfileIndexRow(
+                    icon: Icons.login,
+                    title: '登录 / 注册',
+                    note: '同步喜点与定时提醒',
+                    onTap: () => requireLogin(context),
+                  )
+                else
+                  ProfileIndexRow(
+                    icon: Icons.logout,
+                    title: '退出登录',
+                    note: '',
+                    danger: true,
+                    onTap: () => _confirmLogout(context, auth),
+                  ),
+                const LegalLinksRow(),
+              ],
             ),
-            ProfileIndexRow(
-              icon: Icons.receipt_long_outlined,
-              title: '喜点流水',
-              note: '每一笔消耗与充值',
-              onTap: user == null ? null : () => _showLedger(context),
-            ),
-            const SizedBox(height: 30),
-            const ProfileRule('账号与条款'),
-            if (user == null)
-              ProfileIndexRow(
-                icon: Icons.login,
-                title: '登录 / 注册',
-                note: '同步喜点与定时提醒',
-                onTap: () => requireLogin(context),
-              )
-            else
-              ProfileIndexRow(
-                icon: Icons.logout,
-                title: '退出登录',
-                note: '',
-                danger: true,
-                onTap: () => _confirmLogout(context, auth),
-              ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: LegalLinksRow(),
-            ),
-            const SizedBox(height: 26),
+            const SizedBox(height: AppSpace.xl),
             ProfileColophon(version: _version),
           ],
         ),
@@ -214,6 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 充值套餐收进弹层：首屏只留一个「充值」动作，不再让套餐列表占地。
   void _showRechargeSheet(BillingState billing) {
+    Analytics.instance.track(Analytics.evRechargeSheet);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -312,7 +309,7 @@ TextStyle mono({
       letterSpacing: 0.2,
     );
 
-/// 分区标题：上方留白多、下方留白少，一条细线收口。
+/// 分区标题：微信分组头，只在卡片上方出现一次。
 class ProfileRule extends StatelessWidget {
   const ProfileRule(this.label, {super.key});
   final String label;
@@ -320,28 +317,14 @@ class ProfileRule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.6,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(height: 1, color: AppColors.borderDim),
-        ],
-      ),
+      padding: const EdgeInsets.only(left: AppSpace.xs, bottom: AppSpace.sm),
+      child: Text(label,
+          style: AppType.section.copyWith(color: AppColors.textSecondary)),
     );
   }
 }
 
-/// 卷宗封面：方形号牌 + 姓名 + 档案编号。不用卡片，直接落在背景上。
+/// 用户抬头：方头像 + 昵称 + 档案号。
 class ProfileFolderHead extends StatelessWidget {
   const ProfileFolderHead({super.key, required this.nickname, required this.uid});
 
@@ -350,62 +333,54 @@ class ProfileFolderHead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = nickname.trim().isEmpty ? '喜' : nickname.trim().characters.first;
+    // 未登录时昵称就是「未登录」三个字，取首字会变成「未」—— 用品牌字兜底。
+    final name = nickname.trim();
+    final initial =
+        (name.isEmpty || name == '未登录') ? '喜' : name.characters.first;
     final shortUid = uid.length > 8 ? uid.substring(0, 8) : uid;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.bgRaised,
-                border: Border.all(color: AppColors.amber, width: 1),
-              ),
-              child: Text(initial,
-                  style: const TextStyle(
-                      color: AppColors.amber,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.xs, vertical: AppSpace.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.accentSoft,
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    nickname,
+            child: Text(initial,
+                style: AppType.display
+                    .copyWith(fontSize: 24, color: AppColors.amberDim)),
+          ),
+          const SizedBox(width: AppSpace.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(nickname,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    shortUid.isEmpty ? '未登录 · 数据仅存本机' : '档案号 $shortUid',
-                    style: mono(size: 10.5, weight: FontWeight.w600,
-                        color: AppColors.textTertiary),
-                  ),
-                ],
-              ),
+                    style: AppType.title.copyWith(fontSize: 19)),
+                const SizedBox(height: 4),
+                Text(
+                  shortUid.isEmpty ? '未登录 · 数据仅存本机' : '档案号 $shortUid',
+                  style: AppType.micro.copyWith(
+                      color: AppColors.textTertiary,
+                      fontFamilyFallback: AppType.numericFallback),
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(height: 1, color: AppColors.borderDim),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 喜点总账：一行标签 + 等宽大数 + 唯一的主动作。
+/// 喜点总账：白面卡 + 大数 + 主动作。
 class ProfileCreditBureau extends StatelessWidget {
   const ProfileCreditBureau({
     super.key,
@@ -422,48 +397,52 @@ class ProfileCreditBureau extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('喜点余额',
-            style: TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.6)),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (loading)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 4),
-                child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.amber)),
-              )
-            else
-              Text(CreditFmt.balance(balance), style: mono(size: 30)),
-            const Spacer(),
-            if (onRecharge != null)
-              _StampButton(label: '充值', onTap: onRecharge!, filled: true),
-            if (onRecharge != null && onLedger != null) const SizedBox(width: 8),
-            if (onLedger != null)
-              _StampButton(label: '流水', onTap: onLedger!, filled: false),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text('每次回答消耗 6 喜点 · 调用行情、新闻等数据工具不再额外计费',
-            style: TextStyle(
-                color: AppColors.textTertiary, fontSize: 10.5, height: 1.5)),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('喜点余额',
+              style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 6),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else
+                Text(CreditFmt.balance(balance),
+                    style: AppType.display.copyWith(fontSize: 30)),
+              const Spacer(),
+              if (onRecharge != null)
+                _StampButton(label: '充值', onTap: onRecharge!, filled: true),
+              if (onRecharge != null && onLedger != null)
+                const SizedBox(width: AppSpace.sm),
+              if (onLedger != null)
+                _StampButton(label: '流水', onTap: onLedger!, filled: false),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text('每次回答消耗 6 喜点 · 调用行情、新闻等数据工具不再额外计费',
+              style: AppType.micro
+                  .copyWith(color: AppColors.textTertiary, height: 1.6)),
+        ],
+      ),
     );
   }
 }
 
-/// 印章式按钮：方角、细边，主次靠填充区分（不靠颜色数量）。
+/// 卡内小按钮：主次靠填充区分，形状跟卡片语言一致。
 class _StampButton extends StatelessWidget {
   const _StampButton({
     required this.label,
@@ -477,23 +456,26 @@ class _StampButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(AppRadius.sm);
     return Material(
       color: filled ? AppColors.amber : Colors.transparent,
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
+        borderRadius: radius,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.lg, vertical: 9),
           decoration: BoxDecoration(
+            borderRadius: radius,
             border: Border.all(
-                color: filled ? AppColors.amber : AppColors.borderDim),
+                color: filled ? AppColors.amber : AppColors.borderMed),
           ),
           child: Text(
             label,
-            style: TextStyle(
-              color: filled ? Colors.white : AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
+            style: AppType.caption.copyWith(
+              color: filled ? AppColors.onAccent : AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -502,8 +484,7 @@ class _StampButton extends StatelessWidget {
   }
 }
 
-/// 一行档案条目：细线下压，右侧等宽说明或角标。
-/// 未读用一条 2px 金黄竖线表达——状态靠线，不靠换色。
+/// 分组卡里的一行：左图标 + 标题 + 右侧说明 / 未读角标 + 箭头。
 class ProfileIndexRow extends StatelessWidget {
   const ProfileIndexRow({
     super.key,
@@ -524,61 +505,71 @@ class ProfileIndexRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.borderDim)),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          child: Row(
-            children: [
-              Container(
-                width: 2,
-                height: 16,
-                color: badge > 0 ? AppColors.amber : Colors.transparent,
-              ),
-              const SizedBox(width: 10),
-              Icon(icon,
-                  size: 17,
-                  color: danger
-                      ? AppColors.danger
-                      : (onTap == null
-                          ? AppColors.textTertiary
-                          : AppColors.textSecondary)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg, vertical: 12),
+            child: Row(
+              children: [
+                Icon(icon,
+                    size: 20,
                     color: danger
                         ? AppColors.danger
-                        : (onTap == null
-                            ? AppColors.textTertiary
-                            : AppColors.textPrimary),
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
+                        : (enabled ? AppColors.amber : AppColors.textTertiary)),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: AppType.body.copyWith(
+                      color: danger
+                          ? AppColors.danger
+                          : (enabled
+                              ? AppColors.textPrimary
+                              : AppColors.textTertiary),
+                    ),
                   ),
                 ),
-              ),
-              if (note.isNotEmpty)
-                Text(note,
-                    style: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 10.5)),
-              if (badge > 0) ...[
-                const SizedBox(width: 8),
-                Text(badge > 99 ? '99+' : '$badge',
-                    style: mono(size: 11, color: AppColors.amber)),
+                if (note.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: AppSpace.sm),
+                    child: Text(note,
+                        style: AppType.caption
+                            .copyWith(color: AppColors.textTertiary)),
+                  ),
+                if (badge > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: AppSpace.sm),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: Text(badge > 99 ? '99+' : '$badge',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                if (enabled) ...[
+                  const SizedBox(width: AppSpace.xs),
+                  Icon(Icons.chevron_right,
+                      size: 20, color: AppColors.textTertiary),
+                ],
               ],
-              const SizedBox(width: 6),
-              Icon(Icons.chevron_right,
-                  size: 16,
-                  color: onTap == null
-                      ? AppColors.borderDim
-                      : AppColors.textTertiary),
-            ],
+            ),
           ),
         ),
       ),
@@ -586,36 +577,27 @@ class ProfileIndexRow extends StatelessWidget {
   }
 }
 
-/// 页脚存档戳：版本与来源，等宽小字。
+/// 页脚：版本与来源，安静地收尾。
 class ProfileColophon extends StatelessWidget {
   const ProfileColophon({super.key, required this.version});
   final String version;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(height: 1, color: AppColors.borderDim),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Text('喜宽 · AI 投资助手',
-                style: TextStyle(
-                    color: AppColors.textTertiary, fontSize: 10.5)),
-            const Spacer(),
-            Text(version.isEmpty ? '—' : version,
-                style: mono(
-                    size: 10.5,
-                    weight: FontWeight.w600,
-                    color: AppColors.textTertiary)),
-          ],
-        ),
+        Text('喜爱 · 喜 AI 策略证伪台',
+            style: AppType.micro.copyWith(color: AppColors.textTertiary)),
+        const SizedBox(width: AppSpace.sm),
+        Text(version.isEmpty ? '—' : version,
+            style: AppType.micro.copyWith(
+                color: AppColors.textTertiary,
+                fontFamilyFallback: AppType.numericFallback)),
       ],
     );
   }
 }
-
 /// 充值套餐行：等宽数字对齐，档位一眼可比。
 class _SkuRow extends StatelessWidget {
   const _SkuRow({
