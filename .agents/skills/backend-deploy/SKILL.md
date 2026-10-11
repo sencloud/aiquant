@@ -15,7 +15,7 @@ finme-scheduler  finme-server scheduler --config /server/config/config.toml   (�
 finme-pusher     finme-server pusher    --config /server/config/config.toml   (推送)
 ```
 
-所以换二进制后**三个都必须重启**，否则会有进程继续跑旧代码。
+所以换二进制后**三个都必须重启**，否则会有进程继续跑旧代码。**顺序固定：先 api，等 `/healthz` 通过，再 scheduler、pusher**（只有 api 执行数据库迁移，见下文「迁移」）。
 
 ## 标准流程
 
@@ -23,13 +23,13 @@ finme-pusher     finme-server pusher    --config /server/config/config.toml   (�
 # 1) 在 WSL Ubuntu 里交叉编译 linux/amd64（产物 .tools/_build/finme-server，已 gitignore）
 wsl -d Ubuntu -e bash /mnt/d/GitHub/aiquant/.tools/build_linux.sh
 
-# 2) scp 上去 → 校验 sha256 → 备份旧二进制 → 换新 → 重启三个 unit → health 探测
+# 2) scp 上去 → 校验 sha256 → 备份旧二进制 → 换新 → 重启 api → 等 /healthz → 重启 scheduler、pusher
 powershell -File .\.tools\deploy.ps1
 ```
 
-部署脚本自己会做 sha 校验、备份到 `/server/backup/bin/`、`systemctl restart` 三个 unit 并打 health。跑完要确认输出里 `remote sha256` 和本地一致、三个 unit 都是 `active (running)`。
+部署脚本自己会做 sha 校验、备份到 `/server/backup/bin/`，先 `systemctl restart finme-api` 并轮询 `/healthz`（最多 60 秒，期间 api 执行迁移），通过后才重启 scheduler 和 pusher；api 60 秒内起不来脚本以 exit 12 退出，**不会**再动另外两个 unit（它们继续跑旧二进制，但库结构只会更新、不会冲突），这时去看 `journalctl -u finme-api`。跑完要确认输出里 `remote sha256` 和本地一致、三个 unit 都是 `active (running)`。
 
-验证不要只看单元状态，要打真实接口：健康检查是 `/healthz`（`/v1/health` 返回 404；deploy.ps1 会先试前者再退回后者，手工验证直接用 `/healthz`）。
+验证不要只看单元状态，要打真实接口：健康检查是 `/healthz`（`/v1/health` 返回 404）。
 
 ## 部署凭据（不入库）
 
@@ -61,7 +61,7 @@ git status --ignored .tools   # 确认 deploy.local.ps1 显示为 ignored，不�
 
 **1. deploy.ps1 打的是当前工作区，不是 git 提交。** 有未提交的改动会被一起发上线。发之前先 `git status`，把不该上的 WIP 排除掉（或先提交）。仓库里其他人的半成品混进去，是最容易出事的点。
 
-**2. 迁移是启动时自动跑的。** `internal/store/migrations/NNNN_*.sql` 按文件名排序执行，跑过的记在 `schema_migrations` 表里。因此：新增文件即生效（下次重启执行）；**修改或删除已执行过的文件不会重跑**，要改结构只能再加一个迁移。api 和 scheduler 都会跑，先启动的那个执行。
+**2. 迁移是启动时自动跑的。** `internal/store/migrations/NNNN_*.sql` 按文件名排序执行，跑过的记在 `schema_migrations` 表里。因此：新增文件即生效（下次重启执行）；**修改或删除已执行过的文件不会重跑**，要改结构只能再加一个迁移。**只有 api 进程执行迁移**（启动日志 `db migrations applied` 列出本次执行的文件，或 `db schema up to date, no migrations to apply`）。scheduler / pusher 从不执行迁移：启动时只读检查 `schema_migrations`，内嵌的迁移没全部执行完就每 2 秒再查一次（每 10 秒打一条 warn `waiting for api to apply db migrations`），最多等 2 分钟（`--schema-wait` 可调），超时以非 0 退出由 systemd 重启再等；就绪后打 `db schema up to date (migrations are owned by api, not run here)`。以前三个进程都跑迁移，`ALTER TABLE ADD COLUMN` 会撞出 "duplicate column name"。本地单独起 scheduler / pusher 调试时，先起一次 api 把库迁好。
 
 **3. 配置改动只有重启才生效。** `/server/config/config.toml` 是 `LoadConfig` 启动时读一次；`applyEnv` 只覆盖少数几项（`FINME_LLM__*`、`FINME_APPLE*`、`FINME_AI__HOME_SUGGEST_ENABLED` 等）。改配置的流程是：备份 → 改 → `systemctl restart` 相关 unit → 验证。
 

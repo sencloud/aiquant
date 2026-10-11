@@ -55,7 +55,8 @@ Future<void> _loadFonts() async {
 }
 
 /// 与 app.dart 同构：共享状态在外层，主题包私有状态挂在 MaterialApp 之上。
-/// 基线图来自主题化之前的 main（9 个 Provider 平铺），这里必须逐像素一致。
+/// 基线图最初来自主题化之前的 main；2026-10 喜爱钱下线「策略」页签、「组合管理」
+/// 与「我的自选」后有意更新过一次（页签变 3 个、「我的」少一行、页脚文案）。
 Widget _app({Widget home = const HomeScreen()}) {
   final topics = TopicState(packs: builtInTopicPacks(fishing: false));
   final TopicPack pack = topics.current;
@@ -104,8 +105,9 @@ void main() {
     await expectLater(find.byType(MaterialApp),
         matchesGoldenFile('goldens/money_home_chat.png'));
 
+    // 「策略」页签已下线：底栏只剩 对话 / 发现 / 我的。
+    expect(find.text('策略'), findsNothing);
     for (final (label, name) in [
-      ('策略', 'strategy'),
       ('发现', 'discover'),
     ]) {
       await tester.tap(find.text(label).last);

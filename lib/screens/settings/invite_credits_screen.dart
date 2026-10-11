@@ -65,7 +65,7 @@ class _InviteCreditsScreenState extends State<InviteCreditsScreen> {
 
   Future<void> _share(CreditInviteInfo info) async {
     await Share.share(
-      '我在用「喜爱」—— 一个敢说「不行」的 AI 投研助理，每条策略都附证伪档案。\n'
+      '我在用「喜爱」—— 喜爱什么，就有什么：问行情、聊钓鱼的 AI 助手。\n'
       '注册后填我的邀请码 ${info.code}，你我各得 ${info.rewardEach} 喜点。\n'
       'App Store 搜索「喜爱」即可下载。',
     );
@@ -207,7 +207,7 @@ class _InviteCreditsScreenState extends State<InviteCreditsScreen> {
                     ),
                   ]),
                 const WkNote(
-                  text: '喜点用于对话、解锁证伪档案详情和跑一次证伪。'
+                  text: '喜点用于对话、拍照识鱼等 AI 功能，各主题通用。'
                       '恶意刷邀请的账号将被回收奖励。',
                 ),
               ],

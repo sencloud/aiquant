@@ -19,7 +19,7 @@
                             <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
                             </imageView>
                         </subviews>
-                        <!-- 纸色 #F3F0E8：与 Flutter 开屏页同色，避免白闪 -->
+                        <!-- 纸色 #F3F0E8 + 居中的品牌标（LaunchImage = assets/branding/splash_mark.png，152pt 含阴影留白）：与 Flutter 开屏页首帧同色同位，避免跳变 -->
                         <color key="backgroundColor" red="0.9529411765" green="0.9411764706" blue="0.9098039216" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="1a2-6s-vTC"/>
@@ -33,6 +33,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LaunchImage" width="168" height="185"/>
+        <image name="LaunchImage" width="152" height="152"/>
     </resources>
 </document>

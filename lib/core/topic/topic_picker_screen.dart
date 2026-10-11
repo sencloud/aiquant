@@ -6,9 +6,19 @@ import '../../theme/app_theme.dart';
 import 'topic_pack.dart';
 import 'topic_state.dart';
 
-/// 全新安装首启：选一个喜爱的主题。之后随时可以在「我的 → 切换主题」里换。
+/// 选主题页。两处用的是**同一个页面**：
+///
+/// * 全新安装首启（[switching] = false）：必须选一个才能往下走，没有返回；
+/// * 「我的 → 切换主题」/ 长按对话页标题（[switching] = true，经
+///   [showTopicSwitcher] 全屏推入）：当前主题打勾，左上角可关闭。
+///
+/// 选中后由调用方决定怎么处理：首启直接 [TopicState.completePick]；切换时
+/// 把选中的 id 作为路由结果返回。
 class TopicPickerScreen extends StatelessWidget {
-  const TopicPickerScreen({super.key});
+  const TopicPickerScreen({super.key, this.switching = false});
+
+  /// 是否是从「我的」里进来切换（而不是首启）。
+  final bool switching;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +31,25 @@ class TopicPickerScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 56),
+              // 首启和切换顶部留同样的高度，两种进入方式版式完全一致；
+              // 切换时这里放一个关闭按钮。
+              SizedBox(
+                height: 56,
+                child: switching
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          key: const Key('topic-picker-close'),
+                          tooltip: '关闭',
+                          padding: EdgeInsets.zero,
+                          alignment: Alignment.centerLeft,
+                          icon: Icon(Icons.close_rounded,
+                              color: AppColors.textSecondary),
+                          onPressed: () => Navigator.of(context).maybePop(),
+                        ),
+                      )
+                    : null,
+              ),
               Text(
                 '喜爱',
                 textAlign: TextAlign.center,
@@ -38,16 +66,20 @@ class TopicPickerScreen extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               Text(
-                '先选一个你喜爱的',
+                switching ? '换一个你喜爱的' : '先选一个你喜爱的',
                 style: AppType.section.copyWith(color: AppColors.textPrimary),
               ),
               const SizedBox(height: AppSpace.md),
               for (final p in topics.available) ...[
                 TopicCard(
                   pack: p,
+                  selected: switching && p.id == topics.currentId,
                   onTap: () {
-                    Analytics.instance
-                        .track('topic_pick', {'topic': p.id});
+                    if (switching) {
+                      Navigator.of(context).pop(p.id);
+                      return;
+                    }
+                    Analytics.instance.track('topic_pick', {'topic': p.id});
                     context.read<TopicState>().completePick(p.id);
                   },
                 ),
@@ -55,7 +87,9 @@ class TopicPickerScreen extends StatelessWidget {
               ],
               const Spacer(),
               Text(
-                '随时可在「我的 → 切换主题」里换，账号和喜点通用',
+                switching
+                    ? '整个 App 随之切换；账号、喜点通用，对话各自保留'
+                    : '随时可在「我的 → 切换主题」里换，账号和喜点通用',
                 textAlign: TextAlign.center,
                 style: AppType.caption.copyWith(color: AppColors.textTertiary),
               ),
@@ -153,48 +187,20 @@ class TopicCard extends StatelessWidget {
   }
 }
 
-/// 切换主题面板（「我的 → 切换主题」与长按对话页标题共用）。
+/// 切换主题（「我的 → 切换主题」与长按对话页标题共用）：全屏推入和首启
+/// 同一个 [TopicPickerScreen]，当前主题打勾。
 Future<void> showTopicSwitcher(BuildContext context) async {
   final topics = context.read<TopicState>();
   if (!topics.canSwitch) return;
-  final picked = await showModalBottomSheet<String>(
-    context: context,
-    backgroundColor: AppColors.bgBase,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-    ),
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.sm),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('切换主题',
-                textAlign: TextAlign.center,
-                style:
-                    AppType.section.copyWith(color: AppColors.textPrimary)),
-            const SizedBox(height: AppSpace.xs),
-            Text('整个 App 会换成对应主题；账号、喜点通用，对话记录各自保留。',
-                textAlign: TextAlign.center,
-                style:
-                    AppType.caption.copyWith(color: AppColors.textTertiary)),
-            const SizedBox(height: AppSpace.lg),
-            for (final p in topics.available) ...[
-              TopicCard(
-                pack: p,
-                selected: p.id == topics.currentId,
-                onTap: () => Navigator.of(ctx).pop(p.id),
-              ),
-              const SizedBox(height: AppSpace.md),
-            ],
-          ],
-        ),
-      ),
+  final picked = await Navigator.of(context).push<String>(
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      settings: const RouteSettings(name: 'topic-switcher'),
+      builder: (_) => const TopicPickerScreen(switching: true),
     ),
   );
   if (picked == null || picked == topics.currentId) return;
-  Analytics.instance.track('topic_switch', {'from': topics.currentId, 'to': picked});
+  Analytics.instance
+      .track('topic_switch', {'from': topics.currentId, 'to': picked});
   await topics.switchTo(picked);
 }

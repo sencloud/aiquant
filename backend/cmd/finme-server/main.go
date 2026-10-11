@@ -67,6 +67,8 @@ func main() {
 
 	fs := flag.NewFlagSet("finme-server "+sub, flag.ExitOnError)
 	configPath := fs.String("config", "./config/config.toml", "path to TOML config")
+	schemaWait := fs.Duration("schema-wait", defaultSchemaWait,
+		"scheduler/pusher: how long to wait for the api process to apply DB migrations before exiting")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -80,7 +82,7 @@ func main() {
 	logger.Info().Str("version", Version).Str("env", cfg.Env).Str("cmd", sub).
 		Msg("starting finme-server")
 
-	st, err := store.Open(cfg.DB)
+	st, err := openStore(sub, cfg, logger, *schemaWait)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("open store")
 	}
@@ -100,6 +102,56 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+}
+
+// defaultSchemaWait 是 scheduler / pusher 等待 api 执行迁移的上限。
+// 超时后进程以非 0 退出，交给 systemd（Restart=）重启后再等一轮。
+const defaultSchemaWait = 2 * time.Minute
+
+// openStore 打开数据库。只有 api 进程执行迁移；scheduler / pusher 只读检查
+// schema_migrations，等 api 把内嵌迁移全部执行完才继续，避免多个进程同时
+// ALTER TABLE 撞车（例如 "duplicate column name"）。
+func openStore(sub string, cfg *platform.Config, l zerolog.Logger, wait time.Duration) (*store.Store, error) {
+	if sub == "api" {
+		st, err := store.OpenNoMigrate(cfg.DB)
+		if err != nil {
+			return nil, err
+		}
+		ran, err := st.Migrate()
+		if err != nil {
+			_ = st.Close()
+			return nil, err
+		}
+		if len(ran) > 0 {
+			l.Info().Strs("files", ran).Msg("db migrations applied")
+		} else {
+			l.Info().Msg("db schema up to date, no migrations to apply")
+		}
+		return st, nil
+	}
+	return openStoreNoMigrate(context.Background(), sub, cfg.DB, l, wait, 2*time.Second)
+}
+
+// openStoreNoMigrate 是非 api 进程的打开路径：从不执行迁移，只等待。
+func openStoreNoMigrate(ctx context.Context, sub string, dbCfg platform.DBConfig, l zerolog.Logger, wait, poll time.Duration) (*store.Store, error) {
+	st, err := store.OpenNoMigrate(dbCfg)
+	if err != nil {
+		return nil, err
+	}
+	lastLog := time.Time{}
+	err = st.WaitForSchema(ctx, wait, poll, func(pending []string) {
+		if time.Since(lastLog) >= 10*time.Second {
+			lastLog = time.Now()
+			l.Warn().Str("cmd", sub).Strs("pending", pending).
+				Msg("waiting for api to apply db migrations (this process never migrates)")
+		}
+	})
+	if err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	l.Info().Str("cmd", sub).Msg("db schema up to date (migrations are owned by api, not run here)")
+	return st, nil
 }
 
 func usage() {

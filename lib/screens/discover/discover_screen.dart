@@ -14,7 +14,7 @@ import '../portfolio/portfolio_screen.dart';
 
 /// 发现 —— 第二梯队功能的聚合页，结构照微信的「发现」。
 ///
-/// 一级入口只留少数几个高频动作（对话 / 策略 / 我的），其余按「发现」归档：
+/// 一级入口只留少数几个高频动作（对话 / 我的），其余按「发现」归档：
 /// 想找什么就翻这一页，而不是把所有功能都堆到首屏。这一页不要求登录 ——
 /// 内容可浏览，需要账号的动作（定时提醒、下注等）自己弹登录。
 class DiscoverScreen extends StatelessWidget {
@@ -44,39 +44,42 @@ class DiscoverScreen extends StatelessWidget {
               ),
             ],
           ),
-          WkGroup(
-            header: '研究与组合',
-            footer: '邀请好友在「我的」里：填码双方各得 100 喜点。',
-            children: [
-              WkRow(
-                icon: Icons.pie_chart_rounded,
-                title: '组合管理',
-                subtitle: '策略模拟组合 · 持仓 · 风险 · 绩效 · 报告',
-                onTap: () => _push(context, const PortfolioScreen(),
-                    event: 'portfolio'),
-              ),
-              // MVP 收窄到「对话 + 证伪」：直播、鹦鹉螺默认隐藏（编译开关）。
-              if (kEnableLive)
-                WkRow(
-                  icon: Icons.podcasts_rounded,
-                  title: 'AI 直播',
-                  subtitle: '直播间与长文报告',
-                  onTap: () =>
-                      _push(context, const LiveScreen(), event: 'live'),
-                ),
-              if (kEnableNautilus)
-                WkRow(
-                  icon: Icons.track_changes_rounded,
-                  title: '鹦鹉螺预测',
-                  subtitle: '天气与金融事件的预测市场',
-                  onTap: () => _push(context, const NautilusScreen(),
-                      event: 'nautilus'),
-                ),
-            ],
-          ),
+          // 「组合管理」（策略模拟组合）、AI 直播、鹦鹉螺默认下线（编译开关）；
+          // 全部关掉时整组不出现。
+          if (kEnablePortfolio || kEnableLive || kEnableNautilus)
+            WkGroup(
+              header: '研究与组合',
+              footer: '邀请好友在「我的」里：填码双方各得 100 喜点。',
+              children: [
+                if (kEnablePortfolio)
+                  WkRow(
+                    icon: Icons.pie_chart_rounded,
+                    title: '组合管理',
+                    subtitle: '策略模拟组合 · 持仓 · 风险 · 绩效 · 报告',
+                    onTap: () => _push(context, const PortfolioScreen(),
+                        event: 'portfolio'),
+                  ),
+                if (kEnableLive)
+                  WkRow(
+                    icon: Icons.podcasts_rounded,
+                    title: 'AI 直播',
+                    subtitle: '直播间与长文报告',
+                    onTap: () =>
+                        _push(context, const LiveScreen(), event: 'live'),
+                  ),
+                if (kEnableNautilus)
+                  WkRow(
+                    icon: Icons.track_changes_rounded,
+                    title: '鹦鹉螺预测',
+                    subtitle: '天气与金融事件的预测市场',
+                    onTap: () => _push(context, const NautilusScreen(),
+                        event: 'nautilus'),
+                  ),
+              ],
+            ),
           const WkNote(
-            text: '这一页只放「想用才去找」的功能。高频动作仍然只有两个：'
-                '对话，和策略里的证伪台。',
+            text: '这一页只放「想用才去找」的功能。最常用的还是「对话」：'
+                '行情、财报、资金流，直接问就行。',
           ),
         ],
       ),
@@ -92,8 +95,7 @@ class DiscoverScreen extends StatelessWidget {
     Analytics.instance.track(Analytics.evDiscoverOpen, {'entry': event});
     if (needsLogin && !await requireLogin(context)) return;
     if (!context.mounted) return;
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => page));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 }
 

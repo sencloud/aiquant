@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 冷启动首帧（Android 11 及以下）：纸色 + 居中品牌标，
+     与 Flutter 开屏页首帧同色同位（splash_mark = assets/branding/splash_mark.png，152dp 含阴影留白）。
+     Android 12+ 由系统 SplashScreen 接管，见 values-v31/styles.xml。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/paper" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_mark" />
+    </item>
 </layer-list>

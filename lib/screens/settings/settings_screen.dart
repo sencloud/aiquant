@@ -133,7 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             WkGroup(
               header: '随身工具',
               children: [
-                // 主题注入的工具（喜爱钱：我的自选）。
+                // 主题注入的工具（喜爱钓鱼：拍照识鱼；喜爱钱的「我的自选」已下线）。
                 ...pack.settingsTools(context),
                 ProfileIndexRow(
                   icon: Icons.receipt_long_rounded,
@@ -200,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('退出登录'),
-        content: const Text('退出后本地缓存的对话与自选会一并清空，重新登录可恢复喜点余额。'),
+        content: const Text('退出后本地缓存的对话会一并清空，重新登录可恢复喜点余额。'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('再想想')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出')),
@@ -496,7 +496,7 @@ class ProfileCreditBureau extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.md),
-          Text('每轮对话 1 喜点（深度模式 +5）· 解锁一条证伪档案 5 喜点',
+          Text('每轮对话 1 喜点（深度模式 +5）',
               style: AppType.micro
                   .copyWith(color: AppColors.textTertiary, height: 1.6)),
         ],
@@ -691,7 +691,7 @@ class ProfileColophon extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('喜爱 · 喜 AI 策略证伪台',
+        Text('喜爱 · 喜爱什么，就有什么',
             style: AppType.micro.copyWith(color: AppColors.textTertiary)),
         const SizedBox(width: AppSpace.sm),
         Text(version.isEmpty ? '—' : version,
