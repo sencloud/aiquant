@@ -155,7 +155,9 @@ func (t *getDominantContractTool) pickFuturesDominant(
 			continue
 		}
 		p, _ := tushare.FuturesProduct(r.TsCode)
-		if strings.EqualFold(p, prod) {
+		// fut_daily 里还有主力连续 / 指数行（P.DCE、P_L.DCE 这类不带月份的代码），
+		// 成交量是合计值，会盖过真实合约；只认带交割月份的具体合约。
+		if strings.EqualFold(p, prod) && hasDeliveryMonth(r.TsCode) {
 			all = append(all, r)
 		}
 	}
@@ -864,4 +866,22 @@ func shanghaiLoc() *time.Location {
 		return loc
 	}
 	return time.FixedZone("CST", 8*3600)
+}
+
+// hasDeliveryMonth 判断 ts_code 是不是带交割月份的具体合约（P2601.DCE 是，P.DCE / P_L.DCE 不是）。
+func hasDeliveryMonth(tsCode string) bool {
+	body := tsCode
+	if i := strings.IndexByte(body, '.'); i >= 0 {
+		body = body[:i]
+	}
+	digits := 0
+	for _, c := range body {
+		switch {
+		case c >= '0' && c <= '9':
+			digits++
+		case c == '_':
+			return false
+		}
+	}
+	return digits >= 3
 }

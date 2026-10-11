@@ -238,7 +238,15 @@ func BuiltinRegistry(d BuiltinDeps) *Registry {
 			},
 			Output: `{"place":"中国·浙江·千岛湖","days":[{"date":"2026-10-11","score":86,"level":"很适合","summary":"……","temp_min":15,"temp_max":24,"precip_sum":0,"wind_max":3.2,"pressure":1016,"windows":[{"from":"05:30","to":"08:00","label":"清晨"}],"warnings":[]}],"active_bans":[]}`,
 			Fetch: func(ctx context.Context, c Call) (any, error) {
-				fc, err := fs.Forecast.ForPlace(ctx, fmt.Sprint(c.Params["place"]), int(c.Params["days"].(float64)))
+				place, nDays := fmt.Sprint(c.Params["place"]), int(c.Params["days"].(float64))
+				fc, err := fs.Forecast.ForPlace(ctx, place, nDays)
+				// 地名库认不出「XX水库」这类水域名：去掉后缀再试（新安江水库 → 新安江）。
+				for _, alt := range placeFallbacks(place) {
+					if !errors.Is(err, fishing.ErrPlaceNotFound) {
+						break
+					}
+					fc, err = fs.Forecast.ForPlace(ctx, alt, nDays)
+				}
 				if errors.Is(err, fishing.ErrPlaceNotFound) {
 					return nil, errors.New("没找到这个地名，换成城市或区县名试试")
 				}
@@ -380,4 +388,23 @@ func shorten(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+// placeSuffixes 是地名库常认不出的水域后缀（按长度从长到短）。
+var placeSuffixes = []string{"水利枢纽", "水电站", "水库", "钓场", "钓点", "河段", "湖区", "大坝"}
+
+// placeFallbacks 给出地名查不到时依次尝试的候选：去掉水域后缀（至少留 2 个字）。
+func placeFallbacks(place string) []string {
+	p := strings.TrimSpace(place)
+	var out []string
+	for _, suf := range placeSuffixes {
+		if strings.HasSuffix(p, suf) {
+			base := strings.TrimSpace(strings.TrimSuffix(p, suf))
+			if len([]rune(base)) >= 2 && base != p {
+				out = append(out, base)
+			}
+			break
+		}
+	}
+	return out
 }

@@ -63,6 +63,7 @@ class MiniChart extends StatelessWidget {
           child: hasData
               ? CustomPaint(
                   painter: _ChartPainter(
+                    labelStyle: _labelStyle(context, AppColors.textTertiary),
                     kind: kind,
                     labels: labels,
                     series: series,
@@ -81,6 +82,11 @@ class MiniChart extends StatelessWidget {
   }
 }
 
+/// 坐标轴文字：与 DefaultTextStyle 合并（TextPainter 不会自己继承字族）。
+TextStyle _labelStyle(BuildContext context, Color color) => DefaultTextStyle.of(context)
+    .style
+    .merge(AppType.micro.copyWith(color: color, fontSize: 10));
+
 String _axisNum(double v) {
   final a = v.abs();
   if (a >= 1e8) return '${numStr((v / 1e8 * 10).roundToDouble() / 10)}亿';
@@ -91,6 +97,7 @@ String _axisNum(double v) {
 
 class _ChartPainter extends CustomPainter {
   _ChartPainter({
+    required this.labelStyle,
     required this.kind,
     required this.labels,
     required this.series,
@@ -99,6 +106,7 @@ class _ChartPainter extends CustomPainter {
     required this.text,
   });
 
+  final TextStyle labelStyle;
   final String kind;
   final List<String> labels;
   final List<ChartSeries> series;
@@ -210,9 +218,7 @@ class _ChartPainter extends CustomPainter {
 
   void _label(Canvas canvas, String s, Offset at, double width, TextAlign align) {
     final tp = TextPainter(
-      text: TextSpan(
-          text: s,
-          style: AppType.micro.copyWith(color: text, fontSize: 10)),
+      text: TextSpan(text: s, style: labelStyle),
       textDirection: TextDirection.ltr,
       textAlign: align,
       maxLines: 1,
@@ -249,15 +255,17 @@ class MiniKline extends StatelessWidget {
     return SizedBox(
       height: height,
       child: CustomPaint(
-          painter: _KPainter(bars, AppColors.borderDim, AppColors.textTertiary)),
+          painter: _KPainter(bars, AppColors.borderDim,
+              _labelStyle(context, AppColors.textTertiary))),
     );
   }
 }
 
 class _KPainter extends CustomPainter {
-  _KPainter(this.bars, this.grid, this.text);
+  _KPainter(this.bars, this.grid, this.labelStyle);
   final List<KBar> bars;
-  final Color grid, text;
+  final Color grid;
+  final TextStyle labelStyle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -278,8 +286,7 @@ class _KPainter extends CustomPainter {
       canvas.drawLine(Offset(left, y(v)), Offset(size.width, y(v)), g);
       final tp = TextPainter(
           text: TextSpan(
-              text: _axisNum(v),
-              style: AppType.micro.copyWith(color: text, fontSize: 10)),
+              text: _axisNum(v), style: labelStyle),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.right)
         ..layout(minWidth: left - 4, maxWidth: left - 4);
@@ -304,7 +311,7 @@ class _KPainter extends CustomPainter {
     ]) {
       final tp = TextPainter(
           text: TextSpan(
-              text: s, style: AppType.micro.copyWith(color: text, fontSize: 10)),
+              text: s, style: labelStyle),
           textDirection: TextDirection.ltr,
           textAlign: align)
         ..layout(minWidth: 72, maxWidth: 72);
