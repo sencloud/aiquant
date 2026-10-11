@@ -371,7 +371,7 @@ func defaultConfig() *Config {
 			MaxToolLoops: 60,
 		},
 		SMS:   SMSConfig{Provider: "mock"},
-		Email: EmailConfig{Provider: "mock", FromName: "喜宽"},
+		Email: EmailConfig{Provider: "mock", FromName: "喜爱"},
 		Tushare: TushareConfig{
 			BaseURL:           "http://api.tushare.pro",
 			TimeoutSec:        20,

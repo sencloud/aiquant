@@ -23,8 +23,15 @@
   (a temp file deleted right after), never on the command line.
   Copy .tools\deploy.local.example.ps1 to .tools\deploy.local.ps1 to start.
 
+  Legal pages (backend/deploy/legal/*.html -> /server/legal/, served by nginx at
+  https://api.singzquant.com/legal/) are published on every deploy so the live
+  privacy policy / terms never drift from main. The old folder is archived to
+  /server/backup/legal/legal.<ts>.tgz first. No service restart is involved.
+
   Run:
-    powershell -File .\.tools\deploy.ps1
+    powershell -File .\.tools\deploy.ps1              # legal pages + binary + restarts
+    powershell -File .\.tools\deploy.ps1 -LegalOnly   # only republish legal pages
+    powershell -File .\.tools\deploy.ps1 -SkipLegal   # only the binary
 #>
 
 [CmdletBinding()]
@@ -41,8 +48,14 @@ param(
   # The *api* unit is restarted first and must pass /healthz (it owns the DB
   # migrations) before the others are restarted.
   [string[]]$Units    = @('finme-api','finme-scheduler','finme-pusher'),
-  [string]$Remote     = "/server/bin/finme-server"
+  [string]$Remote     = "/server/bin/finme-server",
+  # Legal pages (privacy / terms / support) published to /server/legal/.
+  [string]$LegalDir   = (Join-Path (Split-Path $PSScriptRoot -Parent) 'backend\deploy\legal'),
+  [string]$RemoteLegal = "/server/legal",
+  [switch]$SkipLegal,
+  [switch]$LegalOnly
 )
+if ($SkipLegal -and $LegalOnly) { throw "-SkipLegal and -LegalOnly are mutually exclusive" }
 
 $ErrorActionPreference = 'Stop'
 
@@ -74,8 +87,55 @@ Remove-Variable DeployPassword -ErrorAction SilentlyContinue
 
 $plink = 'D:\Tools\plink\plink.exe'
 $pscp  = 'D:\Tools\plink\pscp.exe'
-foreach ($t in @($BinPath, $plink, $pscp)) {
+$need = @($plink, $pscp)
+if (-not $LegalOnly) { $need += $BinPath }
+if (-not $SkipLegal) {
+  $need += $LegalDir
+  if (-not (Get-ChildItem -Path $LegalDir -Filter *.html -File)) { throw "no *.html in $LegalDir" }
+}
+foreach ($t in $need) {
   if (-not (Test-Path $t)) { throw "missing: $t" }
+}
+
+# Run a bash script on the host (LF endings, UTF-8 without BOM, via plink -m).
+function Invoke-Remote([string]$script, [string[]]$auth) {
+  $f = New-TemporaryFile
+  try {
+    [IO.File]::WriteAllText($f.FullName, $script.Replace("`r`n","`n"), (New-Object Text.UTF8Encoding $false))
+    & $plink -ssh -batch -hostkey $Hostkey @auth -m $f.FullName ("{0}@{1}" -f $User, $TargetHost)
+    return $LASTEXITCODE
+  } finally { Remove-Item $f.FullName -Force -ErrorAction SilentlyContinue }
+}
+
+# Publish backend/deploy/legal/*.html -> $RemoteLegal (archive the old folder first).
+function Publish-Legal([string[]]$auth) {
+  $files = Get-ChildItem -Path $LegalDir -Filter *.html -File
+  $stage = "/tmp/finme-legal-" + (Get-Date -Format 'yyyyMMddHHmmss')
+  Write-Host "==> legal: $($files.Count) page(s) -> ${TargetHost}:$RemoteLegal"
+  $rc = Invoke-Remote "set -e; rm -rf $stage; mkdir -p $stage" $auth
+  if ($rc -ne 0) { throw "legal: stage dir failed ($rc)" }
+  foreach ($f in $files) {
+    & $pscp -batch -hostkey $Hostkey @auth $f.FullName ("{0}@{1}:{2}/{3}" -f $User, $TargetHost, $stage, $f.Name)
+    if ($LASTEXITCODE -ne 0) { throw "legal: pscp $($f.Name) failed ($LASTEXITCODE)" }
+  }
+  $names = ($files | ForEach-Object { $_.BaseName }) -join ' '
+  $script = @"
+set -euo pipefail
+ts=`$(date +%Y%m%d-%H%M%S)
+mkdir -p /server/backup/legal $RemoteLegal
+if [ -n "`$(ls -A $RemoteLegal 2>/dev/null)" ]; then
+  tar -C `$(dirname $RemoteLegal) -czf /server/backup/legal/legal.`$ts.tgz `$(basename $RemoteLegal)
+  echo "legal backup: /server/backup/legal/legal.`$ts.tgz"
+fi
+install -m 0644 $stage/*.html $RemoteLegal/
+rm -rf $stage
+for n in $names; do
+  code=`$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 https://api.singzquant.com/legal/`$n.html || echo 000)
+  echo "legal `$n.html: `$code `$(sha256sum $RemoteLegal/`$n.html | cut -c1-12)"
+done
+"@
+  $rc = Invoke-Remote $script $auth
+  if ($rc -ne 0) { throw "legal: publish failed ($rc)" }
 }
 
 $pwFile = $null
@@ -104,6 +164,9 @@ No deploy credential configured. Set ONE of:
 Remove-Variable password -ErrorAction SilentlyContinue
 
 try {
+  if (-not $SkipLegal) { Publish-Legal $authArgs }
+  if ($LegalOnly) { Write-Host "==> DONE (legal only)."; return }
+
   $size = (Get-Item $BinPath).Length
   $sha  = (Get-FileHash $BinPath -Algorithm SHA256).Hash.ToLower()
   Write-Host "==> local binary: $BinPath ($size bytes)"

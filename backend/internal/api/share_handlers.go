@@ -151,10 +151,10 @@ const sharePageHTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>喜宽 · AI 投资助理</title>
-<meta name="description" content="来自喜宽 AI 投资助理的对话内容，仅供参考。">
-<meta property="og:title" content="喜宽 · AI 投资助理">
-<meta property="og:description" content="来自喜宽 AI 投资助理的对话内容，仅供参考。">
+<title>喜爱 · AI 助理</title>
+<meta name="description" content="来自喜爱 AI 助理的对话内容，仅供参考。">
+<meta property="og:title" content="喜爱 · AI 助理">
+<meta property="og:description" content="来自喜爱 AI 助理的对话内容，仅供参考。">
 <meta property="og:type" content="article">
 <meta property="og:image" content="https://www.singzquant.com/og.png">
 <meta property="og:url" content="https://www.singzquant.com">
@@ -199,8 +199,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,B
     <div class="head">
       <div class="logo">喜</div>
       <div>
-        <h1>喜宽 · AI 投资助理</h1>
-        <p>由喜宽生成的对话内容 · 仅供参考</p>
+        <h1>喜爱 · AI 助理</h1>
+        <p>由喜爱生成的对话内容 · 仅供参考</p>
       </div>
       <span class="date">{{.Date}}</span>
     </div>
@@ -215,11 +215,11 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,B
       <div class="md">{{.AnswerRaw}}</div>
     </div>
     <div class="foot">
-      <span>喜宽 AI 助理</span>
+      <span>喜爱 AI 助理</span>
       <a class="brand" href="https://www.singzquant.com">singzquant.com</a>
     </div>
   </div>
-  <a class="dl" href="{{.DownloadURL}}">下载喜宽 App，体验 AI 投研助理 <small>· 填邀请码得螺壳</small></a>
+  <a class="dl" href="{{.DownloadURL}}">下载喜爱 App <small>· 填邀请码双方各得 100 喜点</small></a>
   <p class="tip">本内容由 AI 生成，不构成任何投资建议。投资有风险，决策需谨慎。</p>
 </div>
 </body>
@@ -228,7 +228,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,B
 const shareNotFoundHTML = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>内容不存在 · 喜宽</title>
+<title>内容不存在 · 喜爱</title>
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F5F2EA;color:#5A5A5A;font:15px/1.6 -apple-system,"PingFang SC",sans-serif}
 .b{text-align:center}.b .c{font-size:28px;font-weight:800;color:#D97706}</style></head>
-<body><div class="b"><div class="c">喜宽</div><p>分享内容不存在或已过期</p></div></body></html>`
+<body><div class="b"><div class="c">喜爱</div><p>分享内容不存在或已过期</p></div></body></html>`

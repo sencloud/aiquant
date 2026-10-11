@@ -61,7 +61,7 @@ func (m *MockEmailProvider) Send(_ context.Context, toEmail, code string) error 
 // 文档：https://resend.com/docs/api-reference/emails/send-email
 type ResendProvider struct {
 	APIKey   string
-	From     string // 发件地址，如 "喜宽 <no-reply@yourdomain.com>"
+	From     string // 发件地址，如 "喜爱 <no-reply@yourdomain.com>"
 	FromName string
 	httpc    *http.Client
 }
@@ -89,14 +89,14 @@ func (r *ResendProvider) Send(ctx context.Context, toEmail, code string) error {
 	body := map[string]any{
 		"from":    from,
 		"to":      []string{toEmail},
-		"subject": fmt.Sprintf("【喜宽】登录验证码：%s", code),
+		"subject": fmt.Sprintf("【喜爱】登录验证码：%s", code),
 		"html": fmt.Sprintf(
 			`<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.7">`+
-				`<p>你正在登录<strong>喜宽</strong>，验证码为：</p>`+
+				`<p>你正在登录<strong>喜爱</strong>，验证码为：</p>`+
 				`<p style="font-size:28px;font-weight:800;letter-spacing:6px;color:#D97706;margin:16px 0">%s</p>`+
 				`<p style="color:#6b7280;font-size:13px">验证码 5 分钟内有效，请勿向他人泄露。若非本人操作请忽略本邮件。</p>`+
 				`</div>`, code),
-		"text": fmt.Sprintf("你的喜宽登录验证码：%s（5 分钟内有效，请勿泄露）。", code),
+		"text": fmt.Sprintf("你的喜爱登录验证码：%s（5 分钟内有效，请勿泄露）。", code),
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {

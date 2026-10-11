@@ -55,7 +55,7 @@ type RunnerConfig struct {
 func NewRunner(st *store.Store, exec ChatExecutor, _ *billing.LedgerRepo, l *zerolog.Logger, cfg RunnerConfig) *Runner {
 	sys := strings.TrimSpace(cfg.SystemPrompt)
 	if sys == "" {
-		sys = "你是喜宽 AI 量化助理；当问题需要数据时优先调用工具拉真实行情/财务/事件，再给出结构化结论；用中文 markdown 输出。"
+		sys = "你是喜爱 AI 量化助理；当问题需要数据时优先调用工具拉真实行情/财务/事件，再给出结构化结论；用中文 markdown 输出。"
 	}
 	return &Runner{
 		st:        st,
