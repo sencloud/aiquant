@@ -28,10 +28,22 @@
   privacy policy / terms never drift from main. The old folder is archived to
   /server/backup/legal/legal.<ts>.tgz first. No service restart is involved.
 
+  The website (backend/deploy/www/** -> /server/www/, served by nginx at
+  https://www.singzquant.com/: homepage, /d/ invite page, og.png, app-icon.svg)
+  is published the same way: old folder archived to
+  /server/backup/www/www.<ts>.tgz, files installed over it (files that exist
+  only on the server are left alone) and each installed file's sha256 checked
+  against the local copy (mismatch = failure). Then every page is fetched from
+  $WwwUrl and compared too; a mismatch there is only a WARNING, because as of
+  2026-10 www.singzquant.com is still served by a different host (DNS not yet
+  moved here, see backend/deploy/nginx/singzquant.com.conf).
+
   Run:
-    powershell -File .\.tools\deploy.ps1              # legal pages + binary + restarts
-    powershell -File .\.tools\deploy.ps1 -LegalOnly   # only republish legal pages
-    powershell -File .\.tools\deploy.ps1 -SkipLegal   # only the binary
+    powershell -File .\.tools\deploy.ps1                     # legal + www + binary + restarts
+    powershell -File .\.tools\deploy.ps1 -LegalOnly          # only republish legal pages
+    powershell -File .\.tools\deploy.ps1 -WwwOnly            # only republish the website
+    powershell -File .\.tools\deploy.ps1 -LegalOnly -WwwOnly # both, no binary / no restart
+    powershell -File .\.tools\deploy.ps1 -SkipLegal -SkipWww # only the binary
 #>
 
 [CmdletBinding()]
@@ -55,10 +67,22 @@ param(
   [string]$LegalDir   = '',
   [string]$RemoteLegal = "/server/legal",
   [switch]$SkipLegal,
-  [switch]$LegalOnly
+  [switch]$LegalOnly,
+  # Website published to /server/www/. Defaults to <repo>\backend\deploy\www.
+  [string]$WwwDir     = '',
+  [string]$RemoteWww  = "/server/www",
+  [string]$WwwUrl     = "https://www.singzquant.com",
+  [switch]$SkipWww,
+  [switch]$WwwOnly
 )
 if ($SkipLegal -and $LegalOnly) { throw "-SkipLegal and -LegalOnly are mutually exclusive" }
+if ($SkipWww -and $WwwOnly) { throw "-SkipWww and -WwwOnly are mutually exclusive" }
+# -LegalOnly / -WwwOnly: publish only the named content (both may be given); no binary, no restart.
+$ContentOnly = $LegalOnly -or $WwwOnly
+$DoLegal = (-not $SkipLegal) -and ((-not $ContentOnly) -or $LegalOnly)
+$DoWww   = (-not $SkipWww)   -and ((-not $ContentOnly) -or $WwwOnly)
 if (-not $LegalDir) { $LegalDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'backend\deploy\legal' }
+if (-not $WwwDir)   { $WwwDir   = Join-Path (Split-Path $PSScriptRoot -Parent) 'backend\deploy\www' }
 
 $ErrorActionPreference = 'Stop'
 
@@ -91,8 +115,12 @@ Remove-Variable DeployPassword -ErrorAction SilentlyContinue
 $plink = 'D:\Tools\plink\plink.exe'
 $pscp  = 'D:\Tools\plink\pscp.exe'
 $need = @($plink, $pscp)
-if (-not $LegalOnly) { $need += $BinPath }
-if (-not $SkipLegal) {
+if (-not $ContentOnly) { $need += $BinPath }
+if ($DoWww) {
+  $need += $WwwDir
+  if (-not (Test-Path (Join-Path $WwwDir 'index.html'))) { throw "no index.html in $WwwDir" }
+}
+if ($DoLegal) {
   $need += $LegalDir
   if (-not (Get-ChildItem -Path $LegalDir -Filter *.html -File)) { throw "no *.html in $LegalDir" }
 }
@@ -143,6 +171,64 @@ done
   if ($rc -ne 0) { throw "legal: publish failed ($rc)" }
 }
 
+# Publish backend/deploy/www/** -> $RemoteWww (archive the old folder first).
+function Publish-Www([string[]]$auth) {
+  $root  = (Resolve-Path $WwwDir).Path.TrimEnd('\')
+  $files = @(Get-ChildItem -Path $root -Recurse -File)
+  $rel   = @($files | ForEach-Object { $_.FullName.Substring($root.Length + 1).Replace('\', '/') })
+  foreach ($r in $rel) { if ($r -notmatch '^[A-Za-z0-9._/-]+$') { throw "www: unsupported file name: $r" } }
+  $dirs  = @($rel | ForEach-Object { if ($_.Contains('/')) { $_.Substring(0, $_.LastIndexOf('/')) } } | Sort-Object -Unique)
+  $stage = "/tmp/finme-www-" + (Get-Date -Format 'yyyyMMddHHmmss')
+  Write-Host "==> www: $($files.Count) file(s) -> ${TargetHost}:$RemoteWww"
+  $mk = "set -e; rm -rf $stage; mkdir -p $stage"
+  foreach ($d in $dirs) { $mk += "; mkdir -p $stage/$d" }
+  $rc = Invoke-Remote $mk $auth
+  if ($rc -ne 0) { throw "www: stage dir failed ($rc)" }
+  for ($i = 0; $i -lt $files.Count; $i++) {
+    & $pscp -q -batch -hostkey $Hostkey @auth $files[$i].FullName ("{0}@{1}:{2}/{3}" -f $User, $TargetHost, $stage, $rel[$i])
+    if ($LASTEXITCODE -ne 0) { throw "www: pscp $($rel[$i]) failed ($LASTEXITCODE)" }
+  }
+  $pairs = @(for ($i = 0; $i -lt $files.Count; $i++) {
+    $rel[$i] + ':' + (Get-FileHash $files[$i].FullName -Algorithm SHA256).Hash.Substring(0, 12).ToLower()
+  }) -join ' '
+  $script = @"
+set -euo pipefail
+ts=`$(date +%Y%m%d-%H%M%S)
+mkdir -p /server/backup/www $RemoteWww
+if [ -n "`$(ls -A $RemoteWww 2>/dev/null)" ]; then
+  tar -C `$(dirname $RemoteWww) -czf /server/backup/www/www.`$ts.tgz `$(basename $RemoteWww)
+  echo "www backup: /server/backup/www/www.`$ts.tgz"
+fi
+cd $stage
+find . -type d -exec install -d -m 0755 $RemoteWww/{} \;
+find . -type f -exec install -m 0644 {} $RemoteWww/{} \;
+cd /
+rm -rf $stage
+bad=0; drift=0
+for pair in $pairs; do
+  p=`${pair%%:*}; want=`${pair##*:}
+  have=`$(sha256sum "$RemoteWww/`$p" | cut -c1-12)
+  if [ "`$have" != "`$want" ]; then echo "www `$p: INSTALL MISMATCH local=`$want server=`$have"; bad=1; continue; fi
+  case "`$p" in
+    index.html) url="$WwwUrl/" ;;
+    */index.html) url="$WwwUrl/`${p%index.html}" ;;
+    *) url="$WwwUrl/`$p" ;;
+  esac
+  body=`$(mktemp)
+  code=`$(curl -s -o "`$body" -w '%{http_code}' --max-time 8 "`$url" || echo 000)
+  got=`$(sha256sum "`$body" | cut -c1-12); rm -f "`$body"
+  if [ "`$code" = 200 ] && [ "`$want" = "`$got" ]; then st=live; else st="NOT-LIVE(http `$code)"; drift=1; fi
+  echo "www `$p: installed `$have, `$url -> `$st"
+done
+if [ "`$drift" = 1 ]; then
+  echo "WARNING: $WwwUrl does not serve these files yet (site is hosted elsewhere; installed here only)."
+fi
+exit `$bad
+"@
+  $rc = Invoke-Remote $script $auth
+  if ($rc -ne 0) { throw "www: publish/verify failed ($rc)" }
+}
+
 $pwFile = $null
 if ($KeyFile) {
   if (-not (Test-Path $KeyFile)) { throw "SSH key file not found: $KeyFile (must be a PuTTY .ppk; convert OpenSSH keys with puttygen)" }
@@ -169,8 +255,9 @@ No deploy credential configured. Set ONE of:
 Remove-Variable password -ErrorAction SilentlyContinue
 
 try {
-  if (-not $SkipLegal) { Publish-Legal $authArgs }
-  if ($LegalOnly) { Write-Host "==> DONE (legal only)."; return }
+  if ($DoLegal) { Publish-Legal $authArgs }
+  if ($DoWww)   { Publish-Www $authArgs }
+  if ($ContentOnly) { Write-Host "==> DONE (content only: legal=$DoLegal www=$DoWww; binary untouched, no restart)."; return }
 
   $size = (Get-Item $BinPath).Length
   $sha  = (Get-FileHash $BinPath -Algorithm SHA256).Hash.ToLower()
