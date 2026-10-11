@@ -225,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           letterSpacing: 8,
                           color: AppColors.textPrimary)),
                   const SizedBox(height: AppSpace.sm),
-                  Text('喜 AI · 策略证伪台',
+                  Text('喜爱什么，就有什么',
                       style: AppType.caption.copyWith(
                           color: AppColors.textSecondary, letterSpacing: 1)),
                   const SizedBox(height: 32),

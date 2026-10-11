@@ -32,12 +32,6 @@ abstract class TopicPack {
   /// 选择页 / 切换面板上的一行介绍。
   String get blurb => slogan;
 
-  /// 开屏页「喜爱」下面的小字（按上次的主题）。
-  String get splashSubtitle => '$name · $slogan';
-
-  /// 开屏页底部的一句话。
-  String get splashMotto => blurb;
-
   /// 对话页顶栏标题。
   String get chatTitle;
 

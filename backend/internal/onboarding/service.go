@@ -179,7 +179,7 @@ func (s *Service) ensureWelcomeNotification(ctx context.Context, userID int64) e
 }
 
 func (s *Service) welcomeBrief() string {
-	return fmt.Sprintf("已为你赠送 %d 喜点。去「策略」看证伪档案，或在「对话」里直接提问", s.opts.SignupCredits)
+	return fmt.Sprintf("已为你赠送 %d 喜点。在「对话」里直接提问就能用", s.opts.SignupCredits)
 }
 
 func (s *Service) welcomePayload() string {
@@ -192,14 +192,13 @@ func (s *Service) welcomePayload() string {
 我是你的 AI 投研助理，可以帮你：
 
 - 查 A 股 / ETF / 指数 / 期货的实时行情、财报、资金流和新闻
-- 在「策略」里看每条策略的证伪档案：它过了哪几道闸门、死在哪一关
 - 在「发现 → 定时提醒」里让 AI 按点帮你盯盘、复盘
 
 我们已经为你送上 **%d 喜点**：
 
 - 每轮对话消耗 **%d 喜点**%s
-- 解锁一条证伪档案的分年盈亏、失效原因和复现命令按条计费，解锁后永久可看
+- 喜点各主题通用：在「我的 → 切换主题」换到喜爱钓鱼，也用同一份喜点
 
-试试在「对话」里问一句"今日大盘怎么样？"，或者打开「策略」看看哪些策略被证伪了。`,
+试试在「对话」里问一句"今日大盘怎么样？"。`,
 		s.opts.SignupCredits, s.opts.ChatCredits, deep)
 }

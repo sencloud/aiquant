@@ -262,10 +262,12 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 500));
       }
-      expect(find.text('策略'), findsWidgets);
+      // 喜爱钱：对话 / 发现 / 我的（「策略」页签已下线）。
+      expect(find.text('发现'), findsWidgets);
+      expect(find.text('策略'), findsNothing);
       expect(find.text('出钓'), findsNothing);
 
-      final homeCtx = tester.element(find.text('策略').last);
+      final homeCtx = tester.element(find.text('发现').last);
       final ding = Provider.of<DingState>(homeCtx, listen: false);
 
       await tester.runAsync(() => topics.switchTo('fishing'));
@@ -274,7 +276,7 @@ void main() {
       }
       expect(find.text('出钓'), findsOneWidget);
       expect(find.text('渔获'), findsOneWidget);
-      expect(find.text('策略'), findsNothing);
+      expect(find.text('发现'), findsNothing);
       expect(() => ChangeNotifier.debugAssertNotDisposed(ding),
           throwsFlutterError);
       expect(AppColors.amber, TopicPalette.fishing.brand);

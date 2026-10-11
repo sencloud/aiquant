@@ -38,6 +38,8 @@ param(
   [switch]$UseAgent,
   # All three systemd units share one binary (/server/bin/finme-server);
   # after the swap every one of them must restart, or a process keeps old code.
+  # The *api* unit is restarted first and must pass /healthz (it owns the DB
+  # migrations) before the others are restarted.
   [string[]]$Units    = @('finme-api','finme-scheduler','finme-pusher'),
   [string]$Remote     = "/server/bin/finme-server"
 )
@@ -134,8 +136,35 @@ if [ "`$remote_sha" != "$sha" ]; then
   exit 11
 fi
 
-# all units share the same binary, so restart every one of them
+# All units share the same binary, so every one of them restarts -- api FIRST.
+# Only the api process runs DB migrations; scheduler / pusher wait (read-only)
+# until schema_migrations is current. So: restart api, wait until /healthz is
+# up (migrations done), then restart the rest.
+api_unit=""
+others=""
 for u in $unitsArg; do
+  case "`$u" in
+    *api*) api_unit="`$u" ;;
+    *) others="`$others `$u" ;;
+  esac
+done
+if [ -n "`$api_unit" ]; then
+  echo "---restart `$api_unit (first: owns DB migrations)---"
+  systemctl restart "`$api_unit"
+  ok=""
+  for i in `$(seq 1 60); do
+    if curl -fsS --max-time 3 http://127.0.0.1:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
+    sleep 1
+  done
+  if [ -z "`$ok" ]; then
+    echo "ERROR: `$api_unit not healthy after 60s; NOT restarting:`$others" >&2
+    systemctl --no-pager --full status "`$api_unit" | head -20 >&2 || true
+    journalctl -u "`$api_unit" -n 30 --no-pager >&2 || true
+    exit 12
+  fi
+  echo "healthz: ok after ~`${i}s"
+fi
+for u in `$others; do
   echo "---restart `$u---"
   systemctl restart "`$u"
 done
@@ -147,9 +176,7 @@ done
 
 echo
 echo "---health probe---"
-curl -fsS --max-time 5 http://127.0.0.1:8080/v1/health 2>&1 || \
-  curl -fsS --max-time 5 http://127.0.0.1:8080/healthz 2>&1 || \
-  echo "(no health endpoint; check listener instead)"
+curl -fsS --max-time 5 http://127.0.0.1:8080/healthz 2>&1 || echo "WARNING: /healthz failed"
 echo
 echo "---listener---"
 ss -tlnp 2>/dev/null | grep finme-server || echo "WARNING: finme-server not listening!"

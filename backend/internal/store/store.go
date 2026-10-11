@@ -34,7 +34,22 @@ type Store struct {
 }
 
 // Open 打开 SQLite，应用 PRAGMA，运行内嵌迁移。
+// 只有 api 进程（以及测试、一次性工具）应该用它；scheduler / pusher 用
+// OpenNoMigrate + WaitForSchema，避免多个进程同时跑迁移互相冲突。
 func Open(cfg platform.DBConfig) (*Store, error) {
+	s, err := OpenNoMigrate(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.Migrate(); err != nil {
+		_ = s.DB.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// OpenNoMigrate 打开 SQLite 并应用 PRAGMA，但不执行任何迁移。
+func OpenNoMigrate(cfg platform.DBConfig) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.Path), 0o750); err != nil {
 		return nil, fmt.Errorf("mkdir db dir: %w", err)
 	}
@@ -60,12 +75,7 @@ func Open(cfg platform.DBConfig) (*Store, error) {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 
-	s := &Store{DB: db}
-	if err := s.runMigrations(); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	return s, nil
+	return &Store{DB: db}, nil
 }
 
 func (s *Store) Close() error {
@@ -107,20 +117,11 @@ func txFromCtx(ctx context.Context) *sqlx.Tx {
 	return nil
 }
 
-// runMigrations 顺序执行 migrations_embed 下所有 .sql。
-// 首次运行会建 schema_migrations 表，记录已执行 filename。
-func (s *Store) runMigrations() error {
-	if _, err := s.DB.Exec(`
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			file TEXT PRIMARY KEY,
-			applied_at INTEGER NOT NULL
-		)`); err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
-	}
-
+// EmbeddedMigrations 返回本二进制内嵌的全部迁移文件名（已排序）。
+func EmbeddedMigrations() ([]string, error) {
 	entries, err := embeddedFS.ReadDir("migrations")
 	if err != nil {
-		return fmt.Errorf("read migrations: %w", err)
+		return nil, fmt.Errorf("read migrations: %w", err)
 	}
 	files := make([]string, 0, len(entries))
 	for _, e := range entries {
@@ -130,7 +131,93 @@ func (s *Store) runMigrations() error {
 		files = append(files, e.Name())
 	}
 	sort.Strings(files)
+	return files, nil
+}
 
+// PendingMigrations 返回内嵌但尚未记录在 schema_migrations 里的迁移。
+// schema_migrations 表不存在时视为全部未执行。只读，不建表。
+func (s *Store) PendingMigrations(ctx context.Context) ([]string, error) {
+	files, err := EmbeddedMigrations()
+	if err != nil {
+		return nil, err
+	}
+	var n int
+	if err := s.DB.GetContext(ctx, &n,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'`); err != nil {
+		return nil, fmt.Errorf("check schema_migrations: %w", err)
+	}
+	if n == 0 {
+		return files, nil
+	}
+	var applied []string
+	if err := s.DB.SelectContext(ctx, &applied, "SELECT file FROM schema_migrations"); err != nil {
+		return nil, fmt.Errorf("list schema_migrations: %w", err)
+	}
+	done := make(map[string]bool, len(applied))
+	for _, f := range applied {
+		done[f] = true
+	}
+	pending := []string{}
+	for _, f := range files {
+		if !done[f] {
+			pending = append(pending, f)
+		}
+	}
+	return pending, nil
+}
+
+// ErrSchemaNotReady 表示等待超时后库里仍有未执行的迁移。
+var ErrSchemaNotReady = errors.New("database schema not ready")
+
+// WaitForSchema 供不执行迁移的进程（scheduler / pusher）使用：每 poll
+// 检查一次，直到内嵌的迁移全部被 api 进程执行完；timeout 内没完成返回
+// ErrSchemaNotReady（带未执行列表），调用方应退出，由 systemd 重启重试。
+// onWait 在每次仍未就绪时被调用（可为 nil），用于打日志。
+func (s *Store) WaitForSchema(ctx context.Context, timeout, poll time.Duration, onWait func(pending []string)) error {
+	if poll <= 0 {
+		poll = time.Second
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		pending, err := s.PendingMigrations(ctx)
+		if err == nil && len(pending) == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrSchemaNotReady, err)
+			}
+			return fmt.Errorf("%w: pending %s", ErrSchemaNotReady, strings.Join(pending, ", "))
+		}
+		if onWait != nil && err == nil {
+			onWait(pending)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+	}
+}
+
+// Migrate 顺序执行 migrations 下所有尚未执行的 .sql，返回本次执行的文件。
+// 首次运行会建 schema_migrations 表，记录已执行 filename。
+// 只应由 api 进程调用（见 Open）。
+func (s *Store) Migrate() ([]string, error) {
+	if _, err := s.DB.Exec(`
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			file TEXT PRIMARY KEY,
+			applied_at INTEGER NOT NULL
+		)`); err != nil {
+		return nil, fmt.Errorf("create schema_migrations: %w", err)
+	}
+
+	files, err := EmbeddedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	ran := []string{}
 	for _, f := range files {
 		var dummy string
 		err := s.DB.Get(&dummy, "SELECT file FROM schema_migrations WHERE file=?", f)
@@ -138,17 +225,17 @@ func (s *Store) runMigrations() error {
 			continue
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("check migration %s: %w", f, err)
+			return ran, fmt.Errorf("check migration %s: %w", f, err)
 		}
 		raw, err := embeddedFS.ReadFile("migrations/" + f)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", f, err)
+			return ran, fmt.Errorf("read %s: %w", f, err)
 		}
 		// SQLite 驱动不支持多语句 — 用最朴素的 ; 切分（注释/字符串里的 ; 我们自己控制不出现）。
 		stmts := splitSQL(string(raw))
 		tx, err := s.DB.Beginx()
 		if err != nil {
-			return fmt.Errorf("begin migrate %s: %w", f, err)
+			return ran, fmt.Errorf("begin migrate %s: %w", f, err)
 		}
 		for _, stmt := range stmts {
 			stmt = strings.TrimSpace(stmt)
@@ -157,7 +244,7 @@ func (s *Store) runMigrations() error {
 			}
 			if _, err := tx.Exec(stmt); err != nil {
 				_ = tx.Rollback()
-				return fmt.Errorf("exec migrate %s: %w\n--\n%s", f, err, stmt)
+				return ran, fmt.Errorf("exec migrate %s: %w\n--\n%s", f, err, stmt)
 			}
 		}
 		if _, err := tx.Exec(
@@ -165,13 +252,14 @@ func (s *Store) runMigrations() error {
 			f, time.Now().UnixMilli(),
 		); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("record migration %s: %w", f, err)
+			return ran, fmt.Errorf("record migration %s: %w", f, err)
 		}
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migrate %s: %w", f, err)
+			return ran, fmt.Errorf("commit migrate %s: %w", f, err)
 		}
+		ran = append(ran, f)
 	}
-	return nil
+	return ran, nil
 }
 
 // splitSQL 用最朴素的分号切割。我们的 migration 都是简单 DDL，

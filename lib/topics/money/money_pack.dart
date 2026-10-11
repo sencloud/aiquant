@@ -19,8 +19,9 @@ import '../../theme/app_theme.dart';
 
 /// 喜爱钱 · 给你量化。
 ///
-/// 主题化之前 App 的全部功能原样归到这里：对话 / 策略（证伪档案）/ 发现 /
-/// 我的，页签、角标、登录门槛、私有状态与主题化之前逐项一致。
+/// 主题化之前 App 的功能归到这里：对话 / 发现 / 我的。「策略」页签（证伪
+/// 档案）、「发现 → 组合管理」、「我的 → 我的自选」已下线（代码保留，见
+/// `core/config/features.dart` 的开关）。
 class MoneyPack extends TopicPack {
   const MoneyPack();
 
@@ -40,22 +41,13 @@ class MoneyPack extends TopicPack {
   IconData get icon => Icons.insights_rounded;
 
   @override
-  String get blurb => 'AI 投研助手 · 策略证伪 · 行情与自选';
-
-  @override
-  String get splashSubtitle => '喜 AI · 策略证伪台';
-
-  /// 一句话把产品立场写在开屏上：这里不卖策略，只做证伪。
-  @override
-  String get splashMotto => '不是策略生成器，是策略证伪器';
+  String get blurb => 'AI 投研助手 · 行情 · 财报 · 盯盘';
 
   @override
   String get chatTitle => '喜爱';
 
-  /// 「策略」页签现在是证伪台，内容不依赖账号，而且它是获客内容 ——
-  /// 没有理由让新用户在登录墙后面才能看到它第一次回答「什么不行」。
-  /// 「发现」同理：内容可浏览，需要账号的动作自己会弹登录。
-  /// 只有「我的」需要登录。
+  /// 「发现」内容可浏览，需要账号的动作自己会弹登录；只有「我的」需要登录。
+  /// 「策略」页签（证伪台）默认下线，[kEnableStrategyTab] 打开才出现。
   @override
   List<TopicTab> get tabs => [
         TopicTab(
@@ -65,13 +57,14 @@ class MoneyPack extends TopicPack {
           activeIcon: Icons.chat_bubble_rounded,
           builder: (_) => const AssistantScreen(),
         ),
-        TopicTab(
-          key: 'strategy',
-          label: '策略',
-          icon: Icons.insights_rounded,
-          activeIcon: Icons.insights_rounded,
-          builder: (_) => const StrategyScreen(),
-        ),
+        if (kEnableStrategyTab)
+          TopicTab(
+            key: 'strategy',
+            label: '策略',
+            icon: Icons.insights_rounded,
+            activeIcon: Icons.insights_rounded,
+            builder: (_) => const StrategyScreen(),
+          ),
         TopicTab(
           key: 'discover',
           label: '发现',
@@ -93,25 +86,36 @@ class MoneyPack extends TopicPack {
   /// 量化私有状态：只在喜爱钱里创建，离开主题即销毁（不再请求 Tushare）。
   @override
   List<SingleChildWidget> providers() => [
-        ChangeNotifierProvider(create: (_) => PortfolioState()..bootstrap()),
+        // 组合管理下线时不启动（不拉行情）；Provider 仍在，对话里的组合附带
+        // 逻辑读得到它，只是永远是空的。
+        ChangeNotifierProvider(create: (_) {
+          final s = PortfolioState();
+          if (kEnablePortfolio) s.bootstrap();
+          return s;
+        }),
         // DingState 的 bootstrap() 由登录态切换驱动（见 [onAuthChanged]）。
         ChangeNotifierProvider(create: (_) => DingState()),
         ChangeNotifierProvider(create: (_) => LiveState()),
         ChangeNotifierProvider(create: (_) => NautilusState()),
-        // 看盘自选列表（本地持久化，无需登录）
-        ChangeNotifierProvider(create: (_) => WatchlistState()..bootstrap()),
+        // 看盘自选列表（本地持久化，无需登录）。「我的自选」下线时不启动。
+        ChangeNotifierProvider(create: (_) {
+          final s = WatchlistState();
+          if (kEnableWatchlist) s.bootstrap();
+          return s;
+        }),
       ];
 
   @override
   List<Widget> settingsTools(BuildContext context) => [
-        ProfileIndexRow(
-          icon: Icons.star_outline_rounded,
-          title: '我的自选',
-          note: '股票 / ETF / 期货',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WatchScreen()),
+        if (kEnableWatchlist)
+          ProfileIndexRow(
+            icon: Icons.star_outline_rounded,
+            title: '我的自选',
+            note: '股票 / ETF / 期货',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WatchScreen()),
+            ),
           ),
-        ),
       ];
 
   @override

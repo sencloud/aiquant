@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
@@ -21,6 +20,12 @@ import '../../theme/app_theme.dart';
 ///
 /// 停顿不是死等：底部状态文字按阶段推进；网络差到超过 [maxWait] 就直接进 App，
 /// 不拿开屏锁人。
+///
+/// 版式：屏幕正中是品牌标（`assets/branding/splash_mark.png`，和原生启动屏
+/// iOS LaunchImage / Android splash_mark 是同一张图、同样 152pt、同样居中），
+/// 所以原生启动屏切到这里的第一帧不跳。品牌标不动；下面的「喜爱」题字和
+/// 口号「喜爱什么，就有什么」按 DESIGN.md 的开屏动效淡入上浮 6%、0.62s
+/// 指数缓出，题字下一道主题色细线从中间展开（有上次选的主题就是它的主色）。
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -53,15 +58,30 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  /// 品牌口号。全 App 统一一句，不随主题变。
+  static const slogan = '喜爱什么，就有什么';
+
+  /// 品牌标图片的逻辑尺寸（含四周 24pt 阴影留白，图标本体 104pt）。
+  /// 改它必须同时改原生启动屏（LaunchScreen.storyboard / splash_mark.png）。
+  static const markExtent = 152.0;
+
+  /// 入场动效总长：题字 0.62s + 前面 0.12s 的停顿。最短停留比这还短时
+  /// （设计走查 SPLASH_MS=100 之类）按比例压缩，保证在停留时间内放完。
+  late final Duration _introDuration = () {
+    const full = Duration(milliseconds: 740);
+    final cap = widget.minDuration * 0.8;
+    return cap < full ? cap : full;
+  }();
+
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 620),
+    duration: _introDuration,
   )..forward();
 
   final List<String> _steps = const [
     '正在打开本地档案…',
     '正在校验登录状态…',
-    '正在预热行情连接…',
+    '正在准备你的主题…',
   ];
   int _step = 0;
   Timer? _tick;
@@ -80,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // 状态文字在最短停留内推进完；之后如果还在等登录态，会换成「网络有点慢」。
     final tick = widget.minDuration.inMilliseconds ~/ _steps.length;
-    _tick = Timer.periodic(Duration(milliseconds: tick), (t) {
+    _tick = Timer.periodic(Duration(milliseconds: tick < 1 ? 1 : tick), (t) {
       if (!mounted) return t.cancel();
       if (_step < _steps.length - 1) {
         setState(() => _step++);
@@ -138,82 +158,118 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final pack = topicOf(context);
-    final ease = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+    // 前 0.12/0.74 是停顿：让原生启动屏 → 品牌标的衔接先稳住一拍。
+    final title = CurvedAnimation(
+        parent: _c, curve: const Interval(0.16, 1, curve: Curves.easeOutExpo));
+    final line = CurvedAnimation(
+        parent: _c, curve: const Interval(0.3, 1, curve: Curves.easeOutExpo));
     // 时间走满了还在等，说明真的是网络慢 —— 如实说，别让它看着像卡住。
     final waiting = _minElapsed && (_auth?.bootstrapping ?? false);
     final status = waiting ? '网络有点慢，马上就好…' : _steps[_step];
+    final accent = AppColors.amber;
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
-      // SizedBox.expand 不能省：body 给下来的是宽松约束，Column 会收缩到最宽
-      // 子节点的宽度并贴左，整页看起来会偏掉。撑满之后居中才是真的居中。
-      body: SizedBox.expand(
-        child: SafeArea(
-          child: Column(
-            children: [
-              const Spacer(flex: 5),
-              FadeTransition(
-                opacity: ease,
+      // 不包 SafeArea：品牌标要和原生启动屏一样落在**整屏**正中。
+      body: LayoutBuilder(builder: (context, box) {
+        final cy = box.maxHeight / 2;
+        return Stack(
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: cy - markExtent / 2,
+              child: Center(
+                child: Image.asset(
+                  'assets/branding/splash_mark.png',
+                  key: const Key('splash-mark'),
+                  width: markExtent,
+                  height: markExtent,
+                  filterQuality: FilterQuality.medium,
+                  semanticLabel: '喜爱',
+                ),
+              ),
+            ),
+            Positioned(
+              left: AppSpace.xxl,
+              right: AppSpace.xxl,
+              // 图标本体下沿在 cy+52，阴影留白里再空一点。
+              top: cy + markExtent / 2 + AppSpace.sm,
+              child: FadeTransition(
+                opacity: title,
                 child: SlideTransition(
                   position: Tween(
                     begin: const Offset(0, 0.06),
                     end: Offset.zero,
-                  ).animate(ease),
+                  ).animate(title),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         '喜爱',
+                        key: const Key('splash-name'),
                         style: AppType.display.copyWith(
-                          fontSize: 46,
+                          fontSize: 40,
                           height: 1.1,
-                          letterSpacing: 6,
+                          letterSpacing: 10,
                           color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: AppSpace.md),
+                      ScaleTransition(
+                        scale: line,
+                        child: Container(
+                          width: 28,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.md),
                       Text(
-                        pack.splashSubtitle,
-                        style: AppType.caption.copyWith(
+                        slogan,
+                        key: const Key('splash-slogan'),
+                        textAlign: TextAlign.center,
+                        style: AppType.read.copyWith(
+                          fontSize: 15,
+                          height: 1.4,
+                          letterSpacing: 3,
                           color: AppColors.textSecondary,
-                          letterSpacing: 2,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const Spacer(flex: 4),
-              // 一句话把产品立场写在开屏上（由主题包提供）。
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxl),
-                child: FadeTransition(
-                  opacity: ease,
-                  child: Text(
-                    pack.splashMotto,
-                    textAlign: TextAlign.center,
-                    style: AppType.caption.copyWith(
-                        color: AppColors.textTertiary, letterSpacing: 1),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.paddingOf(context).bottom + AppSpace.xxl,
+              // 状态文字也随题字淡入：第一帧只有品牌标，和原生启动屏一模一样。
+              child: FadeTransition(
+                opacity: title,
+                child: SizedBox(
+                  height: 16,
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      child: Text(
+                        status,
+                        key: ValueKey(status),
+                        style: AppType.micro
+                            .copyWith(color: AppColors.textTertiary),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpace.xl),
-              SizedBox(
-                height: 16,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  child: Text(
-                    status,
-                    key: ValueKey(status),
-                    style: AppType.micro.copyWith(color: AppColors.textTertiary),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpace.xxl),
-            ],
-          ),
-        ),
-      ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
