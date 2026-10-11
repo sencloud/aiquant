@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -62,7 +63,7 @@ func futuresDailyFallback(
 	defer cancel()
 	rows, err := tu.Query(qctx, "fut_daily", map[string]any{"ts_code": tsCode},
 		[]string{"trade_date", "pre_close", "pre_settle", "open", "high", "low",
-			"close", "change1", "change2", "vol", "amount", "oi"})
+			"close", "settle", "change1", "change2", "vol", "amount", "oi"})
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +74,9 @@ func futuresDailyFallback(
 		return toStr(rows[i]["trade_date"]) > toStr(rows[j]["trade_date"])
 	})
 	r := rows[0]
+	// fut_daily 的 change1 = 收盘 − 昨结算、change2 = 结算 − 昨结算，都是点数；
+	// 涨跌幅要自己算（以前把 change2 当 pct_chg，棕榈油会显示 +98%）。
+	preSettle, change := toFloat(r["pre_settle"]), toFloat(r["change1"])
 	return map[string]any{
 		"ts_code":    tsCode,
 		"trade_date": toStr(r["trade_date"]),
@@ -80,15 +84,24 @@ func futuresDailyFallback(
 		"high":       toFloat(r["high"]),
 		"low":        toFloat(r["low"]),
 		"last":       toFloat(r["close"]),
-		"pre_settle": toFloat(r["pre_settle"]),
-		"change":     toFloat(r["change1"]),
-		"pct_chg":    toFloat(r["change2"]),
+		"pre_settle": preSettle,
+		"change":     change,
+		"pct_chg":    futuresPctChg(change, preSettle),
+		"settle":     toFloat(r["settle"]),
 		"volume":     toFloat(r["vol"]),
 		"amount":     toFloat(r["amount"]),
 		"oi":         toFloat(r["oi"]),
 		"source":     "tushare_fut_daily",
 		"realtime":   false,
 	}, nil
+}
+
+// futuresPctChg 以昨结算为基准的涨跌幅（%，两位小数）；昨结算缺失时为 0。
+func futuresPctChg(change, preSettle float64) float64 {
+	if preSettle <= 0 {
+		return 0
+	}
+	return math.Round(change/preSettle*10000) / 100
 }
 
 // forexDailyFallback 用 Tushare fx_daily 给外汇兜底。

@@ -17,3 +17,20 @@ func TestFetcherRecoversAdapterPanic(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestPlaceFallbacks(t *testing.T) {
+	cases := map[string][]string{
+		"新安江水库":  {"新安江"},
+		"丹江口水库":  {"丹江口"},
+		"三峡水利枢纽": {"三峡"},
+		"千岛湖":    nil,
+		"大水库":    nil, // 去掉后缀只剩 1 个字，不试
+		"杭州":     nil,
+	}
+	for in, want := range cases {
+		got := placeFallbacks(in)
+		if len(got) != len(want) || (len(want) > 0 && got[0] != want[0]) {
+			t.Errorf("placeFallbacks(%q) = %v, want %v", in, got, want)
+		}
+	}
+}

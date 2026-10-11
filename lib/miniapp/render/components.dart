@@ -230,18 +230,26 @@ class _Builder {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text.rich(TextSpan(children: [
-            TextSpan(
-                text: value,
-                style: AppType.display.copyWith(
-                    fontSize: big,
-                    color: color,
-                    fontFamilyFallback: AppType.numericFallback)),
-            if (unit.isNotEmpty)
-              TextSpan(
-                  text: ' $unit',
-                  style: AppType.caption.copyWith(color: AppColors.textSecondary)),
-          ])),
+          // 样式放在 Text.rich 的 style 上（与 DefaultTextStyle 合并，保留字族）；
+          // 子 span 里只改字号 / 颜色：子 span 若带 fontFamilyFallback 会整个替换
+          // 继承来的字族列表。
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: value),
+              if (unit.isNotEmpty)
+                TextSpan(
+                    text: ' $unit',
+                    style: TextStyle(
+                        fontSize: AppType.caption.fontSize,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0,
+                        color: AppColors.textSecondary)),
+            ]),
+            style: AppType.display.copyWith(
+                fontSize: big,
+                color: color,
+                fontFamilyFallback: AppType.numericFallback),
+          ),
         ),
         if (delta != null)
           Text(delta,
