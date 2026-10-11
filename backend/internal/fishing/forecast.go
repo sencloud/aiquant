@@ -41,7 +41,7 @@ type Forecast struct {
 	Days       []DayScore `json:"days"`
 	Formula    string     `json:"formula"`
 	Disclaimer string     `json:"disclaimer"`
-	// Regulations 当天生效的全国性禁渔 / 休渔制度（只列名字，详情走 regulations 接口）。
+	// ActiveBans 当天生效、且涉及该地所在省份的全国性禁渔 / 休渔制度（只列名字，详情走 regulations 接口）。
 	ActiveBans []string `json:"active_bans,omitempty"`
 }
 
@@ -92,12 +92,13 @@ func (f *Forecaster) ForCoord(ctx context.Context, name string, lat, lon float64
 	if f.Now != nil {
 		now = f.Now
 	}
-	var bans []string
-	for _, r := range RegulationsOn(now().In(cst)) {
-		if r.Active {
-			bans = append(bans, r.Name)
-		}
+	// 只提示所在省份涉及的流域禁渔期（千岛湖在浙江：钱塘江，不提示长江 / 黄河）。
+	// 先按坐标判省份；简化省界缝隙里认不出时，再看地名标签里的省名。
+	province := ProvinceAt(lat, lon)
+	if province == "" {
+		province = provinceFromLabel(name)
 	}
+	bans := ActiveBansFor(now().In(cst), province)
 	return &Forecast{
 		Place:      name,
 		Lat:        math.Round(lat*1e4) / 1e4,

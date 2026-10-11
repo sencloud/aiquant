@@ -87,12 +87,45 @@ TextStyle _labelStyle(BuildContext context, Color color) => DefaultTextStyle.of(
     .style
     .merge(AppType.micro.copyWith(color: color, fontSize: 10));
 
-String _axisNum(double v) {
-  final a = v.abs();
-  if (a >= 1e8) return '${numStr((v / 1e8 * 10).roundToDouble() / 10)}亿';
-  if (a >= 1e4) return '${numStr((v / 1e4 * 10).roundToDouble() / 10)}万';
-  if (a >= 100) return numStr(v.roundToDouble());
-  return numStr((v * 100).roundToDouble() / 100);
+/// Y 轴刻度文字：整根轴用**同一个单位、同一位小数**，小数位按刻度间距取，
+/// 并保证相邻刻度文字不重复。
+///
+/// 以前逐个值各自格式化（≥1 万就换成「x.x万」），价格在 1 万上下的品种
+/// （如棕榈油 9466–10148）会出现「1万 / 1万 / 9807 / 9466」：单位混用、两格同名。
+/// 现在：最大绝对值 ≥1 亿用「亿」，≥10 万用「万」，否则直接写数字（5 位数放得下）。
+@visibleForTesting
+List<String> axisLabels(List<double> ticks) {
+  if (ticks.isEmpty) return const [];
+  final maxAbs = ticks.map((v) => v.abs()).reduce(math.max);
+  final (div, unit) = maxAbs >= 1e8
+      ? (1e8, '亿')
+      : maxAbs >= 1e5
+          ? (1e4, '万')
+          : (1.0, '');
+  final xs = [for (final v in ticks) v / div];
+  var step = double.infinity;
+  for (var i = 1; i < xs.length; i++) {
+    final d = (xs[i] - xs[i - 1]).abs();
+    if (d > 0) step = math.min(step, d);
+  }
+  var digits = step.isFinite
+      ? math.max(0, (-math.log(step) / math.ln10).ceil()).toInt()
+      : 0;
+  // 量级在 10 以内（如降雨 0–6.8 mm）至少保留一位小数，不然刻度太粗。
+  if (xs.map((x) => x.abs()).reduce(math.max) < 10) digits = math.max(digits, 1);
+  digits = math.min(digits, 4);
+  String fmt(double x, int d) {
+    final t = x.toStringAsFixed(d);
+    return RegExp(r'^-0(\.0*)?$').hasMatch(t) ? t.substring(1) : t;
+  }
+
+  var out = [for (final x in xs) fmt(x, digits)];
+  final distinct = xs.toSet().length;
+  while (digits < 4 && out.toSet().length < distinct) {
+    digits++;
+    out = [for (final x in xs) fmt(x, digits)];
+  }
+  return [for (final t in out) '$t$unit'];
 }
 
 class _ChartPainter extends CustomPainter {
@@ -146,11 +179,12 @@ class _ChartPainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = grid
       ..strokeWidth = 0.5;
-    for (var i = 0; i <= 3; i++) {
-      final v = lo + (hi - lo) * i / 3;
-      final yy = y(v);
+    final ticks = [for (var i = 0; i <= 3; i++) lo + (hi - lo) * i / 3];
+    final tickText = axisLabels(ticks);
+    for (var i = 0; i < ticks.length; i++) {
+      final yy = y(ticks[i]);
       canvas.drawLine(Offset(left, yy), Offset(size.width, yy), gridPaint);
-      _label(canvas, _axisNum(v), Offset(0, yy - 6), left - 4, TextAlign.right);
+      _label(canvas, tickText[i], Offset(0, yy - 6), left - 4, TextAlign.right);
     }
     if (labels.isNotEmpty) {
       final idx = {0, labels.length ~/ 2, labels.length - 1};
@@ -281,12 +315,14 @@ class _KPainter extends CustomPainter {
     final g = Paint()
       ..color = grid
       ..strokeWidth = 0.5;
-    for (var i = 0; i <= 3; i++) {
-      final v = lo + (hi - lo) * i / 3;
+    final ticks = [for (var i = 0; i <= 3; i++) lo + (hi - lo) * i / 3];
+    final tickText = axisLabels(ticks);
+    for (var i = 0; i < ticks.length; i++) {
+      final v = ticks[i];
       canvas.drawLine(Offset(left, y(v)), Offset(size.width, y(v)), g);
       final tp = TextPainter(
           text: TextSpan(
-              text: _axisNum(v), style: labelStyle),
+              text: tickText[i], style: labelStyle),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.right)
         ..layout(minWidth: left - 4, maxWidth: left - 4);

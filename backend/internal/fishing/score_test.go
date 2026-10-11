@@ -178,7 +178,8 @@ func TestForecastToolAndRegistry(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &res); err != nil {
 		t.Fatalf("%v: %s", err, out)
 	}
-	if res.Place != "中国·浙江·千岛湖" || len(res.Days) != 2 || res.Formula == "" || len(res.ActiveBans) == 0 {
+	if res.Place != "中国·浙江·千岛湖" || len(res.Days) != 2 || res.Formula == "" || len(res.ActiveBans) != 0 {
+		// 千岛湖在浙江（钱塘江 / 新安江），10 月不涉及任何全国性禁渔期，更不能提示长江 / 黄河
 		t.Fatalf("res %+v", res)
 	}
 	// 内置城市不走地理编码

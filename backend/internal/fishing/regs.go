@@ -17,6 +17,9 @@ type Regulation struct {
 	Angling   string `json:"angling"` // 对休闲垂钓的说明
 	Source    string `json:"source"`  // 文号
 	YearRound bool   `json:"year_round"`
+	// Provinces 是该流域流经的省级行政区（简称）。出钓指数只提示所在省份涉及的
+	// 制度；省级粒度偏粗（例如四川同时涉及长江和黄河上游），宁可多提示，不漏提示。
+	Provinces []string `json:"provinces"`
 	// 季节性窗口（月日，含端点；YearRound 时忽略）。
 	FromMonth, FromDay, ToMonth, ToDay int `json:"-"`
 }
@@ -35,6 +38,7 @@ var Regulations = []Regulation{
 		Angling:   "休闲垂钓由各地规范管理（禁钓区、钓具数量、钓法等各地不同）",
 		Source:    "农业农村部关于长江流域重点水域禁捕范围和时间的通告（2019 年第 4 号）",
 		YearRound: true,
+		Provinces: []string{"青海", "西藏", "四川", "云南", "重庆", "贵州", "湖北", "湖南", "江西", "安徽", "江苏", "上海", "陕西", "甘肃", "河南"},
 	},
 	{
 		ID:        "huai_spring",
@@ -45,6 +49,7 @@ var Regulations = []Regulation{
 		Angling:   "允许娱乐性垂钓，具体以当地规定为准",
 		Source:    "农业农村部流域禁渔期制度",
 		FromMonth: 3, FromDay: 1, ToMonth: 6, ToDay: 30,
+		Provinces: []string{"河南", "安徽", "江苏"},
 	},
 	{
 		ID:        "pearl_spring",
@@ -55,6 +60,7 @@ var Regulations = []Regulation{
 		Angling:   "允许娱乐性垂钓，具体以当地规定为准",
 		Source:    "农业农村部流域禁渔期制度",
 		FromMonth: 3, FromDay: 1, ToMonth: 6, ToDay: 30,
+		Provinces: []string{"广东", "广西", "云南", "贵州", "福建", "海南"},
 	},
 	{
 		ID:        "qiantang_spring",
@@ -65,6 +71,7 @@ var Regulations = []Regulation{
 		Angling:   "允许娱乐性垂钓，具体以当地规定为准",
 		Source:    "农业农村部通告〔2019〕1 号",
 		FromMonth: 3, FromDay: 1, ToMonth: 6, ToDay: 30,
+		Provinces: []string{"浙江", "安徽"},
 	},
 	{
 		ID:        "yellow_upper",
@@ -75,6 +82,7 @@ var Regulations = []Regulation{
 		Angling:   "休闲垂钓以当地规定为准",
 		Source:    "农业农村部通告〔2025〕2 号",
 		YearRound: true,
+		Provinces: []string{"青海", "四川", "甘肃"},
 	},
 	{
 		ID:        "yellow_lower",
@@ -85,6 +93,7 @@ var Regulations = []Regulation{
 		Angling:   "休闲垂钓以当地规定为准",
 		Source:    "农业农村部通告〔2025〕2 号",
 		FromMonth: 4, FromDay: 1, ToMonth: 7, ToDay: 31,
+		Provinces: []string{"宁夏", "内蒙古", "陕西", "山西", "河南", "山东"},
 	},
 	{
 		ID:        "north_summer",
@@ -95,6 +104,7 @@ var Regulations = []Regulation{
 		Angling:   "允许钓具作业，具体以当地规定为准",
 		Source:    "农业农村部通告〔2019〕1 号",
 		FromMonth: 5, FromDay: 16, ToMonth: 7, ToDay: 31,
+		Provinces: []string{"北京", "天津", "河北", "山西", "山东", "河南", "内蒙古", "辽宁", "吉林", "黑龙江"},
 	},
 }
 
@@ -125,4 +135,28 @@ func RegulationsOn(t time.Time) []RegulationView {
 		}
 	}
 	return append(active, rest...)
+}
+
+// AppliesTo 判断制度是否涉及某省（简称）。province 为空（国外 / 认不出）时不提示。
+func (r Regulation) AppliesTo(province string) bool {
+	for _, p := range r.Provinces {
+		if p == province {
+			return true
+		}
+	}
+	return false
+}
+
+// ActiveBansFor 返回 t 当天生效、且涉及 province 的制度名称。
+func ActiveBansFor(t time.Time, province string) []string {
+	if province == "" {
+		return nil
+	}
+	var out []string
+	for _, r := range Regulations {
+		if r.ActiveOn(t) && r.AppliesTo(province) {
+			out = append(out, r.Name)
+		}
+	}
+	return out
 }

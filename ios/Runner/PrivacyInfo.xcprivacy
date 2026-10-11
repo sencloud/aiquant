@@ -39,6 +39,21 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
+		<!-- 设备 ID：App 生成的随机设备标识（登录 / 推送注册时随账号上送，用于设备管理与推送）；
+		     匿名统计另用一个随机 ID（不关联账号）。都不是 IDFA / IDFV。 -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
 		<!-- 购买记录：喜点内购 -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
