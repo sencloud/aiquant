@@ -33,10 +33,21 @@
   is published the same way: old folder archived to
   /server/backup/www/www.<ts>.tgz, files installed over it (files that exist
   only on the server are left alone) and each installed file's sha256 checked
-  against the local copy (mismatch = failure). Then every page is fetched from
-  $WwwUrl and compared too; a mismatch there is only a WARNING, because as of
-  2026-10 www.singzquant.com is still served by a different host (DNS not yet
-  moved here, see backend/deploy/nginx/singzquant.com.conf).
+  against the local copy (mismatch = failure).
+
+  The LIVE site is not on the api host: www.singzquant.com (47.96.115.180) is
+  Aliyun ECS i-bp1epb0s7sswazr19klv (cn-hangzhou). There Caddy (docker stack
+  /opt/agentzero, owned by another project - not touched) proxies to host
+  nginx :80, whose www.singzquant.com server block serves /var/www/html with
+  `try_files $uri $uri/ /index.html` (so /d/ needs d/index.html). That host is
+  reached with the Alibaba Cloud Workbench CLI (cloud assistant session, no SSH
+  password/key): the login lives in the Workbench profile (`workbench config`),
+  never in this repo. The script backs up /var/www/html to
+  /var/backups/singzquant-www/html.<ts>.tgz, installs the files, checks them
+  through that nginx with sha256 (mismatch = failure), and finally fetches
+  every page from $WwwUrl and compares (mismatch = failure).
+  Skip the live host with -SkipWwwLive (then only the api host copy is made and
+  a public mismatch is just a warning).
 
   Run:
     powershell -File .\.tools\deploy.ps1                     # legal + www + binary + restarts
@@ -44,6 +55,7 @@
     powershell -File .\.tools\deploy.ps1 -WwwOnly            # only republish the website
     powershell -File .\.tools\deploy.ps1 -LegalOnly -WwwOnly # both, no binary / no restart
     powershell -File .\.tools\deploy.ps1 -SkipLegal -SkipWww # only the binary
+    powershell -File .\.tools\deploy.ps1 -WwwOnly -SkipWwwLive  # www to the api host copy only
 #>
 
 [CmdletBinding()]
@@ -73,7 +85,14 @@ param(
   [string]$RemoteWww  = "/server/www",
   [string]$WwwUrl     = "https://www.singzquant.com",
   [switch]$SkipWww,
-  [switch]$WwwOnly
+  [switch]$WwwOnly,
+  # Live www host (Aliyun ECS via Workbench CLI). Instance / profile / exe can
+  # also come from AIQUANT_DEPLOY_WWW_INSTANCE / _WWW_PROFILE / WORKBENCH_EXE
+  # or $DeployWwwInstance / $DeployWwwProfile in deploy.local.ps1.
+  [string]$WwwInstance = '',
+  [string]$WwwProfile  = '',
+  [string]$WwwRoot     = '/var/www/html',
+  [switch]$SkipWwwLive
 )
 if ($SkipLegal -and $LegalOnly) { throw "-SkipLegal and -LegalOnly are mutually exclusive" }
 if ($SkipWww -and $WwwOnly) { throw "-SkipWww and -WwwOnly are mutually exclusive" }
@@ -93,6 +112,8 @@ $DefaultHostkey = "SHA256:L67TyBUEmjxVjtsCdYWOkp50zJPcyoSU8rhNeDL+Ric"   # publi
 
 $DeployHost = $null; $DeployUser = $null; $DeployPassword = $null
 $DeployKeyFile = $null; $DeployHostkey = $null
+$DeployWwwInstance = $null; $DeployWwwProfile = $null
+$DefaultWwwInstance = "i-bp1epb0s7sswazr19klv"   # ECS instance id (cn-hangzhou), not a secret
 
 $localJson = Join-Path $PSScriptRoot 'deploy.local.json'
 if (Test-Path $localJson) {
@@ -108,6 +129,10 @@ function Pick { foreach ($v in $args) { if ($v -and "$v".Trim()) { return "$v".T
 $TargetHost = Pick $TargetHost $env:AIQUANT_DEPLOY_HOST    $DeployHost    $DefaultHost
 $User       = Pick $User       $env:AIQUANT_DEPLOY_USER    $DeployUser    $DefaultUser
 $KeyFile    = Pick $KeyFile    $env:AIQUANT_DEPLOY_KEYFILE $DeployKeyFile
+$WwwInstance = Pick $WwwInstance $env:AIQUANT_DEPLOY_WWW_INSTANCE $DeployWwwInstance $DefaultWwwInstance
+$WwwProfile  = Pick $WwwProfile  $env:AIQUANT_DEPLOY_WWW_PROFILE  $DeployWwwProfile
+$workbench   = Pick $env:WORKBENCH_EXE 'C:\Program Files\workbench\workbench.exe'
+$DoWwwLive   = $DoWww -and (-not $SkipWwwLive)
 $Hostkey    = Pick $Hostkey    $env:AIQUANT_DEPLOY_HOSTKEY $DeployHostkey $DefaultHostkey
 $password   = Pick $env:AIQUANT_DEPLOY_PASSWORD $DeployPassword
 Remove-Variable DeployPassword -ErrorAction SilentlyContinue
@@ -116,6 +141,7 @@ $plink = 'D:\Tools\plink\plink.exe'
 $pscp  = 'D:\Tools\plink\pscp.exe'
 $need = @($plink, $pscp)
 if (-not $ContentOnly) { $need += $BinPath }
+if ($DoWwwLive) { $need += $workbench }
 if ($DoWww) {
   $need += $WwwDir
   if (-not (Test-Path (Join-Path $WwwDir 'index.html'))) { throw "no index.html in $WwwDir" }
@@ -188,6 +214,7 @@ function Publish-Www([string[]]$auth) {
     & $pscp -q -batch -hostkey $Hostkey @auth $files[$i].FullName ("{0}@{1}:{2}/{3}" -f $User, $TargetHost, $stage, $rel[$i])
     if ($LASTEXITCODE -ne 0) { throw "www: pscp $($rel[$i]) failed ($LASTEXITCODE)" }
   }
+  $strictLive = if ($DoWwwLive) { 1 } else { 0 }
   $pairs = @(for ($i = 0; $i -lt $files.Count; $i++) {
     $rel[$i] + ':' + (Get-FileHash $files[$i].FullName -Algorithm SHA256).Hash.Substring(0, 12).ToLower()
   }) -join ' '
@@ -221,12 +248,78 @@ for pair in $pairs; do
   echo "www `$p: installed `$have, `$url -> `$st"
 done
 if [ "`$drift" = 1 ]; then
-  echo "WARNING: $WwwUrl does not serve these files yet (site is hosted elsewhere; installed here only)."
+  if [ "$strictLive" = 1 ]; then echo "ERROR: $WwwUrl does not serve the published files."; bad=1
+  else echo "WARNING: $WwwUrl does not serve these files (live host skipped with -SkipWwwLive)."; fi
 fi
 exit `$bad
 "@
   $rc = Invoke-Remote $script $auth
   if ($rc -ne 0) { throw "www: publish/verify failed ($rc)" }
+}
+
+# Run Workbench CLI against the live www instance; returns the exit code (output echoed).
+function Invoke-Workbench([string[]]$wbArgs) {
+  # Workbench writes progress to stderr; under the script-wide 'Stop' PS 5.1 would turn
+  # that into a terminating error. Judge success by the exit code instead (function scope).
+  $ErrorActionPreference = 'Continue'
+  $all = @($wbArgs)
+  if ($WwwProfile) { $all += @('-P', $WwwProfile) }
+  # No --timeout on exec: it leaves stale sessions behind (default 30s is plenty here).
+  & $workbench @all 2>&1 | ForEach-Object { "$_" } |
+    Where-Object { $_ -and $_ -notmatch 'Preparing\.\.\.|Uploading to OSS|RemoteException' } |
+    ForEach-Object { Write-Host $_ }
+  return $LASTEXITCODE
+}
+
+# Publish backend/deploy/www/** -> live host $WwwInstance:$WwwRoot (archive first).
+function Publish-WwwLive {
+  $root  = (Resolve-Path $WwwDir).Path.TrimEnd('\')
+  $files = @(Get-ChildItem -Path $root -Recurse -File)
+  $rel   = @($files | ForEach-Object { $_.FullName.Substring($root.Length + 1).Replace('\', '/') })
+  foreach ($r in $rel) { if ($r -notmatch '^[A-Za-z0-9._/-]+$') { throw "www-live: unsupported file name: $r" } }
+  $ts    = Get-Date -Format 'yyyyMMddHHmmss'
+  $stage = "/tmp/finme-www-live-$ts"
+  Write-Host "==> www (live): $($files.Count) file(s) -> ${WwwInstance}:$WwwRoot"
+  $rc = Invoke-Workbench @('exec', '-i', $WwwInstance, '-c', "rm -rf $stage && mkdir -p $stage")
+  if ($rc -ne 0) { throw "www-live: stage dir failed ($rc)" }
+  # Flat staging names (a/b.html -> a__b.html): upload does not create directories.
+  for ($i = 0; $i -lt $files.Count; $i++) {
+    $rc = Invoke-Workbench @('upload', $files[$i].FullName, ("{0}/{1}" -f $stage, $rel[$i].Replace('/', '__')), '-i', $WwwInstance, '-f')
+    if ($rc -ne 0) { throw "www-live: upload $($rel[$i]) failed ($rc)" }
+  }
+  $pairs = @(for ($i = 0; $i -lt $files.Count; $i++) {
+    $rel[$i] + ':' + (Get-FileHash $files[$i].FullName -Algorithm SHA256).Hash.Substring(0, 12).ToLower()
+  }) -join ' '
+  $host0 = ([Uri]$WwwUrl).Host
+  $script = @"
+set -euo pipefail
+ts=`$(date +%Y%m%d-%H%M%S); root=$WwwRoot; bk=/var/backups/singzquant-www
+mkdir -p `$bk `$root
+tar -C `$(dirname `$root) -czf `$bk/html.`$ts.tgz `$(basename `$root)
+echo "www-live backup: `$bk/html.`$ts.tgz"
+bad=0
+for pair in $pairs; do
+  p=`${pair%%:*}; want=`${pair##*:}
+  install -d -m 0755 "`$(dirname "`$root/`$p")"
+  install -m 0644 "$stage/`${p//\//__}" "`$root/`$p"
+  case "`$p" in index.html) u=/ ;; */index.html) u=/`${p%index.html} ;; *) u=/`$p ;; esac
+  have=`$(sha256sum "`$root/`$p" | cut -c1-12)
+  got=`$(curl -s --max-time 8 -H 'Host: $host0' "http://127.0.0.1:80`$u" | sha256sum | cut -c1-12)
+  st=ok; if [ "`$have" != "`$want" ] || [ "`$got" != "`$want" ]; then st=MISMATCH; bad=1; fi
+  echo "www-live `$p: local=`$want installed=`$have nginx(`$u)=`$got `$st"
+done
+rm -rf $stage
+exit `$bad
+"@
+  $f = Join-Path $env:TEMP "finme-www-live-$ts.sh"
+  [IO.File]::WriteAllText($f, $script.Replace("`r`n", "`n"), (New-Object Text.UTF8Encoding $false))
+  try {
+    $rc = Invoke-Workbench @('upload', $f, "$stage/publish.sh", '-i', $WwwInstance, '-f')
+    if ($rc -ne 0) { throw "www-live: upload script failed ($rc)" }
+  } finally { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+  # Run from an uploaded file: PowerShell 5.1 mangles quotes in native-command arguments.
+  $rc = Invoke-Workbench @('exec', '-i', $WwwInstance, '-c', "bash $stage/publish.sh")
+  if ($rc -ne 0) { throw "www-live: publish/verify failed ($rc)" }
 }
 
 $pwFile = $null
@@ -256,6 +349,7 @@ Remove-Variable password -ErrorAction SilentlyContinue
 
 try {
   if ($DoLegal) { Publish-Legal $authArgs }
+  if ($DoWwwLive) { Publish-WwwLive }
   if ($DoWww)   { Publish-Www $authArgs }
   if ($ContentOnly) { Write-Host "==> DONE (content only: legal=$DoLegal www=$DoWww; binary untouched, no restart)."; return }
 

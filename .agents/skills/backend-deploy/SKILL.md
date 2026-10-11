@@ -65,6 +65,15 @@ git status --ignored .tools   # 确认 deploy.local.ps1 显示为 ignored，不�
 
 **3. 配置改动只有重启才生效。** `/server/config/config.toml` 是 `LoadConfig` 启动时读一次；`applyEnv` 只覆盖少数几项（`FINME_LLM__*`、`FINME_APPLE*`、`FINME_AI__HOME_SUGGEST_ENABLED` 等）。改配置的流程是：备份 → 改 → `systemctl restart` 相关 unit → 验证。
 
+## 法律页面与官网（deploy.ps1 默认一起发）
+
+- 法律页面 `backend/deploy/legal/*.html` → 本机 `/server/legal/`（nginx `/legal/` alias），先备份到 `/server/backup/legal/`。
+- 官网 `backend/deploy/www/**`（首页、`d/` 邀请页、`og.png`、`app-icon.svg`）发两处：
+  1. **线上站点**：`www.singzquant.com`（47.96.115.180）**不在本机**，是阿里云 ECS `i-bp1epb0s7sswazr19klv`（杭州）。那台机上 Caddy 跑在 docker（`/opt/agentzero`，别的项目的栈，**不要动**），把 www 反代到宿主 nginx :80，web 根目录 `/var/www/html`，`try_files $uri $uri/ /index.html`（所以 `/d/` 必须有 `d/index.html`，否则回落到首页）。用 **Workbench CLI**（`C:\Program Files\workbench\workbench.exe`，云助手会话，不走 SSH、不需要密码/密钥）连接，登录信息在 Workbench 自己的 profile 里（`workbench config`），不进仓库。脚本先备份到那台机的 `/var/backups/singzquant-www/html.<ts>.tgz`，装文件，用本机 nginx 校验 sha256，最后从公网拉取比对（不一致即失败）。
+  2. 本机 `/server/www/`（备份到 `/server/backup/www/`），仅作同步副本，DNS 迁过来时可直接用。
+- `-LegalOnly` / `-WwwOnly`（可同时给）只发内容、不动二进制、不重启；`-SkipWwwLive` 跳过线上站点。
+- Workbench `exec` 不要传 `--timeout`（会留下僵死会话）；复杂命令先 `upload` 脚本再 `exec bash`，PowerShell 5.1 会弄坏原生命令参数里的引号。
+
 ## nginx 不在这套脚本里，要单独改
 
 配置文件：`/etc/nginx/sites-available/api.singzquant.com.conf`（nginx 1.18）。改动流程：备份到 `/server/backup/nginx/` → 改 → `nginx -t` → `systemctl reload nginx`。
