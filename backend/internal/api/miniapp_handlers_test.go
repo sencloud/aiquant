@@ -178,3 +178,68 @@ func TestMiniAppRefundViaAPI(t *testing.T) {
 		t.Fatalf("ledger = %v", reasons)
 	}
 }
+
+// 注销账号：自建小应用连同版本 / 挂载 / 参数 / 生成与运行记录一起删；喜点流水保留。
+func TestDeleteAccountRemovesMiniApps(t *testing.T) {
+	l := &scriptLLM{}
+	e, svc := newMiniAppEnv(t, l)
+	env := specEnvelope(t, svc, "fishing")
+	l.outs = []string{env, env, env, env}
+	uid, tok := e.user(t, 6)
+	rec, out := e.do(t, http.MethodPost, "/v1/miniapps/generate", tok,
+		map[string]any{"request_id": "req-del-0001", "topic": "fishing", "message": "比较几个水库"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("generate: %d %s", rec.Code, rec.Body.String())
+	}
+	appID := out["gen"].(map[string]any)["result"].(map[string]any)["app_uuid"].(string)
+	if rec, _ := e.do(t, http.MethodPost, "/v1/miniapps/"+appID+"/mount", tok, map[string]any{"card_size": "large"}); rec.Code != http.StatusOK {
+		t.Fatalf("mount: %d", rec.Code)
+	}
+	if rec, _ := e.do(t, http.MethodPost, "/v1/miniapps/"+appID+"/run", tok, nil); rec.Code != http.StatusOK {
+		t.Fatalf("run: %d", rec.Code)
+	}
+	tid := svc.Templates("money")[0].ID
+	if rec, _ := e.do(t, http.MethodPost, "/v1/miniapps/from-template", tok, map[string]any{"template_id": tid}); rec.Code != http.StatusOK {
+		t.Fatalf("from template: %d", rec.Code)
+	}
+	// 另一个用户的小应用不受影响。
+	_, tok2 := e.user(t, 0)
+	if rec, _ := e.do(t, http.MethodPost, "/v1/miniapps/from-template", tok2, map[string]any{"template_id": tid}); rec.Code != http.StatusOK {
+		t.Fatalf("other from template: %d", rec.Code)
+	}
+	count := func(q string, args ...any) int {
+		t.Helper()
+		var n int
+		if err := e.st.DB.Get(&n, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return n
+	}
+	if count("SELECT COUNT(*) FROM mini_apps WHERE user_id=?", uid) != 2 ||
+		count("SELECT COUNT(*) FROM mini_app_gens WHERE user_id=?", uid) == 0 {
+		t.Fatalf("setup: apps/gens missing")
+	}
+	if rec, _ := e.do(t, http.MethodDelete, "/v1/me", tok, nil); rec.Code/100 != 2 {
+		t.Fatalf("delete me %d %s", rec.Code, rec.Body.String())
+	}
+	for _, q := range []string{
+		"SELECT COUNT(*) FROM mini_apps WHERE user_id=?",
+		"SELECT COUNT(*) FROM mini_app_gens WHERE user_id=?",
+		"SELECT COUNT(*) FROM mini_app_mounts WHERE user_id=?",
+		"SELECT COUNT(*) FROM mini_app_state WHERE user_id=?",
+		"SELECT COUNT(*) FROM mini_app_runs WHERE user_id=?",
+	} {
+		if n := count(q, uid); n != 0 {
+			t.Fatalf("%s = %d after delete", q, n)
+		}
+	}
+	if n := count("SELECT COUNT(*) FROM mini_app_versions WHERE app_id NOT IN (SELECT id FROM mini_apps)"); n != 0 {
+		t.Fatalf("orphan versions %d", n)
+	}
+	if n := count("SELECT COUNT(*) FROM mini_apps"); n != 1 {
+		t.Fatalf("other user's app should remain, total=%d", n)
+	}
+	if n := count("SELECT COUNT(*) FROM credit_ledger WHERE user_id=?", uid); n == 0 {
+		t.Fatalf("ledger must be kept")
+	}
+}

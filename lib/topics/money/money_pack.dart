@@ -127,9 +127,7 @@ class MoneyPack extends TopicPack {
           ),
       ];
 
-  @override
-  String? settingsNote(BuildContext context) =>
-      kEnableNautilus ? null : '鹦鹉螺预测已下线：螺壳余额保留，暂停赚取与使用。';
+  // 不在「我的」里提已下线的功能（鹦鹉螺 / 螺壳）：用户看不到入口，提了反而像半成品。
 
   /// 启动后立即发起一次 Tushare 轻量请求：触发 iOS 中国大陆首启的
   /// "允许使用 Wi-Fi/蜂窝网络" 系统弹窗，并预热 DNS/TLS。

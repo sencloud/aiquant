@@ -25,7 +25,7 @@ const (
 	demoTaskSchedule   = "daily@18:00"
 	demoTaskCost       = 5
 	welcomeTopic       = "system.welcome"
-	welcomeTitle       = "欢迎使用喜宽"
+	welcomeTitle       = "欢迎使用喜爱"
 )
 
 // Service 把 onboarding 工作打包成一个接口给 auth handler 调用。

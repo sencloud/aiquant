@@ -953,7 +953,7 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
       content: const Text(
         '注销后立即生效、无法恢复：\n'
         '· 清除登录信息（邮箱 / Apple 账号绑定）、昵称和设备信息；\n'
-        '· 删除 AI 对话记录、渔获日记和私人钓点；\n'
+        '· 删除 AI 对话记录、自建小应用、渔获日记和私人钓点；\n'
         '· 剩余喜点作废。\n\n'
         '依据法规，充值订单与喜点流水会匿名保留，不再与你关联。',
         style: TextStyle(fontSize: 14, height: 1.6),

@@ -383,7 +383,7 @@ func (s *Service) UpdatePreferredTopic(ctx context.Context, userID int64, topicI
 //     （释放唯一索引，让该手机号/Apple sub 之后能注册新账号）
 //   - phone_enc 清零、nickname 置 NULL
 //   - 设备、refresh_tokens、ding_tasks 全删（CASCADE 已配置；此处显式 DELETE 兜底）
-//   - AI 对话 / 分享、渔获、私人钓点、识鱼记录全删（用户内容与位置）
+//   - AI 对话 / 分享、渔获、私人钓点、识鱼记录、自建小应用全删（用户内容与位置）
 //   - notifications 不删（用户可能截图作为凭证）但解绑 user 不到该流水
 func (s *Service) SoftDelete(ctx context.Context, userID int64) error {
 	now := time.Now().UnixMilli()
@@ -423,8 +423,16 @@ func (s *Service) SoftDelete(ctx context.Context, userID int64) error {
 			return fmt.Errorf("delete ding tasks: %w", err)
 		}
 		// 用户内容：AI 对话（消息随会话级联删除）与分享、渔获日记（含照片）、
-		// 私人钓点（含精确位置）、识鱼记录。隐私政策承诺注销即删除。
+		// 私人钓点（含精确位置）、识鱼记录、自建小应用（含版本 / 挂载 / 参数 /
+		// 生成与运行记录）。隐私政策承诺注销即删除。小应用表没有级联，按外键
+		// 依赖顺序先删子表再删 mini_apps。喜点流水在 credit_ledger，不受影响。
 		for _, q := range []string{
+			"DELETE FROM mini_app_state WHERE user_id=?1 OR app_id IN (SELECT id FROM mini_apps WHERE user_id=?1)",
+			"DELETE FROM mini_app_mounts WHERE user_id=?1 OR app_id IN (SELECT id FROM mini_apps WHERE user_id=?1)",
+			"DELETE FROM mini_app_versions WHERE app_id IN (SELECT id FROM mini_apps WHERE user_id=?1)",
+			"DELETE FROM mini_app_runs WHERE user_id=?1 OR app_id IN (SELECT id FROM mini_apps WHERE user_id=?1)",
+			"DELETE FROM mini_app_gens WHERE user_id=?1",
+			"DELETE FROM mini_apps WHERE user_id=?1",
 			"DELETE FROM ai_shares WHERE user_id=?",
 			"DELETE FROM ai_chat_sessions WHERE user_id=?",
 			"DELETE FROM fishing_catches WHERE user_id=?",

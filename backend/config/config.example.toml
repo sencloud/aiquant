@@ -88,7 +88,7 @@ access_key_secret = ""
 [email]
 provider = "mock"
 from = "onboarding@resend.dev"
-from_name = "喜宽"
+from_name = "喜爱"
 resend_api_key = ""
 
 [ratelimit]
