@@ -50,12 +50,15 @@ param(
   [string[]]$Units    = @('finme-api','finme-scheduler','finme-pusher'),
   [string]$Remote     = "/server/bin/finme-server",
   # Legal pages (privacy / terms / support) published to /server/legal/.
-  [string]$LegalDir   = (Join-Path (Split-Path $PSScriptRoot -Parent) 'backend\deploy\legal'),
+  # Defaults to <repo>\backend\deploy\legal (resolved below: $PSScriptRoot is
+  # empty inside param() defaults on Windows PowerShell 5.1).
+  [string]$LegalDir   = '',
   [string]$RemoteLegal = "/server/legal",
   [switch]$SkipLegal,
   [switch]$LegalOnly
 )
 if ($SkipLegal -and $LegalOnly) { throw "-SkipLegal and -LegalOnly are mutually exclusive" }
+if (-not $LegalDir) { $LegalDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'backend\deploy\legal' }
 
 $ErrorActionPreference = 'Stop'
 
@@ -102,7 +105,9 @@ function Invoke-Remote([string]$script, [string[]]$auth) {
   $f = New-TemporaryFile
   try {
     [IO.File]::WriteAllText($f.FullName, $script.Replace("`r`n","`n"), (New-Object Text.UTF8Encoding $false))
-    & $plink -ssh -batch -hostkey $Hostkey @auth -m $f.FullName ("{0}@{1}" -f $User, $TargetHost)
+    # Echo remote output to the host only; the function's sole pipeline output
+    # must be the exit code, or callers comparing `$rc -ne 0` see an array.
+    & $plink -ssh -batch -hostkey $Hostkey @auth -m $f.FullName ("{0}@{1}" -f $User, $TargetHost) | ForEach-Object { Write-Host $_ }
     return $LASTEXITCODE
   } finally { Remove-Item $f.FullName -Force -ErrorAction SilentlyContinue }
 }
