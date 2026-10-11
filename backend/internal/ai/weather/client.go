@@ -162,6 +162,7 @@ type Client struct {
 	ttl      time.Duration
 	fcCache  map[string]fcEntry
 	geoCache map[string]geoEntry
+	hrCache  map[string]hrEntry // 逐小时预报（钓鱼出钓指数用），懒初始化
 }
 
 type cacheEntry struct {

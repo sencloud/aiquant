@@ -16,21 +16,26 @@ import (
 
 // 入账原因（reason 字段）— 全部明确枚举，禁止业务层传字符串。
 const (
-	ReasonTopup       = "topup"          // 用户充值
-	ReasonRefund      = "refund"         // Apple 退款 / 客服处理
-	ReasonAdminAdjust = "admin_adjust"   // 后台手动调账
-	ReasonSignupGift  = "signup_gift"    // 注册赠送
-	ReasonCheckin     = "checkin"        // 每日签到奖励
-	ReasonConsumeAI   = "consume_ai"     // AI 助理消费
-	ReasonConsumeDing = "consume_ding"   // DING 任务消费
-	ReasonConsumeLive = "consume_live"   // 直播间消费(创建房间 / 观众发言)
-	ReasonDevTopup    = "dev_topup"      // dev 模式直充（仅 env=dev 启用）
+	ReasonTopup       = "topup"        // 用户充值
+	ReasonRefund      = "refund"       // Apple 退款 / 客服处理
+	ReasonAdminAdjust = "admin_adjust" // 后台手动调账
+	ReasonSignupGift  = "signup_gift"  // 注册赠送
+	ReasonCheckin     = "checkin"      // 每日签到奖励
+	ReasonConsumeAI   = "consume_ai"   // AI 助理消费
+	ReasonConsumeDing = "consume_ding" // DING 任务消费
+	ReasonConsumeLive = "consume_live" // 直播间消费(创建房间 / 观众发言)
+	ReasonDevTopup    = "dev_topup"    // dev 模式直充（仅 env=dev 启用）
 
 	// MVP 付费闭环（证伪档案）。
 	ReasonGrantInvite    = "grant_invite"    // 邀请奖励：邀请人 / 被邀请人各一条（ref_type 区分方向）
 	ReasonConsumeUnlock  = "consume_unlock"  // 解锁一条证伪档案详情
 	ReasonConsumeFalsify = "consume_falsify" // 跑一次证伪
 	ReasonRefundFalsify  = "refund_falsify"  // 跑一次证伪失败退款
+
+	// 喜爱钓鱼（喜点跨主题通用）
+	ReasonFishingChat           = "fishing.chat"            // 钓鱼主题 AI 对话
+	ReasonFishingIdentify       = "fishing.identify"        // 拍照识鱼
+	ReasonFishingIdentifyRefund = "fishing.identify_refund" // 拍照识鱼失败退款
 )
 
 // LedgerEntry 是账本一行（不可变，单向追加）。

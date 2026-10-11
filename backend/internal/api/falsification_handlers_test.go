@@ -30,7 +30,10 @@ type testEnv struct {
 	key    []byte
 }
 
-func newTestEnv(t *testing.T) *testEnv {
+func newTestEnv(t *testing.T) *testEnv { return newTestEnvWith(t, nil) }
+
+// newTestEnvWith 允许测试在建路由前补充依赖（如 Fishing）。
+func newTestEnvWith(t *testing.T, extra func(d *Deps)) *testEnv {
 	t.Helper()
 	key := bytes.Repeat([]byte{7}, 32)
 	b64 := base64.StdEncoding.EncodeToString(key)
@@ -61,6 +64,9 @@ func newTestEnv(t *testing.T) *testEnv {
 		Falsification: falsification.NewService(st, &l, falsification.Options{Prices: falsification.Prices{
 			Unlock: cfg.Credits.UnlockEntry, FalsifyDaily: cfg.Credits.FalsifyDaily, FalsifyMinute: cfg.Credits.FalsifyMinute,
 		}}),
+	}
+	if extra != nil {
+		extra(d)
 	}
 	return &testEnv{router: NewRouter(d), st: st, key: key}
 }

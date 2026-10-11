@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 import '../../core/topic/topic_pack.dart';
@@ -6,7 +7,10 @@ import '../../models/persona.dart';
 import '../../screens/assistant/assistant_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/wk_kit.dart';
+import 'catches_screen.dart';
+import 'fishing_state.dart';
+import 'forecast_screen.dart';
+import 'identify_screen.dart';
 
 /// 喜爱钓鱼 · 给你钓鱼相关的一切。
 ///
@@ -49,14 +53,14 @@ class FishingPack extends TopicPack {
           label: '出钓',
           icon: Icons.wb_twilight_outlined,
           activeIcon: Icons.wb_twilight_rounded,
-          builder: (_) => const _ComingSoon(title: '出钓', text: '出钓指数即将上线'),
+          builder: (_) => const FishingForecastScreen(),
         ),
         TopicTab(
           key: 'catches',
           label: '渔获',
           icon: Icons.set_meal_outlined,
           activeIcon: Icons.set_meal_rounded,
-          builder: (_) => const _ComingSoon(title: '渔获', text: '渔获日记即将上线'),
+          builder: (_) => const CatchesScreen(),
         ),
         TopicTab(
           key: 'me',
@@ -69,25 +73,40 @@ class FishingPack extends TopicPack {
       ];
 
   @override
-  List<SingleChildWidget> providers() => const [];
+  List<SingleChildWidget> providers() => [
+        ChangeNotifierProvider(create: (_) => FishingState()),
+      ];
+
+  @override
+  List<Widget> settingsTools(BuildContext context) => [
+        ProfileIndexRow(
+          key: const Key('settings-identify'),
+          icon: Icons.center_focus_strong_outlined,
+          title: '拍照识鱼',
+          note: '$kIdentifyCredits 喜点 / 次',
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const IdentifyScreen())),
+        ),
+      ];
+
+  @override
+  String? settingsNote(BuildContext context) =>
+      '出钓指数基础版免费；AI 钓友对话 1 喜点 / 轮，拍照识鱼 3 喜点 / 次。喜点在各主题通用。';
+
+  @override
+  void onAuthChanged(
+    BuildContext context, {
+    required bool authed,
+    required bool switchedAccount,
+    required bool loggedOut,
+  }) {
+    final s = context.read<FishingState>();
+    if (!authed || loggedOut || switchedAccount) s.clearJournal();
+    if (authed) s.refreshJournal();
+  }
 
   @override
   Future<List<String>> loadHomeSuggestions() async =>
       Personas.byId(Personas.fishingDefaultId, topic: 'fishing')
           .welcomeSuggestions;
-}
-
-class _ComingSoon extends StatelessWidget {
-  const _ComingSoon({required this.title, required this.text});
-  final String title;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => WkPage(
-        title: title,
-        child: Center(
-          child: Text(text,
-              style: AppType.body.copyWith(color: AppColors.textTertiary)),
-        ),
-      );
 }

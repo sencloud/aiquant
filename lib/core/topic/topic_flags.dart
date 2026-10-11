@@ -7,4 +7,4 @@ library;
 ///
 ///   flutter run --dart-define=ENABLE_TOPIC_FISHING=false
 const bool kEnableTopicFishing =
-    bool.fromEnvironment('ENABLE_TOPIC_FISHING', defaultValue: false);
+    bool.fromEnvironment('ENABLE_TOPIC_FISHING', defaultValue: true);

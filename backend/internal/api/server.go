@@ -20,6 +20,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
 	"github.com/sencloud/finme-backend/internal/falsification"
+	"github.com/sencloud/finme-backend/internal/fishing"
 	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
@@ -57,6 +58,8 @@ type Deps struct {
 	Strategy *strategy.Service
 	// Falsification 证伪档案（公开读取 + 解锁 + 跑一次证伪）。
 	Falsification *falsification.Service
+	// Fishing 喜爱钓鱼：出钓指数、禁渔提示、拍照识鱼、渔获日记 / 私人钓点。
+	Fishing *fishing.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
 }
@@ -119,6 +122,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountAIHomePublic(r, d)
 			// 证伪档案公开：获客内容，免登录（不含 report_url，付费字段按解锁状态下发）。
 			mountFalsificationPublic(r, d)
+			// 喜爱钓鱼公开：出钓指数 / 禁渔提示（无用户数据）。
+			mountFishingPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -133,6 +138,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountStrategy(r, d)
 				mountInvite(r, d)
 				mountFalsificationPrivate(r, d)
+				mountFishingPrivate(r, d)
 			})
 		})
 	})

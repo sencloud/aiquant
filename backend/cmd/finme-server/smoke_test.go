@@ -68,6 +68,9 @@ func TestDataSourcesSmoke(t *testing.T) {
 		// 海外 / 外盘 / 天气（本次新增或改源）
 		{"get_overseas_futures", `{"symbols":["大豆","玉米","小麦","原油","黄金"]}`},
 		{"get_region_weather", `{"keys":["us_corn_belt","india_sugar_up"],"days":3}`},
+		// 喜爱钓鱼
+		{"get_fishing_forecast", `{"place":"千岛湖","days":2}`},
+		{"get_fishing_regulations", `{}`},
 		{"get_quote", `{"symbol":"600519.SH","days":10}`},
 		{"compare_quotes", `{"symbols":["600519.SH","000858.SZ"]}`},
 		{"get_index_components", `{"index_code":"000300.SH"}`},
