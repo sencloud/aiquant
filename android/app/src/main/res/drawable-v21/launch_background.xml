@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 冷启动首帧（Android 11 及以下）：纸色 + 居中品牌标，
-     与 Flutter 开屏页首帧同色同位（splash_mark = assets/branding/splash_mark.png，152dp 含阴影留白）。
+<!-- 冷启动首帧（Android 11 及以下）：无图标，铺满一张竖向五段渐变
+     （splash_gradient = Flutter 开屏 SplashPalette.neutral，tools/gen_splash_gradient.py 生成），
+     与 Flutter 开屏页第一帧一致，随后在 Flutter 里过渡到主题色。
      Android 12+ 由系统 SplashScreen 接管，见 values-v31/styles.xml。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/paper" />
+    <item android:drawable="@color/splash_night" />
     <item>
         <bitmap
-            android:gravity="center"
-            android:src="@drawable/splash_mark" />
+            android:gravity="fill"
+            android:filter="true"
+            android:src="@drawable/splash_gradient" />
     </item>
 </layer-list>
