@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>下载喜爱 · 喜爱什么，就有什么</title>
 <meta name="description" content="下载喜爱 App：喜爱钱（AI 聊行情、做日报）、喜爱钓鱼（AI 钓友、出钓指数、钓点地图）。">
-<meta name="theme-color" content="#0A0A0A">
+<meta name="theme-color" content="#0B0B12">
 <meta property="og:title" content="下载喜爱 · 喜爱什么，就有什么">
 <meta property="og:description" content="好友邀请你加入喜爱，注册后填邀请码双方各得 100 喜点。">
 <meta property="og:type" content="website">
@@ -14,27 +14,30 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230B0B0C'/><path d='M16 5 C16.9 11.1 20.9 15.1 27 16 C20.9 16.9 16.9 20.9 16 27 C15.1 20.9 11.1 16.9 5 16 C11.1 15.1 15.1 11.1 16 5 Z' fill='%23F0A02A'/></svg>">
 <style>
   :root{
-    --bg:#0A0A0A;--surface:#141414;--raised:#1C1C1C;--border:#2A2A2A;
-    --tx:#E5E5E5;--tx2:#9E9E9E;--tx3:#6B6B6B;
-    --amber:#D97706;--amber-dim:#B35B05;--amber-soft:rgba(217,118,6,.12);
+    /* 与 App 开屏 / 官网同一套夜空色组 */
+    --bg:#0B0B12;--surface:rgba(255,255,255,.045);--raised:rgba(255,255,255,.07);--border:rgba(230,223,232,.16);
+    --tx:#F1EDF0;--tx2:#C9C1C8;--tx3:#8E8590;
+    --amber:#F2DCB3;--amber-dim:rgba(242,220,179,.45);--amber-soft:rgba(242,220,179,.08);
+    --serif:"Songti SC","STSong","Noto Serif SC","Noto Serif CJK SC","Source Han Serif SC",serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
-    background:var(--bg);color:var(--tx);line-height:1.6;min-height:100vh;
+    background:linear-gradient(180deg,#0B0B12 0%,#15141F 30%,#242130 58%,#3E3745 82%,#6E6068 100%) fixed;
+    background-color:var(--bg);color:var(--tx);line-height:1.6;min-height:100vh;
     -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;
     padding:32px 22px 40px;
   }
   .glow{position:fixed;inset:0;z-index:-1;pointer-events:none}
-  .glow::before{content:"";position:absolute;top:-160px;left:50%;transform:translateX(-50%);
-    width:680px;height:480px;border-radius:50%;
-    background:radial-gradient(circle,rgba(217,118,6,.22),transparent 62%);filter:blur(30px)}
+  .glow::before{content:"";position:absolute;bottom:-260px;left:50%;transform:translateX(-50%);
+    width:900px;height:520px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(205,180,180,.38),transparent);filter:blur(10px)}
   .wrap{width:100%;max-width:420px;text-align:center}
   .logo{width:72px;height:72px;border-radius:18px;background:var(--surface);
     border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
     margin:0 auto 18px;overflow:hidden;padding:0}
   .logo img{width:100%;height:100%;display:block}
-  h1{font-size:24px;font-weight:800;letter-spacing:.4px}
+  h1{font-family:var(--serif);font-size:28px;font-weight:500;letter-spacing:.2em;padding-left:.2em}
   h1 .amber{color:var(--amber)}
   .sub{color:var(--tx2);font-size:14px;margin-top:8px}
   .invite{margin:26px 0;background:var(--surface);border:1px solid var(--border);
@@ -42,15 +45,15 @@
   .invite .cap{font-size:12px;color:var(--tx3);letter-spacing:.5px}
   .invite .code{font-size:30px;font-weight:900;letter-spacing:4px;color:var(--amber);
     margin:6px 0 4px;font-variant-numeric:tabular-nums}
-  .invite .hint{font-size:12px;color:var(--tx2)}
+  .invite .hint{font-size:12px;color:var(--tx2);text-wrap:balance}
   .copy{margin-top:14px;width:100%;background:var(--amber-soft);color:var(--amber);
     border:1px solid var(--amber-dim);border-radius:12px;padding:10px;font-size:13px;
     font-weight:700;cursor:pointer}
   .copy:active{opacity:.7}
-  .btn{display:block;width:100%;padding:15px;border-radius:14px;font-size:16px;font-weight:800;
+  .btn{display:block;width:100%;padding:15px;border-radius:999px;font-size:16px;font-weight:700;
     margin-top:14px;border:none;cursor:pointer;text-decoration:none}
-  .btn-primary{background:var(--amber);color:#fff}
-  .btn-primary:active{background:var(--amber-dim)}
+  .btn-primary{background:linear-gradient(180deg,#FBF8F4,#E4D9DC);color:#14121A;box-shadow:0 10px 36px rgba(205,180,180,.22)}
+  .btn-primary:active{opacity:.85}
   .android{background:var(--surface);border:1px solid var(--border);border-radius:14px;
     padding:16px;margin-top:14px;font-size:13px;color:var(--tx2);display:none}
   .steps{margin-top:26px;text-align:left;background:var(--surface);border:1px solid var(--border);
@@ -59,9 +62,9 @@
   .steps ol{list-style:none;counter-reset:s}
   .steps li{counter-increment:s;position:relative;padding:6px 0 6px 30px;font-size:13.5px;color:var(--tx)}
   .steps li::before{content:counter(s);position:absolute;left:0;top:6px;width:20px;height:20px;
-    border-radius:50%;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:800;
+    border-radius:50%;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-dim);font-size:11px;font-weight:700;
     display:flex;align-items:center;justify-content:center}
-  .foot{margin-top:26px;font-size:11px;color:var(--tx3);line-height:1.7}
+  .foot{margin-top:26px;font-size:11px;color:var(--tx2);line-height:1.7}
   .foot a{color:var(--tx2)}
 </style>
 </head>
@@ -81,7 +84,7 @@
     <button class="copy" id="copyBtn">复制邀请码</button>
   </div>
 
-  <a class="btn btn-primary" id="iosBtn" href="https://apps.apple.com/cn/app/%E5%96%9C%E5%AE%BD/id6770043388">App Store 下载</a>
+  <a class="btn btn-primary" id="iosBtn" href="https://apps.apple.com/cn/app/id6770043388">App Store 下载</a>
   <div class="android" id="androidBox">
     安卓版即将上线。请用 iPhone 打开本页下载，或先记下邀请码，待安卓上线后填写。
   </div>

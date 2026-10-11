@@ -2,368 +2,452 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>喜宽 · AI 投研助理｜聊行情、管组合、做日报</title>
-<meta name="description" content="喜宽是一款轻量的 AI 投资助手：多位 AI 分析师在「直播间」实时聊盘、K 线随讨论联动，你也能随时提问、管理组合、生成每日日报。仅供学习参考，不构成投资建议。">
-<meta name="theme-color" content="#0A0A0A">
-<meta property="og:title" content="喜宽 · AI 投研助理">
-<meta property="og:description" content="多位 AI 分析师实时聊盘，K 线随讨论联动。聊行情、管组合、做日报。">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>喜爱 · 喜爱什么，就有什么</title>
+<meta name="description" content="喜爱：按你喜爱的事切换主题的 AI App。喜爱钱给你量化，喜爱钓鱼给你钓鱼相关的一切；在「发现」里一句话做出自己的小应用。">
+<meta name="theme-color" content="#0B0B12">
+<meta property="og:title" content="喜爱 · 喜爱什么，就有什么">
+<meta property="og:description" content="喜爱钱给你量化，喜爱钓鱼给你钓鱼相关的一切；一句话做出自己的小应用。">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://singzquant.com">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230B0B0C'/><path d='M16 5 C16.9 11.1 20.9 15.1 27 16 C20.9 16.9 16.9 20.9 16 27 C15.1 20.9 11.1 16.9 5 16 C11.1 15.1 15.1 11.1 16 5 Z' fill='%23F0A02A'/></svg>">
+<meta property="og:image" content="https://www.singzquant.com/og.png">
+<meta property="og:url" content="https://www.singzquant.com/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230B0B12'/><path d='M16 5 C16.9 11.1 20.9 15.1 27 16 C20.9 16.9 16.9 20.9 16 27 C15.1 20.9 11.1 16.9 5 16 C11.1 15.1 15.1 11.1 16 5 Z' fill='%23F2DCB3'/></svg>">
 <style>
   :root{
-    --bg:#0A0A0A; --surface:#141414; --raised:#1C1C1C; --hover:#222;
-    --border:#2A2A2A; --border-med:#3A3A3A;
-    --tx:#E5E5E5; --tx2:#9E9E9E; --tx3:#6B6B6B;
-    --amber:#D97706; --amber-dim:#B35B05; --amber-soft:rgba(217,118,6,.12);
-    --up:#DC2626; --down:#16A34A;
-    --maxw:1100px;
+    /* 与 App 开屏同一套夜空色组：neutral / money / fishing */
+    --n0:#0B0B12;--n1:#15141F;--n2:#242130;--n3:#3E3745;--n4:#6E6068;
+    --m0:#120B06;--m1:#24160C;--m2:#452B16;--m3:#7E5530;--m4:#C99668;
+    --f0:#03141A;--f1:#07262E;--f2:#104550;--f3:#3C7880;--f4:#C7A895;
+    --tx:#F1EDF0;--tx2:#C9C1C8;--tx3:#8E8590;
+    --line:rgba(230,223,232,.16);--line2:rgba(230,223,232,.32);
+    --gold:#F2DCB3;--sea:#CDEBEA;
+    --serif:"Songti SC","STSong","Noto Serif SC","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Noto Sans CJK SC","Microsoft YaHei","Segoe UI",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;
-    background:var(--bg); color:var(--tx); line-height:1.6;
-    -webkit-font-smoothing:antialiased; overflow-x:hidden;
-  }
+  html{scroll-behavior:smooth;background:var(--n0)}
+  body{font-family:var(--sans);color:var(--tx);line-height:1.7;-webkit-font-smoothing:antialiased;
+    background:linear-gradient(180deg,var(--n0) 0,var(--n1) 22%,var(--n0) 60%,var(--n1) 100%)}
   a{color:inherit;text-decoration:none}
-  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
-  .amber{color:var(--amber)}
+  .wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 24px}
 
-  /* glow backdrop */
-  .glow{position:fixed;inset:0;z-index:-1;pointer-events:none}
-  .glow::before{content:"";position:absolute;top:-180px;left:50%;transform:translateX(-50%);
-    width:760px;height:540px;border-radius:50%;
-    background:radial-gradient(circle,rgba(217,118,6,.20),transparent 62%);filter:blur(30px)}
-  .glow::after{content:"";position:absolute;bottom:-220px;right:-120px;width:520px;height:520px;border-radius:50%;
-    background:radial-gradient(circle,rgba(220,38,38,.10),transparent 60%);filter:blur(40px)}
-
-  /* nav */
-  header{position:sticky;top:0;z-index:50;backdrop-filter:saturate(160%) blur(12px);
-    background:rgba(10,10,10,.72);border-bottom:1px solid var(--border)}
-  .nav{display:flex;align-items:center;justify-content:space-between;height:62px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.5px}
-  .brand svg{display:block}
-  .brand img{border-radius:7px;display:block;box-shadow:0 0 0 1px rgba(255,255,255,.10)}
-  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--tx2)}
+  /* 导航 */
+  .nav{position:fixed;top:0;left:0;right:0;z-index:20;transition:background .3s,border-color .3s;
+    border-bottom:1px solid transparent}
+  .nav.solid{background:rgba(11,11,18,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-bottom-color:var(--line)}
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .mark{font-family:var(--serif);font-size:22px;letter-spacing:6px;font-weight:500;
+    background:linear-gradient(180deg,#F7F4F6,#DCD2D8);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .nav-links{display:flex;gap:28px;align-items:center;font-size:14px;color:var(--tx2)}
   .nav-links a:hover{color:var(--tx)}
-  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;font-weight:700;
-    font-size:14px;padding:10px 20px;transition:.18s;border:1px solid transparent;white-space:nowrap}
-  .btn-primary{background:linear-gradient(135deg,var(--amber),var(--amber-dim));color:#1a1206;
-    box-shadow:0 6px 20px rgba(217,118,6,.28)}
-  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(217,118,6,.4)}
-  .btn-ghost{border-color:var(--border-med);color:var(--tx)}
-  .btn-ghost:hover{background:var(--hover);border-color:var(--amber)}
-  @media(max-width:720px){.nav-links{display:none}}
+  .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:999px;
+    padding:7px 16px;color:var(--tx);font-size:13.5px;transition:background .2s,border-color .2s}
+  .pill:hover{background:rgba(255,255,255,.06);border-color:rgba(230,223,232,.5)}
+  @media(max-width:720px){.nav-links a:not(.pill){display:none}}
 
-  /* hero */
-  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;
-    padding:72px 0 64px}
-  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
-    color:var(--amber);background:var(--amber-soft);border:1px solid rgba(217,118,6,.3);
-    padding:6px 13px;border-radius:999px;letter-spacing:.5px}
-  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);
-    box-shadow:0 0 0 4px rgba(217,118,6,.25);animation:pulse 1.8s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  h1{font-size:clamp(32px,5vw,52px);line-height:1.18;font-weight:850;margin:20px 0 18px;letter-spacing:-.5px}
-  .lead{font-size:clamp(15px,1.6vw,17.5px);color:var(--tx2);max-width:520px}
-  .cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
-  .hero-note{margin-top:18px;font-size:12.5px;color:var(--tx3)}
-  @media(max-width:860px){.hero{grid-template-columns:1fr;gap:36px;padding:48px 0}}
+  /* 首屏：夜空 */
+  .hero{position:relative;min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;text-align:center;
+    background:linear-gradient(180deg,var(--n0) 0%,var(--n1) 30%,var(--n2) 58%,var(--n3) 82%,var(--n4) 100%)}
+  .hero::after{content:"";position:absolute;left:50%;bottom:-38vh;width:150vw;height:70vh;transform:translateX(-50%);
+    background:radial-gradient(closest-side,rgba(205,180,180,.42),rgba(205,180,180,.12) 50%,transparent);pointer-events:none}
+  #sky{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hero-in{position:relative;z-index:2;padding:96px 24px 120px}
+  .title{font-family:var(--serif);font-weight:500;font-size:clamp(64px,13vw,124px);line-height:1.1;
+    letter-spacing:.32em;padding-left:.32em;
+    background:linear-gradient(180deg,#F7F4F6,#DCD2D8);-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:rise 1.6s cubic-bezier(.2,.7,.2,1) both}
+  .rule{display:flex;align-items:center;justify-content:center;gap:10px;margin:26px auto 22px;
+    animation:fade 1.4s .5s both}
+  .rule i{display:block;width:72px;height:1px}
+  .rule i:first-child{background:linear-gradient(90deg,transparent,rgba(230,223,232,.7))}
+  .rule i:last-child{background:linear-gradient(90deg,rgba(230,223,232,.7),transparent)}
+  .rule b{width:6px;height:6px;transform:rotate(45deg);background:rgba(230,223,232,.85)}
+  .slogan{font-family:var(--serif);font-size:clamp(17px,2.4vw,22px);letter-spacing:.42em;padding-left:.42em;
+    color:rgba(226,220,226,.9);animation:fade 1.4s .8s both}
+  .lede{max-width:520px;margin:28px auto 0;color:var(--tx2);font-size:15px;text-wrap:balance;animation:fade 1.4s 1.1s both}
+  .cta{margin-top:36px;display:flex;flex-direction:column;align-items:center;gap:12px;animation:fade 1.4s 1.3s both}
+  .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 30px;border-radius:999px;font-size:15.5px;
+    font-weight:600;letter-spacing:.06em;color:#14121A;
+    background:linear-gradient(180deg,#FBF8F4,#E4D9DC);box-shadow:0 10px 40px rgba(205,180,180,.25);
+    transition:transform .2s,box-shadow .2s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 14px 48px rgba(205,180,180,.38)}
+  .btn svg{width:18px;height:18px}
+  .note{font-size:12.5px;color:var(--tx3);letter-spacing:.04em}
+  .scroll{position:absolute;left:50%;bottom:34px;z-index:2;width:120px;height:1px;transform:translateX(-50%);
+    background:rgba(230,223,232,.14);overflow:hidden}
+  .scroll::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(230,223,232,.8),transparent);animation:sweep 2.8s ease-in-out infinite}
+  @keyframes rise{from{opacity:0;transform:translateY(14px);letter-spacing:.5em}to{opacity:1;transform:none}}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes sweep{to{left:100%}}
 
-  /* phone mock */
-  .device{justify-self:center;width:280px;max-width:78vw;aspect-ratio:9/19;
-    background:var(--surface);border:1px solid var(--border-med);border-radius:38px;
-    padding:11px;box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px rgba(217,118,6,.06);
-    position:relative;animation:float 6s ease-in-out infinite}
-  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-  .screen{height:100%;background:var(--bg);border-radius:28px;overflow:hidden;
-    display:flex;flex-direction:column}
-  .scr-top{display:flex;align-items:center;gap:8px;padding:13px 14px 10px;border-bottom:1px solid var(--border)}
-  .live-badge{font-size:9.5px;font-weight:800;color:#fff;background:var(--up);
-    padding:2px 7px;border-radius:5px;letter-spacing:.5px}
-  .scr-top .t{font-size:11.5px;font-weight:700}
-  .scr-top .t span{color:var(--tx3);font-weight:500}
-  .kline{height:96px;margin:10px;border:1px solid var(--border);border-radius:10px;
-    background:linear-gradient(180deg,#101010,#0c0c0c);position:relative;overflow:hidden}
-  .chat{flex:1;padding:4px 11px 12px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
-  .msg{font-size:10.5px;line-height:1.45}
-  .msg .who{font-weight:700;font-size:9.5px;color:var(--amber);display:block;margin-bottom:2px}
-  .msg.you .who{color:#7db0ff}
-  .bub{background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:7px 9px;color:var(--tx2)}
-  .msg.you .bub{background:rgba(40,70,120,.22);border-color:rgba(120,160,220,.3)}
-  .tag-ai{font-size:8px;font-weight:700;color:var(--amber);border:1px solid rgba(217,118,6,.4);
-    border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle}
+  /* 段落标题 */
+  section.block{padding:120px 0 40px}
+  .eyebrow{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;letter-spacing:.4em;
+    color:var(--tx3);padding-left:.4em}
+  .eyebrow::before,.eyebrow::after{content:"";width:36px;height:1px;background:var(--line2)}
+  .h2{font-family:var(--serif);font-weight:500;text-align:center;font-size:clamp(28px,4.2vw,40px);
+    letter-spacing:.12em;margin-top:16px}
+  @media(max-width:560px){.h2{font-size:25px;letter-spacing:.06em}}
+  .sub{text-align:center;color:var(--tx2);max-width:600px;margin:14px auto 0;font-size:15px;text-wrap:balance}
 
-  /* sections */
-  section{padding:64px 0}
-  .sec-head{text-align:center;max-width:640px;margin:0 auto 44px}
-  .sec-head h2{font-size:clamp(24px,3.4vw,34px);font-weight:820;letter-spacing:-.3px}
-  .sec-head p{color:var(--tx2);margin-top:12px;font-size:15px}
+  /* 两个主题 */
+  .themes{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:56px}
+  @media(max-width:860px){.themes{grid-template-columns:1fr}}
+  .theme{position:relative;overflow:hidden;border-radius:28px;padding:44px 38px 38px;min-height:520px;
+    border:1px solid rgba(255,255,255,.08);isolation:isolate}
+  .theme.money{background:linear-gradient(180deg,var(--m0) 0%,var(--m1) 30%,var(--m2) 58%,var(--m3) 82%,var(--m4) 100%)}
+  .theme.fish{background:linear-gradient(180deg,var(--f0) 0%,var(--f1) 30%,var(--f2) 58%,var(--f3) 82%,var(--f4) 100%)}
+  .theme .deco{position:absolute;inset:0;z-index:-1;width:100%;height:100%}
+  .theme h3{font-family:var(--serif);font-weight:500;font-size:40px;letter-spacing:.2em;line-height:1.2}
+  .money h3{background:linear-gradient(180deg,#FFF7E8,#E6C48A);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .fish h3{background:linear-gradient(180deg,#F6FBFA,#C9E3DF);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .theme .tag{margin-top:10px;font-family:var(--serif);font-size:18px;letter-spacing:.3em}
+  .money .tag{color:#EBDCC2}.fish .tag{color:#D8EAE7}
+  .theme ul{list-style:none;margin-top:34px;display:grid;gap:4px}
+  .theme li{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:14px 0;border-top:1px solid rgba(255,255,255,.1)}
+  .theme li:last-child{border-bottom:1px solid rgba(255,255,255,.1)}
+  .theme li svg{width:14px;height:14px;margin-top:5px}
+  .money li svg{fill:#F2DCB3}.fish li svg{fill:#CDEBEA}
+  .theme li b{display:block;font-weight:600;font-size:15.5px;letter-spacing:.04em}
+  .theme li span{display:block;font-size:13.5px;color:rgba(255,255,255,.66);margin-top:2px}
+  .theme .fine{margin-top:22px;font-size:12px;color:rgba(255,255,255,.55)}
 
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-  @media(max-width:860px){.grid{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:560px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-    padding:24px 22px;transition:.2s}
-  .card:hover{border-color:var(--border-med);transform:translateY(-3px);background:var(--raised)}
-  .ic{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-    background:var(--amber-soft);border:1px solid rgba(217,118,6,.25);margin-bottom:15px}
-  .card h3{font-size:16.5px;font-weight:750;margin-bottom:7px}
-  .card p{font-size:13.5px;color:var(--tx2)}
+  /* 小应用 */
+  .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:52px}
+  @media(max-width:900px){.apps{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.apps{grid-template-columns:1fr}}
+  .app{position:relative;border:1px solid var(--line);border-radius:20px;padding:22px 22px 20px;
+    background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));transition:border-color .25s,transform .25s}
+  .app:hover{border-color:var(--line2);transform:translateY(-2px)}
+  .app .k{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;letter-spacing:.18em;color:var(--tx3)}
+  .app .k i{width:6px;height:6px;border-radius:50%}
+  .app.m .k i{background:#E6C48A}.app.f .k i{background:#9FD3CF}
+  .app h4{font-size:16.5px;font-weight:600;margin-top:12px;letter-spacing:.03em}
+  .app p{font-size:13.5px;color:var(--tx2);margin-top:6px}
+  .ask{margin:44px auto 0;max-width:640px;border:1px solid var(--line2);border-radius:999px;
+    padding:14px 14px 14px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+    background:rgba(255,255,255,.03);color:var(--tx2);font-size:14.5px}
+  .ask em{font-style:normal;color:var(--tx)}
+  .ask .go{flex:none;font-size:13px;color:#14121A;background:linear-gradient(180deg,#FBF8F4,#E4D9DC);
+    border-radius:999px;padding:8px 16px;font-weight:600}
+  .apps-note{text-align:center;font-size:12.5px;color:var(--tx3);margin-top:16px}
 
-  /* highlight (live) */
-  .hl{background:linear-gradient(135deg,#171210,#121212);border:1px solid var(--border);
-    border-radius:22px;padding:clamp(28px,4vw,48px);display:grid;grid-template-columns:1fr 1fr;
-    gap:40px;align-items:center}
-  @media(max-width:820px){.hl{grid-template-columns:1fr;gap:26px}}
-  .hl h2{font-size:clamp(23px,3.2vw,32px);font-weight:820;margin:14px 0}
-  .feat-list{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:6px}
-  .feat-list li{display:flex;gap:12px;font-size:14.5px;color:var(--tx)}
-  .feat-list .chk{flex:none;width:22px;height:22px;border-radius:7px;background:var(--amber-soft);
-    border:1px solid rgba(217,118,6,.35);display:flex;align-items:center;justify-content:center;margin-top:1px}
-  .feat-list b{font-weight:750}
-  .feat-list span{color:var(--tx2)}
+  /* 安心 */
+  .trust{display:grid;grid-template-columns:repeat(3,1fr);margin-top:56px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  @media(max-width:760px){.trust{grid-template-columns:1fr}}
+  .trust div{padding:30px 26px}
+  .trust div+div{border-left:1px solid var(--line)}
+  @media(max-width:760px){.trust div+div{border-left:none;border-top:1px solid var(--line)}}
+  .trust b{display:block;font-family:var(--serif);font-weight:500;font-size:19px;letter-spacing:.1em}
+  .trust span{display:block;margin-top:8px;color:var(--tx2);font-size:13.5px}
 
-  /* disclaimer band */
-  .band{border-top:1px solid var(--border);border-bottom:1px solid var(--border);
-    background:var(--surface)}
-  .band .wrap{padding:26px 22px;display:flex;gap:14px;align-items:flex-start;font-size:13.5px;color:var(--tx2)}
-  .band .ic-w{flex:none;color:var(--amber);margin-top:1px}
+  /* 下载 */
+  .final{position:relative;margin-top:120px;padding:120px 24px 130px;text-align:center;overflow:hidden;
+    background:linear-gradient(180deg,var(--n0) 0%,var(--n1) 30%,var(--n2) 58%,var(--n3) 100%)}
+  .final::after{content:"";position:absolute;left:50%;bottom:-260px;width:1100px;height:480px;transform:translateX(-50%);
+    background:radial-gradient(closest-side,rgba(205,180,180,.32),transparent);pointer-events:none}
+  .final .deco{position:absolute;inset:0;width:100%;height:100%}
+  .final .in{position:relative;z-index:1}
+  .final .big{font-family:var(--serif);font-weight:500;font-size:clamp(30px,5vw,48px);letter-spacing:.3em;padding-left:.3em;
+    background:linear-gradient(180deg,#F7F4F6,#DCD2D8);-webkit-background-clip:text;background-clip:text;color:transparent}
+  @media(max-width:560px){.final .big{font-size:clamp(22px,7.4vw,30px);letter-spacing:.16em;padding-left:.16em;white-space:nowrap}}
+  .final .cta{animation:none}
+  .final .mail{margin-top:26px;font-size:13px;color:var(--tx3);text-wrap:balance}
+  .final .mail a{color:var(--tx2);border-bottom:1px solid var(--line2)}
 
-  /* faq */
-  .faq{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-  details{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:4px 18px}
-  details[open]{border-color:var(--border-med)}
-  summary{cursor:pointer;list-style:none;padding:15px 0;font-weight:650;font-size:15px;
-    display:flex;justify-content:space-between;align-items:center}
-  summary::-webkit-details-marker{display:none}
-  summary .pm{color:var(--amber);font-size:20px;font-weight:400;transition:.2s}
-  details[open] summary .pm{transform:rotate(45deg)}
-  details p{padding:0 0 16px;color:var(--tx2);font-size:13.5px}
+  footer{border-top:1px solid var(--line);padding:36px 0 40px;color:var(--tx3);font-size:13px;background:var(--n0)}
+  footer .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  footer .links{display:flex;gap:22px;flex-wrap:wrap}
+  footer a:hover{color:var(--tx)}
+  footer .mark{font-size:18px}
+  footer .bottom{margin-top:18px;padding-top:18px;border-top:1px solid rgba(230,223,232,.08);font-size:12px}
 
-  /* final cta */
-  .final{text-align:center;padding:72px 0}
-  .final h2{font-size:clamp(26px,4vw,40px);font-weight:840}
-  .final p{color:var(--tx2);margin:14px auto 28px;max-width:480px}
-
-  /* footer */
-  footer{border-top:1px solid var(--border);padding:44px 0 30px;color:var(--tx3);font-size:13px}
-  .foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:26px}
-  .foot-links{display:flex;gap:24px;flex-wrap:wrap}
-  .foot-links a{color:var(--tx2)}
-  .foot-links a:hover{color:var(--amber)}
-  .foot-bottom{border-top:1px solid var(--border);padding-top:18px;display:flex;
-    justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12px}
-  .foot-bottom a:hover{color:var(--tx2)}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
-<div class="glow"></div>
 
-<header>
-  <div class="wrap nav">
-    <a class="brand" href="#top">
-      <img src="/app-icon.svg" width="26" height="26" alt="喜宽">
-      喜宽
-    </a>
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="喜爱">喜爱</a>
     <nav class="nav-links">
-      <a href="#features">功能</a>
-      <a href="#live">AI 直播间</a>
-      <a href="#faq">常见问题</a>
-      <a href="https://api.singzquant.com/legal/support.html">支持</a>
+      <a href="#themes">主题</a>
+      <a href="#apps">小应用</a>
+      <a href="https://api.singzquant.com/legal/support.html">帮助</a>
+      <a class="pill" href="https://apps.apple.com/cn/app/id6770043388">App Store 下载</a>
     </nav>
-    <a class="btn btn-primary" href="https://apps.apple.com/cn/app/%E5%96%9C%E5%AE%BD/id6770043388">App Store 下载</a>
   </div>
 </header>
 
-<a id="top"></a>
-<main class="wrap">
-
-  <!-- HERO -->
+<main id="top">
   <section class="hero">
-    <div>
-      <span class="eyebrow"><span class="dot"></span>AI 投研助理</span>
-      <h1>聊行情、管组合、做日报，<br>看盘从此更<span class="amber">轻松</span></h1>
-      <p class="lead">喜宽是一款轻量的 AI 投资助手。多位 AI 分析师在「直播间」实时聊盘，K 线随讨论联动；你也能随时提问、管理组合、生成每日盘面复盘。</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="https://apps.apple.com/cn/app/%E5%96%9C%E5%AE%BD/id6770043388">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 1.6c.1 1-.3 2-1 2.8-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.7.8-.8 2-1.4 2.8-1.4ZM19 8.3c-1.2.1-2 .9-2.6.9-.6 0-1.6-.8-2.7-.8-1.4 0-2.7.8-3.4 2-1.5 2.5-.4 6.2 1 8.3.7 1 1.5 2.2 2.6 2.1 1-.04 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.6 1.1-.02 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4-.02-.01-2.1-.8-2.1-3.2 0-2 1.6-2.9 1.7-3-.9-1.4-2.4-1.6-2.9-1.7Z"/></svg>
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <div class="hero-in">
+      <h1 class="title">喜爱</h1>
+      <div class="rule" aria-hidden="true"><i></i><b></b><i></i></div>
+      <p class="slogan">喜爱什么，就有什么</p>
+      <p class="lede">一个 App，按你喜爱的事切换主题。AI 陪你聊，工具随你建。</p>
+      <div class="cta">
+        <a class="btn" href="https://apps.apple.com/cn/app/id6770043388">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.17-1.53 2.65-.39 6.58 1.1 8.73.73 1.05 1.6 2.23 2.73 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.49zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.68-.92 2.67.97.08 1.96-.49 2.56-1.22z"/></svg>
           App Store 下载
         </a>
-        <a class="btn btn-ghost" href="#features">了解功能</a>
+        <span class="note">安卓版即将上线</span>
       </div>
-      <p class="hero-note">仅支持 iOS · 使用 Apple 账号登录 · 内容仅供学习参考，不构成投资建议</p>
     </div>
+    <div class="scroll" aria-hidden="true"></div>
+  </section>
 
-    <!-- phone mock -->
-    <div class="device" aria-hidden="true">
-      <div class="screen">
-        <div class="scr-top">
-          <span class="live-badge">LIVE</span>
-          <div class="t">早盘开盘观察 · <span>晓宽 主持</span></div>
-        </div>
-        <div class="kline">
-          <svg width="100%" height="100%" viewBox="0 0 240 96" preserveAspectRatio="none">
-            <polyline points="0,70 30,60 60,66 90,48 120,52 150,36 180,42 210,26 240,32"
-              fill="none" stroke="#D97706" stroke-width="1.5" opacity=".85"/>
-            <g>
-              <rect x="26" y="52" width="6" height="20" fill="#16A34A"/><line x1="29" y1="46" x2="29" y2="74" stroke="#16A34A"/>
-              <rect x="86" y="40" width="6" height="16" fill="#DC2626"/><line x1="89" y1="34" x2="89" y2="60" stroke="#DC2626"/>
-              <rect x="146" y="30" width="6" height="14" fill="#DC2626"/><line x1="149" y1="24" x2="149" y2="48" stroke="#DC2626"/>
-              <rect x="206" y="22" width="6" height="13" fill="#DC2626"/><line x1="209" y1="16" x2="209" y2="40" stroke="#DC2626"/>
+  <section class="block" id="themes">
+    <div class="wrap">
+      <div class="eyebrow">两个主题</div>
+      <h2 class="h2">喜爱的事，各有一片天</h2>
+      <p class="sub">首次打开选一个主题，之后随时在「我的 → 切换主题」里换。界面、对话和工具都跟着主题变。</p>
+
+      <div class="themes">
+        <article class="theme money">
+          <svg class="deco" viewBox="0 0 520 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <g fill="none" stroke="#F2DCB3" stroke-width=".7">
+              <ellipse cx="380" cy="120" rx="210" ry="66" transform="rotate(-8 380 120)" opacity=".22"/>
+              <ellipse cx="380" cy="120" rx="300" ry="98" transform="rotate(-8 380 120)" opacity=".12"/>
+              <path d="M0 470 C70 456 110 486 170 468 S280 430 330 452 S440 478 520 446" opacity=".22"/>
+              <path d="M0 492 C70 478 110 510 170 492 S280 452 330 476 S440 504 520 470" opacity=".15"/>
+              <path d="M0 516 C70 502 110 536 170 518 S280 476 330 502 S440 530 520 496" opacity=".09"/>
             </g>
-            <line x1="0" y1="36" x2="240" y2="36" stroke="#3A3A3A" stroke-dasharray="3 4" opacity=".7"/>
-            <text x="4" y="33" fill="#D97706" font-size="8">压力 32.1</text>
+            <g fill="#FFF1D8">
+              <circle cx="300" cy="58" r="1.1" opacity=".8"/><circle cx="452" cy="196" r=".9" opacity=".6"/>
+              <circle cx="410" cy="36" r=".7" opacity=".7"/><circle cx="488" cy="88" r="1.2" opacity=".5"/>
+              <circle cx="246" cy="132" r=".8" opacity=".5"/>
+              <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(456 64) scale(9)" opacity=".9"/>
+              <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(356 168) scale(5)" opacity=".7"/>
+            </g>
           </svg>
-        </div>
-        <div class="chat">
-          <div class="msg">
-            <span class="who">晓宽 主持<span class="tag-ai">AI 虚拟角色</span></span>
-            <div class="bub">这只票放量突破前高，老周你怎么看上方空间？</div>
-          </div>
-          <div class="msg">
-            <span class="who">价值老周<span class="tag-ai">AI 虚拟角色</span></span>
-            <div class="bub">量能配合，看 32.1 压力位，站稳可看一波。</div>
-          </div>
-          <div class="msg you">
-            <span class="who">我</span>
-            <div class="bub">那如果回踩不破支撑呢？</div>
-          </div>
-        </div>
+          <h3>喜爱钱</h3>
+          <p class="tag">给你量化</p>
+          <ul>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>AI 对话</b><span>行情数据、量化思路、指标含义，随问随答</span></div></li>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>定时提醒</b><span>定好时间，让 AI 按点整理早报、做复盘</span></div></li>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>量化小工具</b><span>定投计算、品种价差监控……自己的数据看板自己搭</span></div></li>
+          </ul>
+          <p class="fine">内容仅供学习研究参考，不构成投资建议。</p>
+        </article>
+
+        <article class="theme fish">
+          <svg class="deco" viewBox="0 0 520 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <g fill="none" stroke="#CDEBEA" stroke-width=".7">
+              <ellipse cx="380" cy="120" rx="210" ry="66" transform="rotate(-8 380 120)" opacity=".2"/>
+              <ellipse cx="380" cy="120" rx="300" ry="98" transform="rotate(-8 380 120)" opacity=".1"/>
+              <path d="M0 446 C60 438 120 458 180 448 S300 430 360 442 S460 456 520 440" opacity=".24"/>
+              <path d="M0 470 C60 460 120 484 180 472 S300 450 360 466 S460 482 520 462" opacity=".17"/>
+              <path d="M0 496 C60 484 120 512 180 498 S300 472 360 492 S460 510 520 486" opacity=".11"/>
+              <path d="M0 524 C60 510 120 542 180 526 S300 496 360 520 S460 540 520 512" opacity=".07"/>
+            </g>
+            <g fill="#F0FAFF">
+              <circle cx="300" cy="58" r="1.1" opacity=".8"/><circle cx="452" cy="196" r=".9" opacity=".6"/>
+              <circle cx="410" cy="36" r=".7" opacity=".7"/><circle cx="488" cy="88" r="1.2" opacity=".5"/>
+              <circle cx="246" cy="132" r=".8" opacity=".5"/>
+              <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(456 64) scale(9)" opacity=".9"/>
+              <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(356 168) scale(5)" opacity=".7"/>
+            </g>
+          </svg>
+          <h3>喜爱钓鱼</h3>
+          <p class="tag">给你钓鱼相关的一切</p>
+          <ul>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>AI 钓友</b><span>饵料、钓法、鱼情，像问老钓友一样问</span></div></li>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>出钓指数</b><span>结合当地天气，看今天哪个时段适合出钓</span></div></li>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>钓点地图</b><span>在地图上标记私人钓点，只有你自己看得见</span></div></li>
+            <li><svg viewBox="-1 -1 2 2"><path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z"/></svg>
+              <div><b>渔获日记</b><span>记下每一次出钓：时间、鱼种、重量、照片</span></div></li>
+          </ul>
+          <p class="fine">出钓指数与钓点地图免费使用。</p>
+        </article>
       </div>
+    </div>
+  </section>
+
+  <section class="block" id="apps">
+    <div class="wrap">
+      <div class="eyebrow">发现 · 小应用</div>
+      <h2 class="h2">说一句话，做一个小应用</h2>
+      <p class="sub">在「发现」里描述你想要的工具，AI 帮你做出来，放到发现页随手打开；也可以从现成的模板开始。</p>
+
+      <div class="ask" aria-hidden="true">
+        <span>「<em>帮我做一个每月定投计算器，按年化估算期末金额</em>」</span>
+        <span class="go">做一个</span>
+      </div>
+
+      <div class="apps">
+        <div class="app m"><span class="k"><i></i>喜爱钱</span><h4>ETF 定投计算器</h4><p>每月定投多少、坚持几年，按假设年化估算期末金额</p></div>
+        <div class="app m"><span class="k"><i></i>喜爱钱</span><h4>品种价差监控</h4><p>两个期货主力合约的价差、60 日均值与偏离</p></div>
+        <div class="app m"><span class="k"><i></i>喜爱钱</span><h4>棕榈油早报</h4><p>主力合约行情、产区三日天气与要闻，一屏看完</p></div>
+        <div class="app f"><span class="k"><i></i>喜爱钓鱼</span><h4>饵料配比计算器</h4><p>按总量和比例，算出主饵、状态粉、添加剂和水各放多少</p></div>
+        <div class="app f"><span class="k"><i></i>喜爱钓鱼</span><h4>常去水库对比</h4><p>几个常去水库未来 3 天的出钓指数并排看</p></div>
+        <div class="app f"><span class="k"><i></i>喜爱钓鱼</span><h4>本月渔获统计</h4><p>这个月出钓几次、钓了多少、哪种鱼最多</p></div>
+      </div>
+      <p class="apps-note">新建或修改小应用消耗喜点；没做出来，全额退回。</p>
+
+      <div class="trust">
+        <div><b>位置，只在你点的时候</b><span>只有你点了「用我的位置」才定位，约 1 公里精度，不在后台定位、不存行踪。</span></div>
+        <div><b>喜点，各主题通用</b><span>对话、小应用共用一个喜点余额；邀请好友双方各得 100 喜点。</span></div>
+        <div><b>账号，说删就删</b><span>注销账号会一并删除你的对话、小应用、渔获日记和私人钓点。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final" id="download">
+    <svg class="deco" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="#E6DFE8" stroke-width=".7">
+        <ellipse cx="600" cy="230" rx="380" ry="118" transform="rotate(-6 600 230)" opacity=".16"/>
+        <ellipse cx="600" cy="230" rx="560" ry="180" transform="rotate(-6 600 230)" opacity=".08"/>
+        <path d="M0 440 C150 424 300 456 450 440 S750 410 900 430 S1100 452 1200 428" opacity=".16"/>
+        <path d="M0 466 C150 450 300 484 450 466 S750 434 900 458 S1100 480 1200 452" opacity=".1"/>
+      </g>
+      <g fill="#fff">
+        <circle cx="180" cy="80" r="1.1" opacity=".7"/><circle cx="1010" cy="110" r="1" opacity=".6"/>
+        <circle cx="860" cy="50" r=".8" opacity=".7"/><circle cx="320" cy="160" r=".7" opacity=".5"/>
+        <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(930 150) scale(10)" opacity=".85"/>
+        <path d="M0,-1 C.14,-.26 .26,-.14 1,0 C.26,.14 .14,.26 0,1 C-.14,.26 -.26,.14 -1,0 C-.26,-.14 -.14,-.26 0,-1Z" transform="translate(250 110) scale(6)" opacity=".6"/>
+      </g>
+    </svg>
+    <div class="in">
+      <p class="big">喜爱什么，就有什么</p>
+      <div class="cta">
+        <a class="btn" href="https://apps.apple.com/cn/app/id6770043388">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.17-1.53 2.65-.39 6.58 1.1 8.73.73 1.05 1.6 2.23 2.73 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.49zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.68-.92 2.67.97.08 1.96-.49 2.56-1.22z"/></svg>
+          App Store 下载喜爱
+        </a>
+        <span class="note">安卓版即将上线</span>
+      </div>
+      <p class="mail">有问题或建议？写信给 <a href="mailto:plan9@qq.com">plan9@qq.com</a>，1~2 个工作日内回复。</p>
     </div>
   </section>
 </main>
 
-<!-- FEATURES -->
-<section id="features">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>一个 App，覆盖看盘全流程</h2>
-      <p>从实时行情到 AI 分析，从组合管理到每日复盘，喜宽把投研工作流装进口袋。</p>
-    </div>
-    <div class="grid">
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
-        <h3>AI 直播间</h3>
-        <p>主持人 + 多位嘉宾实时聊盘，价位标注与 K 线实时共振，像看一场专业路演。</p>
-      </div>
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-        <h3>AI 对话助手</h3>
-        <p>用自然语言问行情、查财报、做分析，AI 调用真实数据工具，给出有据可循的回答。</p>
-      </div>
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg></div>
-        <h3>组合管理</h3>
-        <p>截图导入券商持仓，自动识别成本与数量，盈亏与仓位结构一目了然。</p>
-      </div>
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M12 2v6m0 0 3-3m-3 3L9 5"/><rect x="4" y="9" width="16" height="12" rx="2"/></svg></div>
-        <h3>每日日报（DING）</h3>
-        <p>设定你关心的标的与组合，定时自动生成盘面/复盘日报，收盘后推送到手机。</p>
-      </div>
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>实时行情</h3>
-        <p>A股 / ETF / 指数 / 期货 / 期权实时快照，主图 K 线 + 技术指标一站查看。</p>
-      </div>
-      <div class="card">
-        <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5h5M9.5 12h5M11 7.5l1 9"/></svg></div>
-        <h3>喜点体系</h3>
-        <p>注册即赠喜点，每日签到再领，按需消耗 AI 算力——用多少花多少，清清楚楚。</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- LIVE HIGHLIGHT -->
-<section id="live">
-  <div class="wrap">
-    <div class="hl">
-      <div>
-        <span class="eyebrow"><span class="dot"></span>全新升级</span>
-        <h2>AI 直播间，<span class="amber">社交化</span>了</h2>
-        <p class="lead">不再只是旁观。开一间属于你的直播间，邀请 AI 分析师一起聊你关心的票。</p>
-      </div>
-      <ul class="feat-list">
-        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>自建直播间</b>：随时创建，公开或仅自己可见，随心选。</span></li>
-        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>开口提问</b>：在自己房间发言，AI 主持人会优先回应你的问题。</span></li>
-        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>K 线随讨论联动</b>：主图可折叠，多只标的一键切换，也能跟随当前焦点。</span></li>
-        <li><span class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span><span><b>透明可信</b>：每个 AI 角色均标注「AI 虚拟角色」，内容仅供参考。</span></li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- DISCLAIMER -->
-<div class="band">
-  <div class="wrap">
-    <span class="ic-w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
-    <p>风险提示：喜宽内的行情与财务数据来自第三方数据服务，AI 分析与直播内容均由大模型生成，<b style="color:var(--tx)">仅供学习与参考，不构成任何投资建议</b>。市场有风险，投资需谨慎，请独立判断并自行承担投资决策的风险与后果。</p>
-  </div>
-</div>
-
-<!-- FAQ -->
-<section id="faq">
-  <div class="wrap">
-    <div class="sec-head"><h2>常见问题</h2></div>
-    <div class="faq">
-      <details open>
-        <summary>如何登录？<span class="pm">+</span></summary>
-        <p>喜宽通过「使用 Apple 账号登录（Sign in with Apple）」完成登录，无需手机号或密码。首次登录会自动为你生成一个昵称（使用 Apple 登录时优先采用你的 Apple 姓名），可随时在「我的」页修改。</p>
-      </details>
-      <details>
-        <summary>什么是「喜点」？<span class="pm">+</span></summary>
-        <p>喜点是 App 内的虚拟代币，用于支付 AI 对话与深度分析所消耗的算力。新用户注册即获赠喜点，也可通过每日签到获取，或在 App 内购买充值。喜点为虚拟商品，购买后不支持转让。</p>
-      </details>
-      <details>
-        <summary>在哪里下载？<span class="pm">+</span></summary>
-        <p>喜宽是一款 iOS 应用，请在 App Store 搜索「喜宽」下载安装。</p>
-      </details>
-      <details>
-        <summary>如何联系我们？<span class="pm">+</span></summary>
-        <p>客服邮箱：<a class="amber" href="mailto:plan9@qq.com">plan9@qq.com</a>，我们会在 1~2 个工作日内回复。更多帮助见 <a class="amber" href="https://api.singzquant.com/legal/support.html">支持与帮助</a> 页面。</p>
-      </details>
-    </div>
-  </div>
-</section>
-
-<!-- FINAL CTA -->
-<section class="final">
-  <div class="wrap">
-    <h2>把 AI 投研助理装进口袋</h2>
-    <p>聊行情、管组合、做日报——现在就开始。</p>
-    <a class="btn btn-primary" href="https://apps.apple.com/cn/app/%E5%96%9C%E5%AE%BD/id6770043388" style="padding:14px 30px;font-size:15px">App Store 下载喜宽</a>
-  </div>
-</section>
-
-<!-- FOOTER -->
 <footer>
   <div class="wrap">
-    <div class="foot-top">
-      <div>
-        <div class="brand" style="font-size:17px;margin-bottom:8px">
-          <img src="/app-icon.svg" width="22" height="22" alt="喜宽" style="width:22px;height:22px;border-radius:6px">
-          喜宽
-        </div>
-        <div style="color:var(--tx3);max-width:280px">轻量的 AI 投资助手 · 聊行情、管组合、做日报</div>
-      </div>
-      <div class="foot-links">
+    <div class="row">
+      <span class="mark">喜爱</span>
+      <nav class="links">
         <a href="https://api.singzquant.com/legal/privacy.html">隐私政策</a>
         <a href="https://api.singzquant.com/legal/terms.html">用户协议</a>
         <a href="https://api.singzquant.com/legal/support.html">支持与帮助</a>
         <a href="mailto:plan9@qq.com">联系我们</a>
-      </div>
+      </nav>
     </div>
-    <div class="foot-bottom">
-      <span>© 2026 喜宽（com.aiquant.app）· 内容仅供学习参考，不构成投资建议</span>
+    <div class="row bottom">
+      <span>© 2026 喜爱 · AI 生成内容仅供参考</span>
       <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">苏ICP备2025174962号</a>
     </div>
   </div>
 </footer>
 
+<script>
+(function(){
+  // 导航：滚出首屏后加底色。
+  var nav = document.getElementById('nav');
+  var onScroll = function(){ nav.classList.toggle('solid', window.scrollY > 40); };
+  window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+  // 首屏夜空：星点、轨道细线、湖面 / 行情起伏线（与 App 开屏同一套画法）。
+  var cv = document.getElementById('sky'); if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var seed = 20261011, rnd = function(){ seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  var stars = [];
+  while (stars.length < 90) {
+    var x = rnd(), y = Math.pow(rnd(), 1.55) * 0.78;
+    if (Math.abs(y - 0.44) < 0.12 && Math.abs(x - 0.5) < 0.26) continue;
+    stars.push({x:x, y:y, r:0.35 + Math.pow(rnd(), 2.2) * 1.0, a:0.3 + rnd() * 0.6, p:2.2 + rnd() * 3.2, ph:rnd() * 6.283});
+  }
+  var sparkles = [[0.17,0.16,7,0],[0.83,0.11,5,1.7],[0.72,0.30,9,3.1],[0.26,0.33,4.2,4.4],[0.9,0.56,5.5,2.3]];
+  var W = 0, H = 0, dpr = 1, keep = null;
+  // 题字 / 口号 / 按钮周围留白：星点不压字（窄屏上题字位置会变，按实际排版算）。
+  function clear(x, y){
+    return !keep || x < keep.l || x > keep.r || y < keep.t || y > keep.b;
+  }
+  function size(){
+    var box = document.querySelector('.hero-in .title'), cta = document.querySelector('.hero-in .cta');
+    var cr = cv.getBoundingClientRect();
+    if (box && cta) {
+      var a = box.getBoundingClientRect(), c = cta.getBoundingClientRect();
+      keep = {l:Math.min(a.left, c.left) - cr.left - 28, r:Math.max(a.right, c.right) - cr.left + 28,
+              t:a.top - cr.top - 24, b:c.bottom - cr.top + 12};
+    }
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function sparkle(x, y, s, a){
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.beginPath();
+    ctx.moveTo(0,-1); ctx.bezierCurveTo(.14,-.26,.26,-.14,1,0); ctx.bezierCurveTo(.26,.14,.14,.26,0,1);
+    ctx.bezierCurveTo(-.14,.26,-.26,.14,-1,0); ctx.bezierCurveTo(-.26,-.14,-.14,-.26,0,-1);
+    ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fill(); ctx.restore();
+  }
+  function frame(ms){
+    var t = still ? 0 : ms / 1000;
+    ctx.clearRect(0, 0, W, H);
+    // 轨道
+    var cx = W * 0.5, cy = H * 0.44, base = Math.min(W, 1400);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.14);
+    [[0.42,0.30,0.22],[0.62,0.32,0.13],[0.86,0.34,0.07]].forEach(function(o, i){
+      var rx = base * o[0], ry = rx * o[1];
+      var g = ctx.createLinearGradient(-rx, 0, rx, 0);
+      g.addColorStop(0, 'rgba(230,223,232,' + o[2] * 0.15 + ')');
+      g.addColorStop(0.5, 'rgba(230,223,232,' + o[2] + ')');
+      g.addColorStop(1, 'rgba(230,223,232,' + o[2] * 0.15 + ')');
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = g; ctx.lineWidth = 0.7; ctx.stroke();
+      if (i === 0) {
+        var a = 3.6 + t * 0.19;
+        var px = rx * Math.cos(a), py = ry * Math.sin(a);
+        var rg = ctx.createRadialGradient(px, py, 0, px, py, 8);
+        rg.addColorStop(0, 'rgba(255,255,255,.45)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(px, py, 8, 0, 6.283); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(px, py, 1.3, 0, 6.283); ctx.fill();
+      }
+    });
+    ctx.restore();
+    // 起伏线
+    for (var i = 0; i < 4; i++) {
+      var by = H * (0.80 + i * 0.036), amp = 4 + i * 1.4, ph = t * 0.35;
+      var lg = ctx.createLinearGradient(0, 0, W, 0), al = 0.20 - i * 0.035;
+      lg.addColorStop(0, 'rgba(230,223,232,0)'); lg.addColorStop(0.28, 'rgba(230,223,232,' + al + ')');
+      lg.addColorStop(0.72, 'rgba(230,223,232,' + al + ')'); lg.addColorStop(1, 'rgba(230,223,232,0)');
+      ctx.beginPath();
+      for (var s = 0; s <= 80; s++) {
+        var x2 = W * s / 80, u = s / 80 * 6.283;
+        var y2 = by + amp * Math.sin(u * 0.9 + ph + i * 0.35) + amp * 0.35 * Math.sin(u * 2.1 - ph * 0.6);
+        s ? ctx.lineTo(x2, y2) : ctx.moveTo(x2, y2);
+      }
+      ctx.strokeStyle = lg; ctx.lineWidth = 0.6; ctx.stroke();
+    }
+    // 星
+    stars.forEach(function(s){
+      if (!clear(s.x * W, s.y * H)) return;
+      var tw = still ? 0.8 : 0.55 + 0.45 * Math.sin(t * 6.283 / s.p + s.ph);
+      ctx.fillStyle = 'rgba(255,255,255,' + (s.a * tw) + ')';
+      ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, 6.283); ctx.fill();
+    });
+    sparkles.forEach(function(k){
+      if (!clear(k[0] * W, k[1] * H)) return;
+      var tw = still ? 0.85 : 0.5 + 0.5 * Math.sin(t * 6.283 / 3.6 + k[3]);
+      sparkle(k[0] * W, k[1] * H, k[2] * (0.8 + 0.2 * tw), 0.55 + 0.4 * tw);
+    });
+    if (!still) requestAnimationFrame(frame);
+  }
+  size(); window.addEventListener('resize', function(){ size(); if (still) frame(0); });
+  still ? frame(0) : requestAnimationFrame(frame);
+})();
+</script>
 </body>
 </html>
