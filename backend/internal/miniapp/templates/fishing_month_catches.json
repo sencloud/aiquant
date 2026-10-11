@@ -1,0 +1,41 @@
+{
+  "id": "fishing.month_catches",
+  "order": 3,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "fishing",
+    "meta": {"title": "本月渔获统计", "icon": "set_meal", "card_size": "medium",
+             "summary": "这个月出钓几次、钓了多少、哪种鱼最多"},
+    "data": {
+      "c": {"source": "fishing.catches", "params": {"limit": 100}},
+      "s": {"source": "fishing.catch_stats"}
+    },
+    "computed": {
+      "month": "filter(data.c.items, item.caught_at >= month_start())",
+      "trips": "len(month)",
+      "fish": "sum(month, 'count')",
+      "kg": "round(sum(month, 'weight_g') / 1000, 1)",
+      "species": "group_sum(month, 'species', 'count')"
+    },
+    "refresh": {"on_open": true},
+    "card_view": {"type": "row", "children": [
+      {"type": "stat", "label": "本月出钓", "value": "=trips", "unit": "次", "tone": "neutral"},
+      {"type": "stat", "label": "鱼获", "value": "=fish", "unit": "条", "tone": "neutral"}
+    ]},
+    "layout": {"type": "column", "children": [
+      {"type": "row", "children": [
+        {"type": "stat", "label": "出钓", "value": "=trips", "unit": "次", "tone": "neutral"},
+        {"type": "stat", "label": "鱼获", "value": "=fish", "unit": "条", "tone": "neutral"},
+        {"type": "stat", "label": "总重", "value": "=kg", "unit": "kg", "tone": "neutral"}
+      ]},
+      {"type": "card", "title": "鱼种分布", "children": [
+        {"type": "chart", "kind": "bar", "x": "=map(species, 'key')", "series": [{"name": "条数", "y": "=map(species, 'value')"}], "height": 150}
+      ]},
+      {"type": "card", "title": "本月记录", "children": [
+        {"type": "list", "items": "=month", "max": 10, "empty_text": "这个月还没有记录，去「渔获」记一笔吧",
+         "item": {"type": "text", "style": "body", "text": "${item.date} · ${item.species} ×${item.count}${item.spot_name ? ' · ' + item.spot_name : ''}"}}
+      ]},
+      {"type": "text", "style": "caption", "text": "累计 ${data.s.trips} 次出钓、${data.s.fish} 条鱼、放流 ${data.s.released} 条。"}
+    ]}
+  }
+}

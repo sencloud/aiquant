@@ -36,6 +36,14 @@ const (
 	ReasonFishingChat           = "fishing.chat"            // 钓鱼主题 AI 对话
 	ReasonFishingIdentify       = "fishing.identify"        // 拍照识鱼
 	ReasonFishingIdentifyRefund = "fishing.identify_refund" // 拍照识鱼失败退款
+
+	// 对话生成小应用（钓鱼主题用 fishing.miniapp.* 前缀）
+	ReasonMiniAppCreate         = "miniapp.create"          // 新建一个小应用
+	ReasonMiniAppIterate        = "miniapp.iterate"         // 修改小应用
+	ReasonMiniAppRefund         = "miniapp.refund"          // 生成失败 / 澄清 / 拒绝退款
+	ReasonFishingMiniAppCreate  = "fishing.miniapp.create"  // 钓鱼主题新建小应用
+	ReasonFishingMiniAppIterate = "fishing.miniapp.iterate" // 钓鱼主题修改小应用
+	ReasonFishingMiniAppRefund  = "fishing.miniapp.refund"  // 钓鱼主题小应用退款
 )
 
 // LedgerEntry 是账本一行（不可变，单向追加）。

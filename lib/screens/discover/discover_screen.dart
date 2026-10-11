@@ -1,107 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
-import '../../core/config/features.dart';
+import '../../core/topic/topic_registry.dart';
+import '../../miniapp/screens/discover_miniapps.dart';
 import '../../services/analytics.dart';
-import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
-import '../ding/ding_screen.dart';
-import '../live/live_screen.dart';
-import '../nautilus/nautilus_screen.dart';
-import '../portfolio/portfolio_screen.dart';
 
-/// 发现 —— 第二梯队功能的聚合页，结构照微信的「发现」。
+/// 发现 —— 结构照微信的「发现」，两个主题共用。
 ///
-/// 一级入口只留少数几个高频动作（对话 / 我的），其余按「发现」归档：
-/// 想找什么就翻这一页，而不是把所有功能都堆到首屏。这一页不要求登录 ——
-/// 内容可浏览，需要账号的动作（定时提醒、下注等）自己弹登录。
+/// 自上而下：「我的小应用」卡片墙（对话生成的小工具 + ＋新建）、主题内置入口
+/// （[TopicPack.discoverBuiltins]：钱主题的定时提醒、钓鱼主题的渔获）、官方模板。
+/// 这一页不要求登录 —— 官方模板可浏览，需要账号的动作（新建、定时提醒）自己弹登录。
 class DiscoverScreen extends StatelessWidget {
   const DiscoverScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final unread = context.watch<DingState>().unreadCount;
-
+    final pack = topicOf(context, listen: true);
+    final note = pack.discoverNote(context);
     return WkPage(
       title: '发现',
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
             AppSpace.gutter, AppSpace.lg, AppSpace.gutter, AppSpace.xxl),
         children: [
-          WkGroup(
-            header: '提醒与任务',
-            footer: '按点让 AI 自己去跑：盯盘、复盘、出日报。',
-            children: [
-              WkRow(
-                icon: Icons.alarm_rounded,
-                title: '定时提醒',
-                subtitle: '按点让 AI 执行任务',
-                trailing: unread > 0 ? _Badge(unread) : null,
-                onTap: () => _push(context, const DingScreen(),
-                    event: 'ding', needsLogin: true),
-              ),
-            ],
+          DiscoverMiniApps(
+            key: ValueKey('miniapps-${pack.id}'),
+            topic: pack.id,
+            builtins: pack.discoverBuiltins(context),
           ),
-          // 「组合管理」（策略模拟组合）、AI 直播、鹦鹉螺默认下线（编译开关）；
-          // 全部关掉时整组不出现。
-          if (kEnablePortfolio || kEnableLive || kEnableNautilus)
-            WkGroup(
-              header: '研究与组合',
-              footer: '邀请好友在「我的」里：填码双方各得 100 喜点。',
-              children: [
-                if (kEnablePortfolio)
-                  WkRow(
-                    icon: Icons.pie_chart_rounded,
-                    title: '组合管理',
-                    subtitle: '策略模拟组合 · 持仓 · 风险 · 绩效 · 报告',
-                    onTap: () => _push(context, const PortfolioScreen(),
-                        event: 'portfolio'),
-                  ),
-                if (kEnableLive)
-                  WkRow(
-                    icon: Icons.podcasts_rounded,
-                    title: 'AI 直播',
-                    subtitle: '直播间与长文报告',
-                    onTap: () =>
-                        _push(context, const LiveScreen(), event: 'live'),
-                  ),
-                if (kEnableNautilus)
-                  WkRow(
-                    icon: Icons.track_changes_rounded,
-                    title: '鹦鹉螺预测',
-                    subtitle: '天气与金融事件的预测市场',
-                    onTap: () => _push(context, const NautilusScreen(),
-                        event: 'nautilus'),
-                  ),
-              ],
-            ),
-          const WkNote(
-            text: '这一页只放「想用才去找」的功能。最常用的还是「对话」：'
-                '行情、财报、资金流，直接问就行。',
-          ),
+          if (note != null) WkNote(text: note),
         ],
       ),
     );
   }
+}
 
-  Future<void> _push(
-    BuildContext context,
-    Widget page, {
-    required String event,
-    bool needsLogin = false,
-  }) async {
-    Analytics.instance.track(Analytics.evDiscoverOpen, {'entry': event});
-    if (needsLogin && !await requireLogin(context)) return;
-    if (!context.mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-  }
+/// 从发现页打开一个内置页面（埋点 + 按需登录）。
+Future<void> openFromDiscover(
+  BuildContext context,
+  Widget page, {
+  required String event,
+  bool needsLogin = false,
+}) async {
+  Analytics.instance.track(Analytics.evDiscoverOpen, {'entry': event});
+  if (needsLogin && !await requireLogin(context)) return;
+  if (!context.mounted) return;
+  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 }
 
 /// 未读角标：红底白字的胶囊，和底部页签上的那个同形。
-class _Badge extends StatelessWidget {
-  const _Badge(this.count);
+class DiscoverBadge extends StatelessWidget {
+  const DiscoverBadge(this.count, {super.key});
   final int count;
 
   @override

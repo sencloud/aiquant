@@ -16,6 +16,7 @@ import '../../state/nautilus_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../state/watchlist_state.dart';
 import '../../theme/app_theme.dart';
+import 'money_discover.dart';
 
 /// 喜爱钱 · 给你量化。
 ///
@@ -104,6 +105,14 @@ class MoneyPack extends TopicPack {
           return s;
         }),
       ];
+
+  @override
+  List<Widget> discoverBuiltins(BuildContext context) =>
+      const [MoneyDiscoverBuiltins()];
+
+  @override
+  String? discoverNote(BuildContext context) =>
+      '最常用的还是「对话」：行情、财报、资金流，直接问就行。';
 
   @override
   List<Widget> settingsTools(BuildContext context) => [

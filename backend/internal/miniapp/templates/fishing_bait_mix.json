@@ -1,0 +1,41 @@
+{
+  "id": "fishing.bait_mix",
+  "order": 2,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "fishing",
+    "meta": {"title": "饵料配比计算器", "icon": "scale", "card_size": "small",
+             "summary": "按总量和比例算出主饵、状态粉、添加剂和水各放多少"},
+    "inputs": {
+      "total": {"type": "number", "label": "干粉总量", "default": 300, "min": 50, "max": 3000, "step": 50, "unit": "克"},
+      "main_pct": {"type": "number", "label": "主饵占比", "default": 70, "min": 0, "max": 100, "step": 5, "unit": "%"},
+      "aux_pct": {"type": "number", "label": "状态粉占比", "default": 25, "min": 0, "max": 100, "step": 5, "unit": "%"},
+      "water": {"type": "number", "label": "水粉比", "default": 0.8, "min": 0.3, "max": 1.5, "step": 0.05}
+    },
+    "computed": {
+      "add_pct": "max(0, 100 - inputs.main_pct - inputs.aux_pct)",
+      "over": "inputs.main_pct + inputs.aux_pct > 100",
+      "main_g": "round(inputs.total * inputs.main_pct / 100)",
+      "aux_g": "round(inputs.total * inputs.aux_pct / 100)",
+      "add_g": "round(inputs.total * add_pct / 100)",
+      "water_ml": "round(inputs.total * inputs.water)",
+      "rows": "[{'name': '主饵', 'g': main_g, 'pct': inputs.main_pct}, {'name': '状态粉', 'g': aux_g, 'pct': inputs.aux_pct}, {'name': '添加剂', 'g': add_g, 'pct': add_pct}, {'name': '水（毫升）', 'g': water_ml, 'pct': null}]"
+    },
+    "refresh": {"on_open": false},
+    "card_view": {"type": "row", "children": [
+      {"type": "stat", "label": "干粉", "value": "=inputs.total", "unit": "克", "tone": "neutral"},
+      {"type": "stat", "label": "加水", "value": "=water_ml", "unit": "毫升", "tone": "neutral"}
+    ]},
+    "layout": {"type": "column", "children": [
+      {"type": "card", "title": "配比", "children": [
+        {"type": "input", "bind": "total"},
+        {"type": "input", "bind": "main_pct"},
+        {"type": "input", "bind": "aux_pct"},
+        {"type": "input", "bind": "water"}
+      ]},
+      {"type": "text", "style": "down", "visible": "=over", "text": "主饵和状态粉加起来超过 100%，请调低其中一项"},
+      {"type": "table", "rows": "=rows", "columns": [{"key": "name", "title": "成分"}, {"key": "g", "title": "用量（克）", "format": "num", "digits": 0}, {"key": "pct", "title": "占比 %", "format": "num", "digits": 0}]},
+      {"type": "text", "style": "caption", "text": "先把水倒进饵盆，再一次性倒入干粉，用手指轻轻拌匀、静置 3–5 分钟醒饵。水温和粉的吸水性会影响状态，按实际微调。"}
+    ]}
+  }
+}

@@ -271,6 +271,11 @@ type AIConfig struct {
 	// HomeSuggestEnabled 控制 scheduler 是否按时段生成首页「今天想聊点什么」。
 	// 关掉不影响客户端：客户端会回退到本地按行情拼装。
 	HomeSuggestEnabled bool `toml:"home_suggest_enabled"`
+
+	// 对话生成小应用：新建 / 修改的喜点价格（0 用默认 5 / 2），生成用的模型（空用 llm.chat_model）。
+	MiniAppCreateCredits  int64  `toml:"miniapp_create_credits"`
+	MiniAppIterateCredits int64  `toml:"miniapp_iterate_credits"`
+	MiniAppModel          string `toml:"miniapp_model"`
 }
 
 type SMSConfig struct {

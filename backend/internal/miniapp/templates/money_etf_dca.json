@@ -1,0 +1,47 @@
+{
+  "id": "money.etf_dca",
+  "order": 2,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "money",
+    "meta": {"title": "ETF 定投计算器", "icon": "calculate", "card_size": "small",
+             "summary": "每月定投多少、坚持几年、按假设年化估算期末金额"},
+    "inputs": {
+      "amount": {"type": "number", "label": "每月投入", "default": 1000, "min": 100, "max": 100000, "step": 100, "unit": "元"},
+      "years": {"type": "number", "label": "定投年限", "default": 5, "min": 1, "max": 30, "step": 1, "unit": "年"},
+      "rate": {"type": "number", "label": "年化假设", "default": 6, "min": -20, "max": 30, "step": 0.5, "unit": "%"}
+    },
+    "computed": {
+      "r": "inputs.rate / 100 / 12",
+      "n": "inputs.years * 12",
+      "principal": "inputs.amount * n",
+      "fv": "r == 0 ? principal : inputs.amount * (pow(1 + r, n) - 1) / r * (1 + r)",
+      "gain": "fv - principal",
+      "yrs": "range(1, inputs.years + 1)",
+      "curve": "map(yrs, r == 0 ? inputs.amount * 12 * item : round(inputs.amount * (pow(1 + r, item * 12) - 1) / r * (1 + r)))",
+      "paid": "map(yrs, inputs.amount * 12 * item)"
+    },
+    "refresh": {"on_open": false},
+    "card_view": {"type": "row", "children": [
+      {"type": "stat", "label": "每月", "value": "=inputs.amount", "unit": "元", "tone": "neutral"},
+      {"type": "stat", "label": "${inputs.years} 年后估算", "value": "=fv", "digits": 0, "unit": "元", "tone": "neutral"}
+    ]},
+    "layout": {"type": "column", "children": [
+      {"type": "card", "title": "参数", "children": [
+        {"type": "input", "bind": "amount"},
+        {"type": "input", "bind": "years"},
+        {"type": "input", "bind": "rate"}
+      ]},
+      {"type": "row", "children": [
+        {"type": "stat", "label": "累计投入", "value": "=principal", "digits": 0, "unit": "元", "tone": "neutral"},
+        {"type": "stat", "label": "期末估算", "value": "=fv", "digits": 0, "unit": "元", "tone": "neutral"},
+        {"type": "stat", "label": "估算收益", "value": "=gain", "digits": 0, "unit": "元", "tone": "auto"}
+      ]},
+      {"type": "card", "title": "逐年估算", "children": [
+        {"type": "chart", "kind": "line", "x": "=map(yrs, item + '年')",
+         "series": [{"name": "期末估算", "y": "=curve"}, {"name": "累计投入", "y": "=paid"}]}
+      ]},
+      {"type": "text", "style": "caption", "text": "按每月月初投入、月复利估算。年化收益率只是你填的假设，不代表任何基金的历史或未来表现。"}
+    ]}
+  }
+}

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:fincept_app/core/storage/hive_setup.dart';
+import 'package:fincept_app/miniapp/miniapp_store.dart';
 import 'package:fincept_app/screens/home/home_screen.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
@@ -19,6 +20,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:fincept_app/screens/settings/settings_screen.dart';
 import 'package:provider/provider.dart';
+
+import 'miniapp_fakes.dart';
 
 Future<void> _loadFonts() async {
   final dir = Platform.environment['STRATEGY_FONT_DIR'];
@@ -56,7 +59,8 @@ Future<void> _loadFonts() async {
 
 /// 与 app.dart 同构：共享状态在外层，主题包私有状态挂在 MaterialApp 之上。
 /// 基线图最初来自主题化之前的 main；2026-10 喜爱钱下线「策略」页签、「组合管理」
-/// 与「我的自选」后有意更新过一次（页签变 3 个、「我的」少一行、页脚文案）。
+/// 与「我的自选」后有意更新过一次（页签变 3 个、「我的」少一行、页脚文案）；
+/// 同月「发现」加入小应用（卡片墙 + ＋新建 + 官方模板）后再更新一次。
 Widget _app({Widget home = const HomeScreen()}) {
   final topics = TopicState(packs: builtInTopicPacks(fishing: false));
   final TopicPack pack = topics.current;
@@ -91,6 +95,8 @@ void main() {
     Hive.init(dir.path);
     await registerHiveAdapters();
     await openAppBoxes();
+    // 发现页的小应用区：未登录，只有官方模板（与服务端同一份 JSON）。
+    MiniAppStore.api = FakeMiniAppApi();
   });
 
   testWidgets('喜爱钱主页逐页基线', (tester) async {

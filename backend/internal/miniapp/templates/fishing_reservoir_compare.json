@@ -1,0 +1,32 @@
+{
+  "id": "fishing.reservoir_compare",
+  "order": 1,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "fishing",
+    "meta": {"title": "常去水库对比", "icon": "water", "card_size": "medium",
+             "summary": "几个常去水库未来 3 天的出钓指数并排看"},
+    "inputs": {
+      "places": {"type": "list", "label": "水库", "max_items": 5,
+                 "item": {"name": {"type": "text"}},
+                 "default": [{"name": "千岛湖"}, {"name": "青山湖"}, {"name": "对河口水库"}]}
+    },
+    "data": {
+      "fc": {"source": "fishing.forecast", "each": "=inputs.places", "params": {"place": "=item.name", "days": 3}}
+    },
+    "computed": {
+      "rows": "filter(map(data.fc, item == null ? null : {'name': inputs.places[index].name, 'd0': item.days[0].score, 'd1': item.days[1].score, 'd2': item.days[2].score, 'level': item.days[0].level}), item != null)",
+      "best": "sort_by(rows, 'd0', 'desc')[0]"
+    },
+    "refresh": {"on_open": true},
+    "card_view": {"type": "stat", "label": "今天最适合", "value": "=best.name ?? '—'", "caption": "出钓指数 ${best.d0} · ${best.level}", "tone": "neutral"},
+    "layout": {"type": "column", "children": [
+      {"type": "card", "title": "我常去的水库", "children": [{"type": "input", "bind": "places"}]},
+      {"type": "table", "rows": "=rows", "highlight_max": ["d0", "d1", "d2"], "empty_text": "添加一个水库试试",
+       "columns": [{"key": "name", "title": "水库"}, {"key": "d0", "title": "今天", "format": "num"},
+                   {"key": "d1", "title": "明天", "format": "num"}, {"key": "d2", "title": "后天", "format": "num"}]},
+      {"type": "chart", "kind": "bar", "x": "=map(rows, 'name')", "series": [{"name": "今天", "y": "=map(rows, 'd0')"}], "height": 150},
+      {"type": "text", "style": "caption", "text": "出钓指数综合气压、风力、气温、降水和月相，仅供参考。"}
+    ]}
+  }
+}
