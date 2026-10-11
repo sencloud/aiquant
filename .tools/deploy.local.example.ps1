@@ -16,3 +16,9 @@ $DeployKeyFile = ''
 
 # Fallback: password auth. Leave empty if you use a key.
 $DeployPassword = ''
+
+# Live website host (www.singzquant.com) is an Aliyun ECS instance reached with
+# the Alibaba Cloud Workbench CLI; its login is the Workbench profile created by
+# `workbench config` (stored by Workbench, not here). Optional overrides:
+$DeployWwwInstance = ''   # default in deploy.ps1: i-bp1epb0s7sswazr19klv
+$DeployWwwProfile  = ''   # Workbench profile name; empty = active profile
