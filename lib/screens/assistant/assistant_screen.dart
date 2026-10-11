@@ -706,7 +706,7 @@ class _AssistantScreenState extends State<AssistantScreen>
                     maxLines: 6,
                     style: AppType.body.copyWith(fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: '发消息，或按住说话…',
+                      hintText: '发消息…',
                       hintStyle: AppType.body.copyWith(
                           fontSize: 14, color: AppColors.textTertiary),
                       isDense: true,

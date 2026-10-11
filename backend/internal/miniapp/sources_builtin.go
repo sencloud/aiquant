@@ -184,18 +184,23 @@ func BuiltinRegistry(d BuiltinDeps) *Registry {
 	if has("search_chinese_news") {
 		r.Register(&Source{
 			ID: "news.cn", Title: "中文财经资讯", Topics: money, TTL: 10 * time.Minute, Cost: 2,
-			Doc: "国内财经 / 期货 / 农产品新闻搜索（标题、来源、时间、链接）",
+			Doc: "国内财经 / 期货 / 农产品新闻搜索（标题、来源、时间、链接）；已剔除预测涨跌幅 / 目标价 / 收益承诺式标题",
 			Params: []ParamDef{
 				{Name: "query", Type: "string", Required: true, Doc: "关键词，多个用空格分隔（或匹配）"},
 				{Name: "limit", Type: "integer", Doc: "条数，默认 5", Min: f64(1), Max: f64(20), Default: 5.0},
 			},
 			Output: `{"items":[{"title":"……","source":"wallstreetcn_search","published_at":"2026-10-10T09:10:39Z","url":"https://…"}]}`,
 			Fetch: func(ctx context.Context, c Call) (any, error) {
-				m, err := callTool(ctx, d.Tools, "search_chinese_news", map[string]any{"query": c.Params["query"], "limit": c.Params["limit"]})
+				// 多取一些，剔除「预测涨跌幅 / 目标价 / 收益承诺」式标题后再截到 limit（见 news_filter.go）。
+				limit := 5
+				if v, ok := num(c.Params["limit"]); ok && v >= 1 {
+					limit = int(v)
+				}
+				m, err := callTool(ctx, d.Tools, "search_chinese_news", map[string]any{"query": c.Params["query"], "limit": min(limit*3, 50)})
 				if err != nil {
 					return nil, err
 				}
-				return map[string]any{"items": pickList(m["articles"], "title", "source", "published_at", "url")}, nil
+				return map[string]any{"items": filterNewsItems(pickList(m["articles"], "title", "source", "published_at", "url"), limit)}, nil
 			},
 		})
 	}
