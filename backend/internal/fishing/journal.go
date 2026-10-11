@@ -45,6 +45,7 @@ type Spot struct {
 	Lat       *float64 `json:"lat" db:"lat"`
 	Lon       *float64 `json:"lon" db:"lon"`
 	WaterType string   `json:"water_type" db:"water_type"`
+	Species   string   `json:"species" db:"species"`
 	Note      string   `json:"note" db:"note"`
 	CreatedAt int64    `json:"created_at" db:"created_at"`
 	UpdatedAt int64    `json:"updated_at" db:"updated_at"`
@@ -56,15 +57,18 @@ type SpotInput struct {
 	Lat       *float64 `json:"lat"`
 	Lon       *float64 `json:"lon"`
 	WaterType string   `json:"water_type"`
+	Species   string   `json:"species"`
 	Note      string   `json:"note"`
 }
 
 func (in *SpotInput) clean() error {
 	in.Name = strings.TrimSpace(in.Name)
 	in.WaterType = strings.TrimSpace(in.WaterType)
+	in.Species = strings.TrimSpace(in.Species)
 	in.Note = strings.TrimSpace(in.Note)
 	if in.Name == "" || utf8.RuneCountInString(in.Name) > 40 ||
-		utf8.RuneCountInString(in.WaterType) > 20 || utf8.RuneCountInString(in.Note) > 500 {
+		utf8.RuneCountInString(in.WaterType) > 20 || utf8.RuneCountInString(in.Species) > 60 ||
+		utf8.RuneCountInString(in.Note) > 500 {
 		return ErrInvalidInput
 	}
 	if (in.Lat == nil) != (in.Lon == nil) || !validCoord(in.Lat, in.Lon) {
@@ -80,7 +84,7 @@ func validCoord(lat, lon *float64) bool {
 	return !math.IsNaN(*lat) && !math.IsNaN(*lon) && *lat >= -90 && *lat <= 90 && *lon >= -180 && *lon <= 180
 }
 
-const spotCols = "uuid, name, lat, lon, COALESCE(water_type,'') AS water_type, COALESCE(note,'') AS note, created_at, updated_at"
+const spotCols = "uuid, name, lat, lon, COALESCE(water_type,'') AS water_type, COALESCE(species,'') AS species, COALESCE(note,'') AS note, created_at, updated_at"
 
 // ListSpots 最近更新在前，最多 200 个。
 func (j *Journal) ListSpots(ctx context.Context, uid int64) ([]Spot, error) {
@@ -96,11 +100,11 @@ func (j *Journal) CreateSpot(ctx context.Context, uid int64, in SpotInput) (*Spo
 		return nil, err
 	}
 	now := time.Now().UnixMilli()
-	s := &Spot{UUID: newUUID(), Name: in.Name, Lat: in.Lat, Lon: in.Lon, WaterType: in.WaterType, Note: in.Note, CreatedAt: now, UpdatedAt: now}
+	s := &Spot{UUID: newUUID(), Name: in.Name, Lat: in.Lat, Lon: in.Lon, WaterType: in.WaterType, Species: in.Species, Note: in.Note, CreatedAt: now, UpdatedAt: now}
 	_, err := j.st.DB.ExecContext(ctx, `
-		INSERT INTO fishing_spots(uuid, user_id, name, lat, lon, water_type, note, created_at, updated_at)
-		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.UUID, uid, s.Name, s.Lat, s.Lon, s.WaterType, s.Note, now, now)
+		INSERT INTO fishing_spots(uuid, user_id, name, lat, lon, water_type, species, note, created_at, updated_at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.UUID, uid, s.Name, s.Lat, s.Lon, s.WaterType, s.Species, s.Note, now, now)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +118,8 @@ func (j *Journal) UpdateSpot(ctx context.Context, uid int64, id string, in SpotI
 	}
 	now := time.Now().UnixMilli()
 	res, err := j.st.DB.ExecContext(ctx, `
-		UPDATE fishing_spots SET name=?, lat=?, lon=?, water_type=?, note=?, updated_at=?
-		WHERE uuid=? AND user_id=?`, in.Name, in.Lat, in.Lon, in.WaterType, in.Note, now, id, uid)
+		UPDATE fishing_spots SET name=?, lat=?, lon=?, water_type=?, species=?, note=?, updated_at=?
+		WHERE uuid=? AND user_id=?`, in.Name, in.Lat, in.Lon, in.WaterType, in.Species, in.Note, now, id, uid)
 	if err != nil {
 		return nil, err
 	}

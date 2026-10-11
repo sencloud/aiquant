@@ -55,6 +55,12 @@ dependencies:
   in_app_purchase: ^3.2.3
   url_launcher: ^6.3.1
 
+  # 喜爱钓鱼：定位（仅使用期间）+ 私人钓点地图。iOS 地图用系统 MapKit（AppDelegate 里的
+  # 平台视图，免费、国内有合规底图）；其他平台用 flutter_map + OpenStreetMap 兜底。
+  geolocator: ^14.0.2
+  flutter_map: ^8.2.1
+  latlong2: ^0.9.1
+
   # WebView for rendering long-form HTML reports (AI 直播)
   webview_flutter: ^4.10.0
 

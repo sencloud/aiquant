@@ -576,7 +576,9 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
         origin = box.localToGlobal(Offset.zero) & box.size;
       }
       await Share.share(
-        '我用喜爱 AI 助理聊了点投资，分享给你看看：\n$url',
+        isFishingTopic(context)
+            ? '我用喜爱钓鱼的 AI 钓友聊了聊钓鱼，分享给你看看：\n$url'
+            : '我用喜爱 AI 助理聊了点投资，分享给你看看：\n$url',
         subject: '来自喜爱 AI 助理',
         sharePositionOrigin: origin,
       );
@@ -593,6 +595,17 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
   /// 平台化推广文案：钩子标题 + 正文摘要 + 话题标签 + 短链。
   String _buildPromoCaption(String platform, String text, String url) {
     final excerpt = _excerpt(text, 120);
+    if (isFishingTopic(context)) {
+      return platform == 'xhs'
+          ? '问了喜爱钓鱼的 AI 钓友一个问题，回答很实在🎣\n\n'
+              '$excerpt\n\n'
+              '完整对话👉 $url\n\n'
+              '#钓鱼 #野钓 #路亚 #台钓 #钓鱼技巧 #喜爱钓鱼'
+          : '分享一个我最近在用的钓鱼 App「喜爱钓鱼」，AI 钓友回答挺实在。\n\n'
+              '$excerpt\n\n'
+              '完整回答：$url\n\n'
+              '（内容由 AI 生成，仅供参考）';
+    }
     if (platform == 'xhs') {
       return '我用喜爱 AI 投研助理问了个问题，回答太顶了📈\n\n'
           '$excerpt\n\n'

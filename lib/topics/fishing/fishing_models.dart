@@ -259,6 +259,7 @@ class FishingSpot {
     this.lat,
     this.lon,
     this.waterType = '',
+    this.species = '',
     this.note = '',
   });
 
@@ -268,6 +269,7 @@ class FishingSpot {
         lat: _dn(j['lat']),
         lon: _dn(j['lon']),
         waterType: _s(j['water_type']),
+        species: _s(j['species']),
         note: _s(j['note']),
       );
 
@@ -276,8 +278,12 @@ class FishingSpot {
   final double? lat;
   final double? lon;
   final String waterType;
+
+  /// 主要鱼种（可选，自由文本，如「鲫鱼、翘嘴」）。
+  final String species;
   final String note;
 
+  /// 坐标是 WGS-84（见 map/geo_coord.dart 的约定）。
   bool get hasCoord => lat != null && lon != null;
 }
 

@@ -62,13 +62,13 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>NSDocumentsFolderUsageDescription</key>
-	<string>用于读取你选择的 CSV 文件以批量导入交易记录。</string>
 	<key>NSCameraUsageDescription</key>
-	<string>仅在你主动选择「拍照」上传图片时使用相机，用后即传，不会在后台拍摄。</string>
+	<string>仅在你主动点「拍照」时使用相机：给 AI 对话发图片、给渔获日记配照片。不会在后台拍摄。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>仅在你主动选择从「照片」中导入文件、或导出/分享分析报告时访问，本应用不会自动读取你的照片。</string>
+	<string>仅在你主动从「照片」选图时访问：给 AI 对话发图片、给渔获日记配照片。不会自动读取你的照片。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>仅在你主动选择把分析报告或图表保存到「照片」时使用，本应用不会在后台写入。</string>
+	<string>仅在你主动把分享卡片或邀请海报保存到「照片」时使用，不会在后台写入。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>喜爱钓鱼用你的位置计算当地的出钓指数，并在钓点地图上显示你在哪、把当前位置存为私人钓点。仅在使用 App 时获取，不在后台定位，也不保存你的行踪。</string>
 </dict>
 </plist>

@@ -328,7 +328,7 @@ func BuiltinRegistry(d BuiltinDeps) *Registry {
 				items := make([]map[string]any, 0, len(list))
 				for _, s := range list {
 					items = append(items, map[string]any{"name": s.Name, "lat": s.Lat, "lon": s.Lon,
-						"water_type": s.WaterType, "note": s.Note})
+						"water_type": s.WaterType, "species": s.Species, "note": s.Note})
 				}
 				return map[string]any{"items": items}, nil
 			},

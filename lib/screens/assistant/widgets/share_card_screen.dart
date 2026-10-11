@@ -7,9 +7,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/topic/topic_state.dart';
 import '../../../theme/app_theme.dart';
 
 /// 下载落地页前缀（带邀请码可做拉新归因）。
@@ -254,7 +256,7 @@ class _ShareCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(),
+          _header(context),
           if (question != null && question!.isNotEmpty) _questionBlock(),
           Padding(
             padding: EdgeInsets.fromLTRB(
@@ -408,7 +410,7 @@ class _ShareCard extends StatelessWidget {
     );
   }
 
-  Widget _header() {
+  Widget _header(BuildContext context) {
     final ts = DateFormat('yyyy-MM-dd HH:mm').format(timestamp);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
@@ -432,21 +434,21 @@ class _ShareCard extends StatelessWidget {
                 color: Colors.white, size: 20),
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '喜爱 · AI 投资助理',
-                  style: TextStyle(
+                  _ShareBrand.of(context).title,
+                  style: const TextStyle(
                     color: _accent,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.4,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
+                const SizedBox(height: 2),
+                const Text(
                   '由喜爱生成的对话内容 · 仅供参考',
                   style: TextStyle(
                     color: _fgSecondary,
@@ -527,9 +529,9 @@ class _BrandQrFooter extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  '扫码下载「喜爱」AI 投研助理',
-                  style: TextStyle(
+                Text(
+                  _ShareBrand.of(context).download,
+                  style: const TextStyle(
                       color: _fgPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w800),
@@ -552,9 +554,9 @@ class _BrandQrFooter extends StatelessWidget {
                     ),
                   )
                 else
-                  const Text(
-                    '聊行情、管组合、做日报 · 仅供参考',
-                    style: TextStyle(color: _fgSecondary, fontSize: 10.5),
+                  Text(
+                    _ShareBrand.of(context).slogan,
+                    style: const TextStyle(color: _fgSecondary, fontSize: 10.5),
                   ),
                 const SizedBox(height: 2),
                 const Text(
@@ -711,5 +713,31 @@ class _XhsCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 分享卡片上的品牌文案随当前主题走（钓鱼主题不出现「投资 / 组合」）。
+class _ShareBrand {
+  const _ShareBrand(this.title, this.download, this.slogan);
+  final String title;
+  final String download;
+  final String slogan;
+
+  static const _money = _ShareBrand(
+      '喜爱钱 · AI 投资助理', '扫码下载「喜爱」AI 投研助理', '聊行情、看财报、做日报 · 仅供参考');
+  static const _fishing = _ShareBrand('喜爱钓鱼 · AI 钓友',
+      '扫码下载「喜爱」· 给你钓鱼的一切', '出钓指数、钓点地图、渔获日记 · 仅供参考');
+
+  static _ShareBrand of(BuildContext context) =>
+      isFishingTopic(context) ? _fishing : _money;
+}
+
+/// 当前是否在喜爱钓鱼主题（没有 TopicState 时按喜爱钱处理，方便单测）。
+bool isFishingTopic(BuildContext context) {
+  try {
+    return Provider.of<TopicState>(context, listen: false).currentId ==
+        'fishing';
+  } catch (_) {
+    return false;
   }
 }

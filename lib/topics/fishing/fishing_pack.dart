@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
+import '../../core/config/features.dart';
 import '../../core/topic/topic_pack.dart';
 import '../../models/persona.dart';
 import '../../screens/assistant/assistant_screen.dart';
@@ -85,19 +86,20 @@ class FishingPack extends TopicPack {
 
   @override
   List<Widget> settingsTools(BuildContext context) => [
-        ProfileIndexRow(
-          key: const Key('settings-identify'),
-          icon: Icons.center_focus_strong_outlined,
-          title: '拍照识鱼',
-          note: '$kIdentifyCredits 喜点 / 次',
-          onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const IdentifyScreen())),
-        ),
+        if (kEnableFishIdentify)
+          ProfileIndexRow(
+            key: const Key('settings-identify'),
+            icon: Icons.center_focus_strong_outlined,
+            title: '拍照识鱼',
+            note: '$kIdentifyCredits 喜点 / 次',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => const IdentifyScreen())),
+          ),
       ];
 
   @override
-  String? settingsNote(BuildContext context) =>
-      '出钓指数基础版免费；AI 钓友对话 1 喜点 / 轮，拍照识鱼 3 喜点 / 次，'
+  String? settingsNote(BuildContext context) => '出钓指数、钓点地图免费；AI 钓友对话 1 喜点 / 轮'
+      '${kEnableFishIdentify ? '，拍照识鱼 $kIdentifyCredits 喜点 / 次' : ''}，'
       '新建小应用 5 喜点、修改 2 喜点（没做出来全额退回）。喜点在各主题通用。';
 
   @override
@@ -108,7 +110,10 @@ class FishingPack extends TopicPack {
     required bool loggedOut,
   }) {
     final s = context.read<FishingState>();
-    if (!authed || loggedOut || switchedAccount) s.clearJournal();
+    if (!authed || loggedOut || switchedAccount) {
+      s.clearJournal();
+      s.forgetLocation();
+    }
     if (authed) s.refreshJournal();
   }
 
