@@ -24,6 +24,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
+	"github.com/sencloud/finme-backend/internal/miniapp"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/predict"
@@ -60,6 +61,8 @@ type Deps struct {
 	Falsification *falsification.Service
 	// Fishing 喜爱钓鱼：出钓指数、禁渔提示、拍照识鱼、渔获日记 / 私人钓点。
 	Fishing *fishing.Service
+	// MiniApps 对话生成的小应用（发现页）；nil 时接口返回 503。
+	MiniApps *miniapp.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
 }
@@ -124,6 +127,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountFalsificationPublic(r, d)
 			// 喜爱钓鱼公开：出钓指数 / 禁渔提示（无用户数据）。
 			mountFishingPublic(r, d)
+			// 小应用官方模板：未登录可浏览 / 试运行。
+			mountMiniAppsPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -139,6 +144,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountInvite(r, d)
 				mountFalsificationPrivate(r, d)
 				mountFishingPrivate(r, d)
+				mountMiniAppsPrivate(r, d)
 			})
 		})
 	})

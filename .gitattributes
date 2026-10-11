@@ -1,0 +1,5 @@
+# 金图等二进制文件不做任何换行转换（2026-10 曾有金图被 CRLF→LF 改坏）。
+*.png binary
+*.jpg binary
+*.ttf binary
+*.otf binary

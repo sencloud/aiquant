@@ -1,0 +1,49 @@
+{
+  "id": "money.palm_morning",
+  "order": 1,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "money",
+    "meta": {"title": "棕榈油早报", "icon": "oil_barrel", "card_size": "medium",
+             "summary": "主力合约行情 + 马来西亚 / 印尼产区三日天气 + 要闻"},
+    "inputs": {
+      "region": {"type": "enum", "label": "产区", "options": ["柔佛", "沙巴", "砂拉越", "廖内"], "default": "柔佛"}
+    },
+    "data": {
+      "main": {"source": "futures.dominant", "params": {"product": "棕榈油"}},
+      "q": {"source": "futures.quote", "params": {"ts_code": "=data.main.ts_code"}},
+      "bars": {"source": "market.daily_bars", "params": {"symbol": "=data.main.ts_code", "days": 60}},
+      "wx": {"source": "weather.region", "params": {"place": "=inputs.region", "days": 3}},
+      "news": {"source": "news.cn", "params": {"query": "棕榈油", "limit": 3}}
+    },
+    "computed": {
+      "px": "data.q.last ?? data.main.close",
+      "chg": "data.q.pct_chg",
+      "rain3d": "round(sum(data.wx.forecast, 'precip_mm'), 1)"
+    },
+    "refresh": {"on_open": true},
+    "card_view": {"type": "row", "children": [
+      {"type": "stat", "label": "${data.main.ts_code ?? '棕榈油主力'}", "value": "=px", "digits": 0, "delta": "=chg", "delta_format": "pct"},
+      {"type": "stat", "label": "${inputs.region} 3 日雨量", "value": "=rain3d", "unit": "mm"}
+    ]},
+    "layout": {"type": "column", "children": [
+      {"type": "input", "bind": "region", "style": "segmented"},
+      {"type": "card", "title": "主力 ${data.main.ts_code}", "subtitle": "${data.q.intraday == false ? '最近交易日收盘口径' : '盘中行情（少量延迟）'}", "children": [
+        {"type": "row", "children": [
+          {"type": "stat", "label": "最新", "value": "=px", "digits": 0, "delta": "=chg", "delta_format": "pct"},
+          {"type": "stat", "label": "持仓量", "value": "=data.q.oi ?? data.main.oi", "digits": 0, "tone": "neutral"}
+        ]},
+        {"type": "kline", "bars": "=data.bars.items", "height": 180}
+      ]},
+      {"type": "card", "title": "${inputs.region} 天气", "subtitle": "未来 3 天降雨（mm）", "children": [
+        {"type": "chart", "kind": "bar", "x": "=map(data.wx.forecast, 'date')",
+         "series": [{"name": "降雨", "y": "=map(data.wx.forecast, 'precip_mm')"}], "height": 140},
+        {"type": "text", "style": "caption", "text": "最高气温 ${max(map(data.wx.forecast, 't_max'))}℃ · 3 日合计 ${rain3d}mm"}
+      ]},
+      {"type": "card", "title": "要闻", "children": [
+        {"type": "list", "items": "=data.news.items", "max": 3, "empty_text": "暂时没有相关新闻",
+         "item": {"type": "text", "style": "body", "text": "${item.title}"}}
+      ]}
+    ]}
+  }
+}

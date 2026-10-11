@@ -44,6 +44,13 @@ abstract class TopicPack {
   /// 也能读到；外层 `MultiProvider` 以 [id] 作 key，切换即重建。
   List<SingleChildWidget> providers();
 
+  /// 「发现」页里主题自带的内置入口（钱主题：定时提醒；钓鱼主题：渔获）。
+  /// 排在「我的小应用」卡片墙之后、官方模板之前。
+  List<Widget> discoverBuiltins(BuildContext context) => const [];
+
+  /// 「发现」页底部的一句说明（可选）。
+  String? discoverNote(BuildContext context) => null;
+
   /// 「我的 → 随身工具」里由主题注入的行（钱主题：我的自选）。
   List<Widget> settingsTools(BuildContext context) => const [];
 

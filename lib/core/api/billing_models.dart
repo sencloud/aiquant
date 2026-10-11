@@ -143,6 +143,15 @@ class CreditLedgerItem {
         return '拍照识鱼';
       case 'fishing.identify_refund':
         return '识鱼退款';
+      case 'miniapp.create':
+      case 'fishing.miniapp.create':
+        return '新建小应用';
+      case 'miniapp.iterate':
+      case 'fishing.miniapp.iterate':
+        return '修改小应用';
+      case 'miniapp.refund':
+      case 'fishing.miniapp.refund':
+        return '小应用退回';
       case 'consume_ding':
         return '定时任务';
       case 'dev_topup':

@@ -38,6 +38,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
+	"github.com/sencloud/finme-backend/internal/miniapp"
 	"github.com/sencloud/finme-backend/internal/falsification"
 	"github.com/sencloud/finme-backend/internal/fishing"
 	"github.com/sencloud/finme-backend/internal/onboarding"
@@ -245,6 +246,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		l.Warn().Msg("qwen vision: api key not set, /v1/portfolio/parse-screenshot disabled")
 	}
 
+	fishingSvc := buildFishingService(&l, st, qwenVision)
 	deps := &api.Deps{
 		Config:     cfg,
 		Logger:     l,
@@ -267,7 +269,8 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Strategy:   buildStrategyService(cfg, &l, st),
 
 		Falsification: buildFalsificationService(cfg, &l, st),
-		Fishing:       buildFishingService(&l, st, qwenVision),
+		Fishing:       fishingSvc,
+		MiniApps:      buildMiniAppService(cfg, &l, st, fishingSvc),
 	}
 	router := api.NewRouter(deps)
 
@@ -656,5 +659,54 @@ func buildFishingService(l *zerolog.Logger, st *store.Store, vision *qwen.Vision
 			l.Info().Int("count", n).Msg("fishing: refunded stale identifications")
 		}
 	}()
+	return svc
+}
+
+// buildMiniAppService 对话生成小应用：数据源复用 AI 工具（行情 / 新闻 / 天气 / 钓鱼）+ tushare 日线，
+// 生成用 DeepSeek JSON 模式（未配置时生成接口 503，模板浏览 / 运行照常）。
+// env=dev 且 FINME_MINIAPP_DEV_LLM=1 时改用本地假模型（联调 / 截图用，不调用外部模型）。
+// 启动时把上次进程退出时卡在 pending 的生成标失败并退款。
+func buildMiniAppService(cfg *platform.Config, l *zerolog.Logger, st *store.Store, fs *fishing.Service) *miniapp.Service {
+	tu := tushare.New(cfg.Tushare)
+	reg := miniapp.BuiltinRegistry(miniapp.BuiltinDeps{
+		Tools:   buildToolRegistry(cfg, l),
+		History: tu.HistoryFor,
+		Fishing: fs,
+	})
+	fetcher := miniapp.NewFetcher(reg, miniapp.FetcherOptions{})
+	var gen miniapp.LLM
+	switch {
+	case cfg.Env == "dev" && os.Getenv("FINME_MINIAPP_DEV_LLM") == "1":
+		tpls, _ := miniapp.LoadTemplates(reg)
+		gen = &miniapp.DevLLM{Templates: tpls}
+		l.Warn().Msg("miniapp: using local dev LLM (no external model calls)")
+	case cfg.LLM.Configured():
+		ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+			cfg.LLM.ChatModel, cfg.LLM.ReasonModel, 150*time.Second)
+		if err != nil {
+			l.Warn().Err(err).Msg("miniapp: generation disabled (deepseek init failed)")
+		} else {
+			gen = &miniapp.DeepSeekLLM{C: ds}
+		}
+	default:
+		l.Warn().Msg("miniapp: llm not configured, generation disabled")
+	}
+	svc := miniapp.NewService(st, reg, fetcher, gen, miniapp.Options{
+		Prices:       miniapp.Prices{Create: cfg.AI.MiniAppCreateCredits, Iterate: cfg.AI.MiniAppIterateCredits},
+		CreateModel:  cfg.AI.MiniAppModel,
+		IterateModel: cfg.AI.MiniAppModel,
+	}, l)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if n, err := svc.RecoverStale(ctx, 5*time.Minute); err != nil {
+			l.Warn().Err(err).Msg("miniapp: recover stale generations failed")
+		} else if n > 0 {
+			l.Info().Int("count", n).Msg("miniapp: refunded stale generations")
+		}
+	}()
+	p := svc.Prices()
+	l.Info().Int64("create", p.Create).Int64("iterate", p.Iterate).Bool("generation", svc.LLMConfigured()).
+		Int("templates", len(svc.Templates("money"))+len(svc.Templates("fishing"))).Msg("miniapp: enabled")
 	return svc
 }

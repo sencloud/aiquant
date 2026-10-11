@@ -1,0 +1,50 @@
+{
+  "id": "money.spread_monitor",
+  "order": 3,
+  "spec": {
+    "schema": "xiai.miniapp/1",
+    "topic": "money",
+    "meta": {"title": "品种价差监控", "icon": "insights", "card_size": "medium",
+             "summary": "两个期货主力合约的价差、60 日均值与偏离"},
+    "inputs": {
+      "a": {"type": "enum", "label": "品种 A", "options": ["豆油", "棕榈油", "菜籽油", "豆粕", "菜粕", "螺纹钢", "热卷"], "default": "豆油"},
+      "b": {"type": "enum", "label": "品种 B", "options": ["豆油", "棕榈油", "菜籽油", "豆粕", "菜粕", "螺纹钢", "热卷"], "default": "棕榈油"}
+    },
+    "data": {
+      "ma": {"source": "futures.dominant", "params": {"product": "=inputs.a"}},
+      "mb": {"source": "futures.dominant", "params": {"product": "=inputs.b"}},
+      "ba": {"source": "market.daily_bars", "params": {"symbol": "=data.ma.ts_code", "days": 60}},
+      "bb": {"source": "market.daily_bars", "params": {"symbol": "=data.mb.ts_code", "days": 60}}
+    },
+    "computed": {
+      "n": "min(len(data.ba.items), len(data.bb.items))",
+      "sa": "n > 0 ? slice(data.ba.items, -n) : []",
+      "sb": "n > 0 ? slice(data.bb.items, -n) : []",
+      "series": "zip_with(sa, sb, x.close - y.close)",
+      "dates": "map(sa, 'date')",
+      "spread": "data.ma.close - data.mb.close",
+      "avg60": "round(avg(series), 1)",
+      "dev": "spread - avg60"
+    },
+    "refresh": {"on_open": true},
+    "card_view": {"type": "row", "children": [
+      {"type": "stat", "label": "${inputs.a} − ${inputs.b}", "value": "=spread", "digits": 0, "tone": "neutral"},
+      {"type": "stat", "label": "偏离 60 日均值", "value": "=dev", "digits": 0, "tone": "auto"}
+    ]},
+    "layout": {"type": "column", "children": [
+      {"type": "row", "children": [
+        {"type": "input", "bind": "a", "style": "dropdown"},
+        {"type": "input", "bind": "b", "style": "dropdown"}
+      ]},
+      {"type": "row", "children": [
+        {"type": "stat", "label": "当前价差", "value": "=spread", "digits": 0, "tone": "neutral"},
+        {"type": "stat", "label": "60 日均值", "value": "=avg60", "digits": 0, "tone": "neutral"},
+        {"type": "stat", "label": "偏离", "value": "=dev", "digits": 0, "tone": "auto"}
+      ]},
+      {"type": "card", "title": "价差走势", "subtitle": "${data.ma.ts_code} − ${data.mb.ts_code}（收盘）", "children": [
+        {"type": "chart", "kind": "line", "x": "=dates", "series": [{"name": "价差", "y": "=series"}]}
+      ]},
+      {"type": "text", "style": "caption", "text": "当前价差${spread > avg60 ? '高于' : '低于'} 60 日均值 ${fmt(abs(dev), 0)}。价差 = A 主力收盘 − B 主力收盘，换月时会有跳变。"}
+    ]}
+  }
+}

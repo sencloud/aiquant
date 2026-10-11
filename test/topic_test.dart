@@ -274,9 +274,10 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 500));
       }
+      // 喜爱钓鱼：对话 / 出钓 / 发现 / 我的（渔获挪进「发现」作为内置小应用）。
       expect(find.text('出钓'), findsOneWidget);
-      expect(find.text('渔获'), findsOneWidget);
-      expect(find.text('发现'), findsNothing);
+      expect(find.text('发现'), findsOneWidget);
+      expect(find.text('渔获'), findsNothing);
       expect(() => ChangeNotifier.debugAssertNotDisposed(ding),
           throwsFlutterError);
       expect(AppColors.amber, TopicPalette.fishing.brand);

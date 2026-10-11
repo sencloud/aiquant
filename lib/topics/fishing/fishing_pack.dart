@@ -5,16 +5,18 @@ import 'package:provider/single_child_widget.dart';
 import '../../core/topic/topic_pack.dart';
 import '../../models/persona.dart';
 import '../../screens/assistant/assistant_screen.dart';
+import '../../screens/discover/discover_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
-import 'catches_screen.dart';
+import 'fishing_discover.dart';
 import 'fishing_state.dart';
 import 'forecast_screen.dart';
 import 'identify_screen.dart';
 
 /// 喜爱钓鱼 · 给你钓鱼相关的一切。
 ///
-/// 页签：对话 / 出钓 / 渔获 / 我的。第一版只做淡水钓。
+/// 页签：对话 / 出钓 / 发现 / 我的。渔获（日记 + 钓点）是「发现」里的内置小应用。
+/// 第一版只做淡水钓。
 class FishingPack extends TopicPack {
   const FishingPack();
 
@@ -56,11 +58,11 @@ class FishingPack extends TopicPack {
           builder: (_) => const FishingForecastScreen(),
         ),
         TopicTab(
-          key: 'catches',
-          label: '渔获',
-          icon: Icons.set_meal_outlined,
-          activeIcon: Icons.set_meal_rounded,
-          builder: (_) => const CatchesScreen(),
+          key: 'discover',
+          label: '发现',
+          icon: Icons.explore_outlined,
+          activeIcon: Icons.explore_rounded,
+          builder: (_) => const DiscoverScreen(),
         ),
         TopicTab(
           key: 'me',
@@ -78,6 +80,10 @@ class FishingPack extends TopicPack {
       ];
 
   @override
+  List<Widget> discoverBuiltins(BuildContext context) =>
+      const [FishingDiscoverBuiltins()];
+
+  @override
   List<Widget> settingsTools(BuildContext context) => [
         ProfileIndexRow(
           key: const Key('settings-identify'),
@@ -91,7 +97,8 @@ class FishingPack extends TopicPack {
 
   @override
   String? settingsNote(BuildContext context) =>
-      '出钓指数基础版免费；AI 钓友对话 1 喜点 / 轮，拍照识鱼 3 喜点 / 次。喜点在各主题通用。';
+      '出钓指数基础版免费；AI 钓友对话 1 喜点 / 轮，拍照识鱼 3 喜点 / 次，'
+      '新建小应用 5 喜点、修改 2 喜点（没做出来全额退回）。喜点在各主题通用。';
 
   @override
   void onAuthChanged(
