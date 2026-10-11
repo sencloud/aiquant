@@ -5,6 +5,8 @@ analyzer:
     - ios/**
     - web/**
     - windows/**
+    # 截图脚本：用时拷到 test/ 再跑，原地 import 不成立
+    - marketing/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

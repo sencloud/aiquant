@@ -1,8 +1,11 @@
-# 这里只入库「源码」，生成物不入库 —— 跑一次 build.ps1 就能重出（需要本机有 Chrome/Edge）。
-# 共约 30 MB，没必要塞进 Git 历史。
+# 这里只入库「源码」：文案、说明、生成脚本、数据快照。图片和 Word 是生成物，不入库（按 README 能重出）。
 
-# App Store 商品页素材：顶部横幅 / 搜索结果素材 / iPhone 与 iPad 截屏（24 张）
-app-store-assets/*.png
+# App Store 上架截图与总览（iphone69/、ipad13/、iap_review/、_drafts/、overview.png）
+app-store-assets/**/*.png
+# 截图脚本的原始画面输出
+app-store-assets/raw/
+# 由 listing.md 生成的 Word 版
+app-store-assets/*.docx
 
 # Logo 方案总览图、图标定稿对比图
 logo/*.png

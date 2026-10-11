@@ -1,0 +1,22 @@
+diff --git a/lib/widgets/wk_kit.dart b/lib/widgets/wk_kit.dart
+index 6d5141e..5fe67b8 100644
+--- a/lib/widgets/wk_kit.dart
++++ b/lib/widgets/wk_kit.dart
+@@ -241,7 +241,7 @@ class WkPrimaryButton extends StatelessWidget {
+           shape: RoundedRectangleBorder(
+               borderRadius: BorderRadius.circular(AppRadius.md)),
+           textStyle:
+-              const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
++              const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'ShotSans'), // SHOT-ONLY local patch
+         ),
+         child: busy
+             ? const SizedBox(
+@@ -317,7 +317,7 @@ class WkStat extends StatelessWidget {
+           text: TextSpan(
+             style: AppType.display.copyWith(
+               color: color ?? AppColors.textPrimary,
+-              fontFamilyFallback: AppType.numericFallback,
++              fontFamilyFallback: AppType.numericFallback, fontFamily: 'ShotSans', // SHOT-ONLY local patch
+             ),
+             children: [
+               TextSpan(text: value),
