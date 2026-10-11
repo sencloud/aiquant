@@ -39,6 +39,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/falsification"
+	"github.com/sencloud/finme-backend/internal/fishing"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/predict"
@@ -214,6 +215,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Strategy:   buildStrategyService(cfg, &l, st),
 
 		Falsification: buildFalsificationService(cfg, &l, st),
+		Fishing:       buildFishingService(&l, st, qwenVision),
 	}
 	router := api.NewRouter(deps)
 
@@ -376,6 +378,8 @@ func buildToolRegistryWithIngest(
 			return time.Duration(sec) * time.Second
 		}(),
 	})
+	// 喜爱钓鱼工具（出钓指数 / 禁渔提示）：只进钓鱼主题白名单，钱主题排除。
+	fishing.RegisterTools(reg, fishing.NewForecaster(wx))
 	l.Info().Strs("names", reg.Names()).Int("count", len(reg.Names())).Msg("ai tools registered")
 	return reg
 }
@@ -582,4 +586,23 @@ func signalCtx() (context.Context, context.CancelFunc) {
 		cancel()
 	}()
 	return ctx, cancel
+}
+
+// buildFishingService 喜爱钓鱼：出钓指数（Open-Meteo 逐小时，失败切 MET Norway）、
+// 拍照识鱼（qwen vision；未配置时识鱼接口 503）、渔获日记 / 私人钓点。
+// 启动时把上次进程退出时卡在 pending 的识鱼标失败并退款。
+func buildFishingService(l *zerolog.Logger, st *store.Store, vision *qwen.VisionClient) *fishing.Service {
+	wx := weather.New(0)
+	wx.Logger = l
+	svc := fishing.NewService(st, wx, vision, l)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if n, err := svc.Identify.RecoverStale(ctx, 5*time.Minute); err != nil {
+			l.Warn().Err(err).Msg("fishing: recover stale identifications failed")
+		} else if n > 0 {
+			l.Info().Int("count", n).Msg("fishing: refunded stale identifications")
+		}
+	}()
+	return svc
 }

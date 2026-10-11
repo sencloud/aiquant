@@ -106,6 +106,24 @@ func (c *VisionClient) ParseHoldingsFromImage(
 }
 只输出 JSON，不要任何额外说明。数字字段如果截图里看不到精确值就填 0；不要瞎编。`
 
+	var out ParseHoldingsResult
+	if err := c.ImageJSON(ctx, system, "请解析这张持仓截图。", imageDataURL, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ImageJSON 是通用的「一张图 + 指令 → 严格 JSON」调用：system 约束输出结构，
+// userText 是本次指令，结果反序列化进 out。持仓截图解析、拍照识鱼共用。
+func (c *VisionClient) ImageJSON(
+	ctx context.Context, system, userText, imageDataURL string, out any,
+) error {
+	if !c.Configured() {
+		return errors.New("qwen vision: api key not configured")
+	}
+	if imageDataURL == "" {
+		return errors.New("qwen vision: empty image")
+	}
 	body := map[string]any{
 		"model": c.model,
 		"messages": []map[string]any{
@@ -113,7 +131,7 @@ func (c *VisionClient) ParseHoldingsFromImage(
 			{
 				"role": "user",
 				"content": []map[string]any{
-					{"type": "text", "text": "请解析这张持仓截图。"},
+					{"type": "text", "text": userText},
 					{"type": "image_url", "image_url": map[string]any{
 						"url": imageDataURL,
 					}},
@@ -124,26 +142,26 @@ func (c *VisionClient) ParseHoldingsFromImage(
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("qwen vision: marshal: %w", err)
+		return fmt.Errorf("qwen vision: marshal: %w", err)
 	}
 
 	url := c.baseURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
 	if err != nil {
-		return nil, fmt.Errorf("qwen vision: build req: %w", err)
+		return fmt.Errorf("qwen vision: build req: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("qwen vision: do: %w", err)
+		return fmt.Errorf("qwen vision: do: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("qwen vision: http %d: %s",
+		return fmt.Errorf("qwen vision: http %d: %s",
 			resp.StatusCode, truncate(string(respBody), 400))
 	}
 
@@ -155,20 +173,17 @@ func (c *VisionClient) ParseHoldingsFromImage(
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return nil, fmt.Errorf("qwen vision: parse envelope: %w", err)
+		return fmt.Errorf("qwen vision: parse envelope: %w", err)
 	}
 	if len(parsed.Choices) == 0 {
-		return nil, errors.New("qwen vision: empty choices")
+		return errors.New("qwen vision: empty choices")
 	}
-	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
-	content = stripCodeFence(content)
-
-	var out ParseHoldingsResult
-	if err := json.Unmarshal([]byte(content), &out); err != nil {
-		return nil, fmt.Errorf("qwen vision: parse content json: %w (raw=%s)",
+	content := stripCodeFence(strings.TrimSpace(parsed.Choices[0].Message.Content))
+	if err := json.Unmarshal([]byte(content), out); err != nil {
+		return fmt.Errorf("qwen vision: parse content json: %w (raw=%s)",
 			err, truncate(content, 400))
 	}
-	return &out, nil
+	return nil
 }
 
 // stripCodeFence 去掉模型在严格 json_object 之外有时仍会附加的 ```json ... ``` 包裹。
