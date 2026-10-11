@@ -103,7 +103,45 @@ func TestFishingPrivateEndpointsRequireAuth(t *testing.T) {
 	}
 }
 
+func TestFishingIdentifyOfflineByDefault(t *testing.T) {
+	e := newFishingEnv(t, stubVision{})
+	_, tok := e.user(t, 10)
+	img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString([]byte{0xff, 0xd8, 1})
+	rec, out := e.do(t, http.MethodPost, "/v1/fishing/identify", tok, map[string]any{"request_id": "req-offline-01", "image": img})
+	if rec.Code != http.StatusServiceUnavailable || out["code"] != "FISHING.IDENTIFY_OFFLINE" {
+		t.Fatalf("offline %d %v", rec.Code, out)
+	}
+	// 没扣喜点：钓点接口照常可用，且能存 / 读鱼种。
+	rec, out = e.do(t, http.MethodPost, "/v1/fishing/spots", tok, map[string]any{
+		"name": "南岸回水湾", "lat": 29.61, "lon": 119.02, "species": " 鲫鱼、翘嘴 ", "water_type": "水库"})
+	if rec.Code != http.StatusCreated || out["spot"].(map[string]any)["species"] != "鲫鱼、翘嘴" {
+		t.Fatalf("spot species %d %v", rec.Code, out)
+	}
+	_, out = e.do(t, http.MethodGet, "/v1/fishing/spots", tok, nil)
+	if items, _ := out["items"].([]any); len(items) != 1 || items[0].(map[string]any)["species"] != "鲫鱼、翘嘴" {
+		t.Fatalf("list species %v", out)
+	}
+}
+
+// 注销账号（App Store 5.1.1(v)）：私人钓点 / 渔获这类含位置的用户内容一并删除。
+func TestDeleteAccountRemovesFishingData(t *testing.T) {
+	e := newFishingEnv(t, stubVision{})
+	uid, tok := e.user(t, 0)
+	if rec, _ := e.do(t, http.MethodPost, "/v1/fishing/spots", tok, map[string]any{
+		"name": "老河湾", "lat": 30.1, "lon": 120.2}); rec.Code != http.StatusCreated {
+		t.Fatalf("spot %d", rec.Code)
+	}
+	if rec, _ := e.do(t, http.MethodDelete, "/v1/me", tok, nil); rec.Code/100 != 2 {
+		t.Fatalf("delete me %d %s", rec.Code, rec.Body.String())
+	}
+	var n int
+	if err := e.st.DB.Get(&n, "SELECT COUNT(*) FROM fishing_spots WHERE user_id=?", uid); err != nil || n != 0 {
+		t.Fatalf("spots left %d err %v", n, err)
+	}
+}
+
 func TestFishingIdentifyAndJournalFlow(t *testing.T) {
+	t.Setenv("FINME_FISHING_IDENTIFY", "1")
 	e := newFishingEnv(t, stubVision{})
 	_, tok := e.user(t, 4)
 	img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString([]byte{0xff, 0xd8, 1})
@@ -160,6 +198,7 @@ func TestFishingIdentifyAndJournalFlow(t *testing.T) {
 }
 
 func TestFishingIdentifyRefundViaAPI(t *testing.T) {
+	t.Setenv("FINME_FISHING_IDENTIFY", "1")
 	e := newFishingEnv(t, stubVision{fail: true})
 	_, tok := e.user(t, 3)
 	img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString([]byte{0xff, 0xd8, 1})

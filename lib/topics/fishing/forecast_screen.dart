@@ -5,6 +5,9 @@ import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
 import 'fishing_models.dart';
 import 'fishing_state.dart';
+import 'location/fishing_locator.dart';
+import 'location/location_flow.dart';
+import 'map/geo_coord.dart';
 import 'regulations_screen.dart';
 
 /// 「出钓」页签：出钓指数（透明计分）+ 推荐时段 + 禁渔提示。
@@ -35,6 +38,25 @@ class _FishingForecastScreenState extends State<FishingForecastScreen> {
     super.dispose();
   }
 
+  /// 按当前位置查：先讲清用途再申请（只申请「使用 App 期间」）。
+  Future<void> _useHere() async {
+    final s = context.read<FishingState>();
+    FocusScope.of(context).unfocus();
+    final ok = await ensureLocationAccess(context, s.locator,
+        purpose: '按你所在的位置计算出钓指数，并列出附近的私人钓点。');
+    if (!mounted) return;
+    await s.refreshAccess();
+    if (!ok || !mounted) return;
+    final got = await s.forecastHere();
+    if (!mounted) return;
+    if (got) {
+      _place.text = FishingState.herePlace;
+    } else if (s.here == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('暂时没拿到位置，可以手动输入地名')));
+    }
+  }
+
   void _search([String? v]) {
     final q = (v ?? _place.text).trim();
     if (q.isEmpty) return;
@@ -60,6 +82,11 @@ class _FishingForecastScreenState extends State<FishingForecastScreen> {
             const SizedBox(height: AppSpace.md),
             if (s.spots.any((x) => x.hasCoord)) ...[
               _spotChips(s),
+              const SizedBox(height: AppSpace.md),
+            ],
+            if (s.locAccess == LocAccess.denied ||
+                s.locAccess == LocAccess.serviceOff) ...[
+              _locOffNote(s),
               const SizedBox(height: AppSpace.md),
             ],
             if (s.forecastLoading && s.forecast == null)
@@ -105,33 +132,48 @@ class _FishingForecastScreenState extends State<FishingForecastScreen> {
               ),
             ),
           ),
-          if (s.forecastLoading)
+          if (s.forecastLoading || s.locating)
             const SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2))
-          else
+          else ...[
+            IconButton(
+              key: const Key('forecast-locate'),
+              tooltip: '用我的位置',
+              icon: Icon(Icons.my_location_rounded, color: AppColors.amber),
+              onPressed: _useHere,
+            ),
             IconButton(
               tooltip: '查询',
               icon: Icon(Icons.search_rounded, color: AppColors.amber),
               onPressed: _search,
             ),
+          ],
         ],
       ),
     );
   }
 
+  /// 我的钓点快捷切换：知道位置时按远近排、带距离（「附近」），否则按最近更新。
   Widget _spotChips(FishingState s) {
-    final spots = s.spots.where((x) => x.hasCoord).take(6).toList();
+    final near = s.nearbySpots(limit: 6);
+    final spots = near.isNotEmpty
+        ? [for (final e in near) e.$1]
+        : s.spots.where((x) => x.hasCoord).take(6).toList();
+    final dist = {for (final e in near) e.$1.uuid: e.$2};
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
       children: [
         for (final sp in spots)
           ActionChip(
+            key: Key('forecast-spot-${sp.uuid}'),
             avatar: Icon(Icons.bookmark_outline_rounded,
                 size: 16, color: AppColors.amber),
-            label: Text(sp.name),
+            label: Text(dist[sp.uuid] == null
+                ? sp.name
+                : '${sp.name} · ${formatDistance(dist[sp.uuid]!)}'),
             onPressed: () {
               _place.text = sp.name;
               s.loadForecast(place: sp.name, lat: sp.lat, lon: sp.lon);
@@ -148,10 +190,23 @@ class _FishingForecastScreenState extends State<FishingForecastScreen> {
         Text('去哪儿钓？',
             style: AppType.title.copyWith(color: AppColors.textPrimary)),
         const SizedBox(height: AppSpace.xs),
-        Text('输入地名查看未来 3 天的出钓指数：气压、风、气温、降水、月相五项打分，分数怎么来的都写清楚。',
+        Text('用你的位置或输入地名，查看未来 3 天的出钓指数：气压、风、气温、降水、月相五项打分，分数怎么来的都写清楚。',
             style: AppType.caption
                 .copyWith(color: AppColors.textSecondary, height: 1.6)),
         const SizedBox(height: AppSpace.md),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            key: const Key('forecast-use-here'),
+            onPressed: s.locating ? null : _useHere,
+            icon: const Icon(Icons.my_location_rounded, size: 18),
+            label: Text(s.locating ? '正在定位…' : '用我的位置'),
+          ),
+        ),
+        const SizedBox(height: AppSpace.md),
+        Text('或者选一个地方',
+            style: AppType.caption.copyWith(color: AppColors.textTertiary)),
+        const SizedBox(height: AppSpace.sm),
         Wrap(
           spacing: AppSpace.sm,
           runSpacing: AppSpace.sm,
@@ -161,6 +216,33 @@ class _FishingForecastScreenState extends State<FishingForecastScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  /// 定位没开：不打扰，只给一行说明和「去设置」，手动输入照常可用。
+  Widget _locOffNote(FishingState s) {
+    final off = s.locAccess == LocAccess.serviceOff;
+    return Container(
+      key: const Key('forecast-loc-off'),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.md, vertical: AppSpace.sm),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(children: [
+        Icon(Icons.location_off_outlined,
+            size: 18, color: AppColors.textTertiary),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Text(off ? '系统定位已关闭，可手动输入地名' : '未开启定位，可手动输入地名',
+              style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+        ),
+        if (!off)
+          TextButton(
+              onPressed: () => s.locator.openSettings(),
+              child: const Text('去设置')),
+      ]),
     );
   }
 

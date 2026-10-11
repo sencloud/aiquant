@@ -33,5 +33,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # 定位只用「使用 App 期间」：把 geolocator 里请求「始终」授权的代码编译掉，
+    # 二进制里不出现 requestAlwaysAuthorization（也就不需要 Always 用途说明）。
+    if target.name == 'geolocator_apple'
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'BYPASS_PERMISSION_LOCATION_ALWAYS=1'
+      end
+    end
   end
 end

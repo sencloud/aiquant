@@ -9,6 +9,7 @@ import 'package:fincept_app/topics/fishing/fishing_state.dart';
 import 'package:fincept_app/topics/fishing/forecast_screen.dart';
 import 'package:fincept_app/topics/fishing/identify_screen.dart';
 import 'package:fincept_app/topics/fishing/maps_launcher.dart';
+import 'package:fincept_app/topics/fishing/map/geo_coord.dart';
 import 'package:fincept_app/topics/fishing/spot_editor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -301,8 +302,19 @@ void main() {
 
   test('系统地图链接与坐标解析', () {
     const sp = FishingSpot(uuid: 'x', name: '老河湾', lat: 30.1, lon: 120.2);
-    expect(mapsUriFor(sp, platform: TargetPlatform.iOS).toString(),
-        startsWith('https://maps.apple.com/?ll=30.1%2C120.2'));
+    // Apple 地图在国内用 GCJ-02：存 WGS-84，交给 Apple 地图前要换算。
+    final apple = mapsUriFor(sp, platform: TargetPlatform.iOS);
+    expect(apple.host, 'maps.apple.com');
+    final ll =
+        apple.queryParameters['ll']!.split(',').map(double.parse).toList();
+    final gcj = wgsToGcj(30.1, 120.2);
+    expect(ll[0], closeTo(gcj.lat, 1e-5));
+    expect(ll[1], closeTo(gcj.lon, 1e-5));
+    expect((ll[0] - 30.1).abs() + (ll[1] - 120.2).abs(), greaterThan(1e-3));
+    expect(
+        mapsUriFor(sp, platform: TargetPlatform.windows)
+            .queryParameters['coordinate'],
+        'wgs84');
     expect(mapsUriFor(sp, platform: TargetPlatform.android).scheme, 'geo');
     expect(
         mapsUriFor(sp, platform: TargetPlatform.windows).host, 'uri.amap.com');

@@ -19,7 +19,7 @@ class FishingDiscoverBuiltins extends StatelessWidget {
           key: const Key('discover-catches'),
           icon: Icons.set_meal_rounded,
           title: '渔获',
-          subtitle: '渔获日记 · 私人钓点 · 拍照识鱼',
+          subtitle: '渔获日记 · 私人钓点地图',
           onTap: () => openFromDiscover(context, const CatchesScreen(),
               event: 'catches'),
         ),

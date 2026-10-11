@@ -31,3 +31,8 @@ const bool kEnableLive = bool.fromEnvironment('ENABLE_LIVE', defaultValue: false
 /// 关闭时不再刷新螺壳钱包；邀请改走 /v1/invite（喜点）。
 const bool kEnableNautilus =
     bool.fromEnvironment('ENABLE_NAUTILUS', defaultValue: false);
+
+/// 喜爱钓鱼的「拍照识鱼」。下线：「渔获」页、「我的」工具、计费说明里都不再出现；
+/// 服务端接口默认也关闭（FINME_FISHING_IDENTIFY=1 才放行）。识鱼页面代码保留。
+const bool kEnableFishIdentify =
+    bool.fromEnvironment('ENABLE_FISH_IDENTIFY', defaultValue: false);

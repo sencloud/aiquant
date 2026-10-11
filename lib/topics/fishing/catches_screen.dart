@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../core/config/features.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
@@ -11,10 +12,12 @@ import 'catch_editor_screen.dart';
 import 'fishing_models.dart';
 import 'fishing_state.dart';
 import 'identify_screen.dart';
+import 'map/spots_map_screen.dart';
 import 'maps_launcher.dart';
 import 'spot_editor.dart';
 
-/// 「渔获」页签：渔获日记 + 私人钓点 + 拍照识鱼入口。需登录（数据存在服务端）。
+/// 「渔获」：渔获日记 + 私人钓点（列表 / 地图）。需登录（数据存在服务端）。
+/// 拍照识鱼当前下线（[kEnableFishIdentify]）。
 class CatchesScreen extends StatefulWidget {
   const CatchesScreen({super.key});
 
@@ -46,6 +49,13 @@ class _CatchesScreenState extends State<CatchesScreen> {
         MaterialPageRoute<bool>(builder: (_) => const CatchEditorScreen()));
   }
 
+  Future<void> _openMap({FishingSpot? focus}) async {
+    if (!await requireLogin(context)) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => SpotsMapScreen(focus: focus)));
+  }
+
   Future<void> _identify() async {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const IdentifyScreen()));
@@ -58,12 +68,13 @@ class _CatchesScreenState extends State<CatchesScreen> {
     return WkPage(
       title: '渔获',
       actions: [
-        IconButton(
-          key: const Key('catches-identify'),
-          tooltip: '拍照识鱼',
-          icon: const Icon(Icons.center_focus_strong_outlined),
-          onPressed: _identify,
-        ),
+        if (kEnableFishIdentify)
+          IconButton(
+            key: const Key('catches-identify'),
+            tooltip: '拍照识鱼',
+            icon: const Icon(Icons.center_focus_strong_outlined),
+            onPressed: _identify,
+          ),
       ],
       child: !authed
           ? WkEmpty(
@@ -100,11 +111,18 @@ class _CatchesScreenState extends State<CatchesScreen> {
                     Expanded(
                       child: SizedBox(
                         height: 48,
-                        child: OutlinedButton.icon(
-                          onPressed: _identify,
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          label: const Text('拍照识鱼'),
-                        ),
+                        child: kEnableFishIdentify
+                            ? OutlinedButton.icon(
+                                onPressed: _identify,
+                                icon: const Icon(Icons.photo_camera_outlined),
+                                label: const Text('拍照识鱼'),
+                              )
+                            : OutlinedButton.icon(
+                                key: const Key('catches-map'),
+                                onPressed: _openMap,
+                                icon: const Icon(Icons.map_outlined),
+                                label: const Text('钓点地图'),
+                              ),
                       ),
                     ),
                   ]),
@@ -180,14 +198,21 @@ class _CatchesScreenState extends State<CatchesScreen> {
   List<Widget> _spotList(FishingState s) {
     return [
       WkGroup(
-        footer: '导航会打开手机自带的地图 App；坐标可在地图 App 里长按位置复制。',
+        footer: '钓点只有你自己能看到；导航会打开手机自带的地图 App。',
         children: [
+          WkRow(
+            key: const Key('spot-open-map'),
+            icon: Icons.map_outlined,
+            title: '在地图上查看 / 添加',
+            onTap: _openMap,
+          ),
           for (final sp in s.spots)
             WkRow(
               icon: Icons.bookmark_outline_rounded,
               title: sp.name,
               subtitle: [
                 if (sp.waterType.isNotEmpty) sp.waterType,
+                if (sp.species.isNotEmpty) sp.species,
                 if (sp.hasCoord)
                   '${sp.lat!.toStringAsFixed(4)}, ${sp.lon!.toStringAsFixed(4)}'
                 else
@@ -198,6 +223,8 @@ class _CatchesScreenState extends State<CatchesScreen> {
                 key: Key('spot-menu-${sp.uuid}'),
                 onSelected: (v) => _spotAction(v, sp),
                 itemBuilder: (_) => [
+                  if (sp.hasCoord)
+                    const PopupMenuItem(value: 'map', child: Text('在地图上看')),
                   const PopupMenuItem(value: 'nav', child: Text('导航（系统地图）')),
                   if (sp.hasCoord)
                     const PopupMenuItem(
@@ -221,6 +248,8 @@ class _CatchesScreenState extends State<CatchesScreen> {
   Future<void> _spotAction(String v, FishingSpot sp) async {
     final s = context.read<FishingState>();
     switch (v) {
+      case 'map':
+        await _openMap(focus: sp);
       case 'nav':
         final ok = await openSpotInMaps(sp);
         if (!ok && mounted) {

@@ -5,9 +5,15 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import 'fishing_models.dart';
 import 'fishing_state.dart';
+import 'location/location_flow.dart';
+import 'map/geo_coord.dart';
 
-/// 新建 / 编辑私人钓点。坐标可选：可以从地图 App 里复制「纬度,经度」粘贴进来。
-Future<FishingSpot?> showSpotEditor(BuildContext context, {FishingSpot? spot}) {
+/// 新建 / 编辑私人钓点。
+///
+/// 坐标可选，来源三种：地图上选点（[at]，WGS-84）、「用我的位置」、手动输入
+/// GPS 坐标（WGS-84）。钓点只有用户自己能看到。
+Future<FishingSpot?> showSpotEditor(BuildContext context,
+    {FishingSpot? spot, LatLon? at}) {
   return showModalBottomSheet<FishingSpot>(
     context: context,
     isScrollControlled: true,
@@ -16,7 +22,7 @@ Future<FishingSpot?> showSpotEditor(BuildContext context, {FishingSpot? spot}) {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
     builder: (_) => ChangeNotifierProvider.value(
       value: context.read<FishingState>(),
-      child: _SpotEditor(spot: spot),
+      child: _SpotEditor(spot: spot, at: at),
     ),
   );
 }
@@ -33,8 +39,9 @@ Future<FishingSpot?> showSpotEditor(BuildContext context, {FishingSpot? spot}) {
 }
 
 class _SpotEditor extends StatefulWidget {
-  const _SpotEditor({this.spot});
+  const _SpotEditor({this.spot, this.at});
   final FishingSpot? spot;
+  final LatLon? at;
 
   @override
   State<_SpotEditor> createState() => _SpotEditorState();
@@ -43,10 +50,37 @@ class _SpotEditor extends StatefulWidget {
 class _SpotEditorState extends State<_SpotEditor> {
   late final _name = TextEditingController(text: widget.spot?.name);
   late final _coord = TextEditingController(
-      text: widget.spot?.hasCoord == true
-          ? '${widget.spot!.lat}, ${widget.spot!.lon}'
-          : '');
+      text: widget.at != null
+          ? _fmt(widget.at!.lat, widget.at!.lon)
+          : widget.spot?.hasCoord == true
+              ? _fmt(widget.spot!.lat!, widget.spot!.lon!)
+              : '');
   late final _note = TextEditingController(text: widget.spot?.note);
+  late final _species = TextEditingController(text: widget.spot?.species);
+  bool _locating = false;
+
+  static String _fmt(double lat, double lon) =>
+      '${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}';
+
+  Future<void> _useHere() async {
+    final s = context.read<FishingState>();
+    final ok = await ensureLocationAccess(context, s.locator,
+        purpose: '把你现在的位置存成钓点坐标。');
+    if (!ok || !mounted) return;
+    setState(() => _locating = true);
+    final p = await s.locate();
+    if (!mounted) return;
+    setState(() {
+      _locating = false;
+      if (p != null) {
+        _coord.text = _fmt(p.lat, p.lon);
+        _err = null;
+      } else {
+        _err = '暂时没拿到位置，可以稍后再试或手动输入';
+      }
+    });
+  }
+
   late String _water = widget.spot?.waterType ?? '';
   bool _saving = false;
   String? _err;
@@ -58,6 +92,7 @@ class _SpotEditorState extends State<_SpotEditor> {
     _name.dispose();
     _coord.dispose();
     _note.dispose();
+    _species.dispose();
     super.dispose();
   }
 
@@ -83,6 +118,7 @@ class _SpotEditorState extends State<_SpotEditor> {
         if (ll != null) 'lat': ll.$1,
         if (ll != null) 'lon': ll.$2,
         'water_type': _water,
+        'species': _species.text.trim(),
         'note': _note.text.trim(),
       }, uuid: widget.spot?.uuid);
       if (mounted) Navigator.of(context).pop(s);
@@ -98,52 +134,80 @@ class _SpotEditorState extends State<_SpotEditor> {
     return Padding(
       padding: EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.lg, AppSpace.xl,
           MediaQuery.of(context).viewInsets.bottom + AppSpace.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(widget.spot == null ? '新建私人钓点' : '编辑钓点',
-              style: AppType.title.copyWith(color: AppColors.textPrimary)),
-          const SizedBox(height: AppSpace.xs),
-          Text('钓点只有你自己能看到。',
-              style: AppType.caption.copyWith(color: AppColors.textTertiary)),
-          TextField(
-              key: const Key('spot-name'),
-              controller: _name,
-              decoration: const InputDecoration(labelText: '名称')),
-          TextField(
-            key: const Key('spot-coord'),
-            controller: _coord,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,，\s-]'))
-            ],
-            decoration: const InputDecoration(
-                labelText: '坐标（可选）', hintText: '纬度, 经度，可从地图 App 复制'),
-          ),
-          const SizedBox(height: AppSpace.md),
-          Wrap(spacing: AppSpace.sm, children: [
-            for (final w in _waters)
-              ChoiceChip(
-                label: Text(w),
-                selected: _water == w,
-                onSelected: (v) => setState(() => _water = v ? w : ''),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.spot == null ? '新建私人钓点' : '编辑钓点',
+                style: AppType.title.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: AppSpace.xs),
+            Text('钓点只有你自己能看到。',
+                style: AppType.caption.copyWith(color: AppColors.textTertiary)),
+            const SizedBox(height: AppSpace.md),
+            TextField(
+                key: const Key('spot-name'),
+                controller: _name,
+                decoration: const InputDecoration(labelText: '名称')),
+            const SizedBox(height: AppSpace.md),
+            TextField(
+              key: const Key('spot-coord'),
+              controller: _coord,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,，\s-]'))
+              ],
+              decoration: InputDecoration(
+                labelText: '坐标（可选）',
+                hintText: '纬度, 经度（GPS 坐标）',
+                suffixIcon: _locating
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)))
+                    : IconButton(
+                        key: const Key('spot-use-here'),
+                        tooltip: '用我的位置',
+                        icon: Icon(Icons.my_location_rounded,
+                            color: AppColors.amber),
+                        onPressed: _useHere,
+                      ),
               ),
-          ]),
-          TextField(
-              controller: _note,
-              decoration: const InputDecoration(labelText: '备注（停车、钓位、水深…）')),
-          if (_err != null) ...[
-            const SizedBox(height: AppSpace.sm),
-            Text(_err!,
-                style: AppType.caption.copyWith(color: AppColors.danger)),
+            ),
+            const SizedBox(height: AppSpace.md),
+            Wrap(spacing: AppSpace.sm, children: [
+              for (final w in _waters)
+                ChoiceChip(
+                  label: Text(w),
+                  showCheckmark: false,
+                  selected: _water == w,
+                  onSelected: (v) => setState(() => _water = v ? w : ''),
+                ),
+            ]),
+            const SizedBox(height: AppSpace.md),
+            TextField(
+                key: const Key('spot-species'),
+                controller: _species,
+                decoration: const InputDecoration(
+                    labelText: '主要鱼种（可选）', hintText: '如：鲫鱼、翘嘴')),
+            const SizedBox(height: AppSpace.md),
+            TextField(
+                controller: _note,
+                decoration: const InputDecoration(labelText: '备注（停车、钓位、水深…）')),
+            if (_err != null) ...[
+              const SizedBox(height: AppSpace.sm),
+              Text(_err!,
+                  style: AppType.caption.copyWith(color: AppColors.danger)),
+            ],
+            const SizedBox(height: AppSpace.lg),
+            FilledButton(
+              key: const Key('spot-save'),
+              onPressed: _saving ? null : _save,
+              child: Text(_saving ? '保存中…' : '保存'),
+            ),
           ],
-          const SizedBox(height: AppSpace.lg),
-          FilledButton(
-            key: const Key('spot-save'),
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? '保存中…' : '保存'),
-          ),
-        ],
+        ),
       ),
     );
   }

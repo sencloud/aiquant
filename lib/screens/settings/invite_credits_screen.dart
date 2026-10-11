@@ -207,7 +207,7 @@ class _InviteCreditsScreenState extends State<InviteCreditsScreen> {
                     ),
                   ]),
                 const WkNote(
-                  text: '喜点用于对话、拍照识鱼等 AI 功能，各主题通用。'
+                  text: '喜点用于 AI 对话、生成小应用等功能，各主题通用。'
                       '恶意刷邀请的账号将被回收奖励。',
                 ),
               ],

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -104,8 +105,16 @@ func handleFishingRegulations(d *Deps) http.HandlerFunc {
 // maxIdentifyBody 识鱼请求体上限（base64 图片 + 少量字段）。
 const maxIdentifyBody = 3 << 20
 
+// FishingIdentifyEnabled 拍照识鱼是否上线。当前版本已下线（App 内无入口），
+// 默认关闭；设 FINME_FISHING_IDENTIFY=1 才放行（代码与计费逻辑保留，恢复时只改开关）。
+func FishingIdentifyEnabled() bool { return os.Getenv("FINME_FISHING_IDENTIFY") == "1" }
+
 func handleFishingIdentify(d *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !FishingIdentifyEnabled() {
+			WriteError(w, r, platform.ErrUnavailable("FISHING.IDENTIFY_OFFLINE", errors.New("拍照识鱼暂未开放")))
+			return
+		}
 		if fishingDisabled(w, r, d) {
 			return
 		}
