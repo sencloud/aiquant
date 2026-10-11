@@ -70,7 +70,7 @@ class _InviteScreenState extends State<InviteScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('邀请好友')),
       body: info == null
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
                   color: AppColors.amber, strokeWidth: 2))
           : ListView(
@@ -80,7 +80,7 @@ class _InviteScreenState extends State<InviteScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [AppColors.amber, AppColors.amberDim],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -163,7 +163,7 @@ class _InviteScreenState extends State<InviteScreen> {
                 const SizedBox(height: 20),
                 // 填码兑换
                 if (!info.redeemed) ...[
-                  const Text('填写好友的邀请码',
+                  Text('填写好友的邀请码',
                       style: TextStyle(
                           color: AppColors.amber,
                           fontSize: 12,

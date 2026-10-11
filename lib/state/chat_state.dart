@@ -42,8 +42,14 @@ class ChatState extends ChangeNotifier {
     if (c != null && !c.isCompleted) c.complete();
   }
 
+  /// 全部主题的会话（Hive 里一个盒子）；UI 只看当前主题的那部分。
   List<ChatSession> _sessions = const [];
   String? _activeId;
+
+  /// 当前主题。由 main.dart 跟随 TopicState 设置。
+  String _topic = 'money';
+  bool _booted = false;
+  String get topic => _topic;
   bool _streaming = false;
   int _totalToolCalls = 0;
   int? _lastBalance;
@@ -52,7 +58,9 @@ class ChatState extends ChangeNotifier {
 
   static const _kServerIdPrefix = 'ai_chat_server_id:';
 
-  List<ChatSession> get sessions => _sessions;
+  /// 当前主题的会话（按最近更新排序）。
+  List<ChatSession> get sessions =>
+      _sessions.where((s) => s.topic == _topic).toList(growable: false);
   String? get activeId => _activeId;
   bool get streaming => _streaming;
 
@@ -73,15 +81,43 @@ class ChatState extends ChangeNotifier {
   ChatSession? get active =>
       _activeId == null ? null : _byId(_activeId!);
   List<ChatMessage> get messages => active?.messages ?? const [];
-  Persona get currentPersona => Personas.byId(active?.personaId);
+  Persona get currentPersona =>
+      Personas.byId(active?.personaId, topic: _topic);
+
+  ChatSession? _firstOfTopic() {
+    for (final s in _sessions) {
+      if (s.topic == _topic) return s;
+    }
+    return null;
+  }
+
+  /// 切换主题：会话列表、默认人设、请求里的 topic 都跟着换。
+  /// 已加载过会话时，落到该主题最近一个会话（没有就新建）。
+  Future<void> setTopic(String topic) async {
+    if (topic == _topic) return;
+    _topic = topic;
+    if (!_booted) {
+      notifyListeners();
+      return;
+    }
+    final first = _firstOfTopic();
+    if (first == null) {
+      await newSession();
+    } else {
+      _activeId = first.id;
+      notifyListeners();
+    }
+  }
 
   Future<void> bootstrap() async {
     _sessions = chatSessionsBox.values.toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    if (_sessions.isEmpty) {
+    _booted = true;
+    final first = _firstOfTopic();
+    if (first == null) {
       await newSession();
     } else {
-      _activeId = _sessions.first.id;
+      _activeId = first.id;
     }
     for (final s in _sessions) {
       final v = prefsBox.get('$_kServerIdPrefix${s.id}');
@@ -94,10 +130,13 @@ class ChatState extends ChangeNotifier {
     String title = '新对话',
     String? personaId,
   }) async {
+    final cur = active?.topic == _topic ? active : null;
     final s = ChatSession(
       title: title,
-      personaId: personaId ?? active?.personaId ?? Personas.defaultId,
-      toolsEnabled: active?.toolsEnabled ?? true,
+      personaId:
+          personaId ?? cur?.personaId ?? Personas.defaultIdFor(_topic),
+      toolsEnabled: cur?.toolsEnabled ?? true,
+      topic: _topic,
     );
     await chatSessionsBox.put(s.id, s);
     _sessions = [s, ..._sessions];
@@ -112,7 +151,7 @@ class ChatState extends ChangeNotifier {
     _serverIdMap.remove(id);
     _sessions = _sessions.where((s) => s.id != id).toList();
     if (_activeId == id) {
-      _activeId = _sessions.isEmpty ? null : _sessions.first.id;
+      _activeId = _firstOfTopic()?.id;
       if (_activeId == null) await newSession();
     }
     notifyListeners();
@@ -184,6 +223,7 @@ class ChatState extends ChangeNotifier {
     _sessions = const [];
     _serverIdMap.clear();
     _activeId = null;
+    _booted = false;
     _totalToolCalls = 0;
     _lastBalance = null;
     notifyListeners();
@@ -241,9 +281,7 @@ class ChatState extends ChangeNotifier {
     _totalToolCalls = 0;
     notifyListeners();
 
-    // Persona 的中文人设 prompt 由客户端提供（服务端不感知 persona 库）；
-    // chat.Service 会把它拼到默认 system 之后作为"额外指令"。
-    final persona = Personas.byId(session.personaId);
+    // 人设 prompt 由服务端按 (topic, persona) 维护，客户端只传 id。
     final completer = Completer<void>();
     _activeCompleter = completer;
     _activeStream = _svc
@@ -251,9 +289,10 @@ class ChatState extends ChangeNotifier {
       serverSessionId: _serverIdMap[session.id],
       message: text.trim(),
       persona: session.personaId,
-      // 产品策略：深度推理始终开启，不暴露给用户切换。
-      deepMode: true,
-      systemHint: persona.systemPrompt,
+      topic: session.topic,
+      // 产品策略：喜爱钱深度推理始终开启，不暴露给用户切换；
+      // 其它主题按 1 喜点 / 轮的普通对话计费（服务端也会强制）。
+      deepMode: session.topic == 'money',
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
       wantSuggestions: true,

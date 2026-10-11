@@ -163,7 +163,7 @@ class _T extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,

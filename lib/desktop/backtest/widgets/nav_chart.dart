@@ -54,7 +54,7 @@ class NavChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('净值曲线',
+            Text('净值曲线',
                 style: TextStyle(
                     color: AppColors.amber,
                     fontSize: 12,

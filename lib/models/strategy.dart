@@ -48,7 +48,7 @@ class Strategies {
 
   static const String defaultId = 'etf_rotation';
 
-  static const List<Strategy> all = <Strategy>[
+  static final List<Strategy> all = <Strategy>[
     _etfRotation,
     _sellPut,
   ];
@@ -63,7 +63,7 @@ class Strategies {
 
   // ───────────────────────── 内置策略 ─────────────────────────
 
-  static const Strategy _etfRotation = Strategy(
+  static final Strategy _etfRotation = Strategy(
     id: 'etf_rotation',
     name: 'ETF 组合轮动',
     tagline: '双动量打分 · 月度轮动 · 历史 3 年回测 + 当期建议',

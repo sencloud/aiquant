@@ -484,7 +484,7 @@ class _EconomicsTabState extends State<EconomicsTab> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.refresh,
+                  icon: Icon(Icons.refresh,
                       size: 16, color: AppColors.amber),
                   onPressed: _load,
                 ),
@@ -737,7 +737,7 @@ class _Title extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,

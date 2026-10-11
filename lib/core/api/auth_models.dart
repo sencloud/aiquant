@@ -63,6 +63,7 @@ class UserPublic {
     required this.hasPhone,
     required this.hasApple,
     required this.createdAt,
+    this.preferredTopic,
   });
 
   final String uuid;
@@ -72,6 +73,9 @@ class UserPublic {
   final bool hasPhone;
   final bool hasApple;
   final DateTime createdAt;
+
+  /// 服务端记录的偏好主题（money / fishing）；未设置为 null。
+  final String? preferredTopic;
 
   bool get isActive => status == 'active';
 
@@ -84,6 +88,7 @@ class UserPublic {
         hasApple: j['has_apple'] as bool? ?? false,
         createdAt:
             DateTime.fromMillisecondsSinceEpoch((j['created_at'] as num).toInt()),
+        preferredTopic: j['preferred_topic'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -94,6 +99,7 @@ class UserPublic {
         'has_phone': hasPhone,
         'has_apple': hasApple,
         'created_at': createdAt.millisecondsSinceEpoch,
+        if (preferredTopic != null) 'preferred_topic': preferredTopic,
       };
 
   UserPublic copyWith({String? nickname, int? creditBalance, String? status}) =>

@@ -31,7 +31,7 @@ class TradeLog extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(children: [
-              const Text('交易明细',
+              Text('交易明细',
                   style: TextStyle(
                       color: AppColors.amber,
                       fontSize: 12,

@@ -236,7 +236,7 @@ class _DetailEntry extends StatelessWidget {
               horizontal: AppSpace.lg, vertical: AppSpace.lg),
           child: Row(
             children: [
-              const Icon(Icons.receipt_long_rounded,
+              Icon(Icons.receipt_long_rounded,
                   size: 20, color: AppColors.amber),
               const SizedBox(width: AppSpace.md),
               Expanded(

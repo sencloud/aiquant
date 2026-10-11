@@ -134,7 +134,7 @@ class _WatchAddDialogState extends State<WatchAddDialog> {
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text('添加关注品种',
                   style: TextStyle(
                       color: AppColors.amber,
@@ -400,7 +400,7 @@ class _WatchAddDialogState extends State<WatchAddDialog> {
               ),
               const SizedBox(width: 8),
               Text(ins.tsCode,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.amber,
                       fontSize: 11,
                       fontFamily: 'monospace')),

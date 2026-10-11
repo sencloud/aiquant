@@ -115,7 +115,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
                       const SizedBox(width: 5),
                       Text(
                         '${n.balance}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.amber,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -186,7 +186,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
                 }
               },
               child: n.loadingMarkets && markets.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
                           color: AppColors.amber, strokeWidth: 2))
                   : markets.isEmpty
@@ -216,7 +216,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [AppColors.amber, AppColors.amberDim],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -291,7 +291,7 @@ class _NautilusScreenState extends State<NautilusScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right,
+              Icon(Icons.chevron_right,
                   size: 20, color: AppColors.amber),
             ],
           ),

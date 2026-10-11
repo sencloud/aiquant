@@ -7,15 +7,15 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
 import '../../core/auth/require_login.dart';
-import '../../core/config/features.dart';
 import '../../core/format/credit_fmt.dart';
+import '../../core/topic/topic_picker_screen.dart';
+import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/legal_links.dart';
 import '../../widgets/wk_kit.dart';
-import '../watch/watch_screen.dart';
 import 'invite_credits_screen.dart';
 
 /// 「我的」——微信式分组列表。
@@ -69,6 +69,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final auth = context.watch<AuthState>();
     final user = auth.currentUser;
     final billing = context.watch<BillingState>();
+    final pack = topicOf(context);
+    final topics = maybeTopicState(context);
+    final note = pack.settingsNote(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -99,18 +102,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onLedger: user == null ? null : () => _showLedger(context),
             ),
             const SizedBox(height: 30),
+            // 「喜爱什么，就有什么」：只有一个主题时整组不出现。
+            if (topics != null && topics.canSwitch) ...[
+              if (topics.showNewTopicBanner)
+                _NewTopicBanner(
+                  others: [
+                    for (final p in topics.available)
+                      if (p.id != pack.id) p.name,
+                  ],
+                  onClose: topics.dismissBanner,
+                ),
+              WkGroup(
+                header: '主题',
+                children: [
+                  ProfileIndexRow(
+                    key: const ValueKey('settings-switch-topic'),
+                    icon: pack.icon,
+                    title: '切换主题',
+                    note: '当前：${pack.name}',
+                    onTap: () {
+                      topics.dismissBanner();
+                      showTopicSwitcher(context);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.md),
+            ],
             // 微信式分组：一组一个白面卡，卡内行与行之间一条发丝线。
             WkGroup(
               header: '随身工具',
               children: [
-                ProfileIndexRow(
-                  icon: Icons.star_outline_rounded,
-                  title: '我的自选',
-                  note: '股票 / ETF / 期货',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const WatchScreen()),
-                  ),
-                ),
+                // 主题注入的工具（喜爱钱：我的自选）。
+                ...pack.settingsTools(context),
                 ProfileIndexRow(
                   icon: Icons.receipt_long_rounded,
                   title: '喜点明细',
@@ -131,12 +155,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            if (!kEnableNautilus)
+            if (note != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                     AppSpace.xs, 0, AppSpace.xs, AppSpace.sm),
                 child: Text(
-                  '鹦鹉螺预测已下线：螺壳余额保留，暂停赚取与使用。',
+                  note,
                   style: AppType.caption.copyWith(
                       color: AppColors.textTertiary, height: 1.5),
                 ),
@@ -524,6 +548,47 @@ class _StampButton extends StatelessWidget {
 }
 
 /// 分组卡里的一行：左图标 + 标题 + 右侧说明 / 未读角标 + 箭头。
+/// 老用户升级后看一次的「新主题」提示条（关掉或点过切换主题即不再出现）。
+class _NewTopicBanner extends StatelessWidget {
+  const _NewTopicBanner({required this.others, required this.onClose});
+
+  final List<String> others;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('settings-new-topic-banner'),
+      margin: const EdgeInsets.only(bottom: AppSpace.md),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.lg, AppSpace.md, AppSpace.xs, AppSpace.md),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.amber),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              '新：${others.join('、')} 上线了。喜爱什么，就有什么 —— 在下面「切换主题」里看看。',
+              style: AppType.caption
+                  .copyWith(color: AppColors.textPrimary, height: 1.5),
+            ),
+          ),
+          IconButton(
+            tooltip: '不再提示',
+            icon: Icon(Icons.close_rounded,
+                size: 18, color: AppColors.textTertiary),
+            onPressed: onClose,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ProfileIndexRow extends StatelessWidget {
   const ProfileIndexRow({
     super.key,

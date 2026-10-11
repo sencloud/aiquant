@@ -352,7 +352,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                   child: WebViewWidget(controller: _webCtl),
                 ),
                 if (s.loadingKline)
-                  const Positioned(
+                  Positioned(
                     top: 8,
                     right: 8,
                     child: SizedBox(
@@ -371,7 +371,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.show_chart,
+                          Icon(Icons.show_chart,
                               color: AppColors.amber, size: 36),
                           const SizedBox(height: 8),
                           Text(
@@ -433,7 +433,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       child: Row(
         children: [
-          const Icon(Icons.candlestick_chart, color: AppColors.amber, size: 16),
+          Icon(Icons.candlestick_chart, color: AppColors.amber, size: 16),
           const SizedBox(width: 6),
           Expanded(
             child: symbols.isEmpty

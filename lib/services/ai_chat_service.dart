@@ -29,6 +29,7 @@ class AiChatService {
     String? serverSessionId,
     required String message,
     String? persona,
+    String? topic,
     bool deepMode = false,
     String? systemHint,
     Map<String, dynamic>? portfolioContext,
@@ -50,6 +51,8 @@ class AiChatService {
       if (serverSessionId != null && serverSessionId.isNotEmpty)
         'session_id': serverSessionId,
       if (persona != null && persona.isNotEmpty) 'persona': persona,
+      // 主题（money / fishing）。不传 = money，老版本 App 行为不变。
+      if (topic != null && topic.isNotEmpty) 'topic': topic,
       if (deepMode) 'deep_mode': true,
       if (systemHint != null && systemHint.isNotEmpty)
         'system_hint': systemHint,

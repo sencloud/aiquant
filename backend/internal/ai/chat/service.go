@@ -13,6 +13,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/topic"
 	"github.com/sencloud/finme-backend/internal/users"
 )
 
@@ -49,7 +50,10 @@ type ChatInput struct {
 	Persona     string
 	UserText    string
 	DeepMode    bool   // 启用 reasoner 模型 + 加价
-	SystemHint  string // 个性化 system prompt（可选）
+	SystemHint  string // 个性化 system prompt（可选；只有钱主题接受，兼容老版本 App）
+	// Topic 是主题 id（money / fishing）。空 = money，老版本 App 不传即保持原行为。
+	// 决定基础 system prompt、人设表、工具白名单、推荐追问口吻和扣费 reason。
+	Topic string
 	ClientReqID string // 幂等键（与 reason+ref_type 三元组幂等扣费）
 
 	// Images 是本轮用户消息附带的图片，元素为 `data:image/...;base64,...`
@@ -192,6 +196,14 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		_ = emit("error", map[string]any{"code": "AI.EMPTY_INPUT", "message": "消息内容为空"})
 		return errors.New("empty user text")
 	}
+	tp, terr := topic.Resolve(in.Topic)
+	if terr != nil {
+		_ = emit("error", map[string]any{"code": "AI.TOPIC_INVALID", "message": "未知主题：" + in.Topic})
+		return terr
+	}
+	if !tp.AllowDeep {
+		in.DeepMode = false
+	}
 	cfg := s.d.Cfg
 
 	balance, err := s.d.Users.CreditBalance(ctx, in.UserID)
@@ -217,7 +229,13 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return ErrInsufficientBalance
 	}
 
-	sess, err := s.d.Sessions.CreateOrLoad(ctx, in.UserID, in.SessionUUID, in.Persona)
+	// 钱主题沿用旧行为（persona id 原样落库，空 = default）；其它主题只认
+	// 自己的人设表，未知 id 回落到主题默认人设。
+	persona := strings.TrimSpace(in.Persona)
+	if tp.ID != topic.Money && !tp.HasPersona(persona) {
+		persona = tp.DefaultPersona
+	}
+	sess, err := s.d.Sessions.CreateOrLoad(ctx, in.UserID, in.SessionUUID, persona, tp.ID)
 	if err != nil {
 		_ = emit("error", map[string]any{"code": "AI.SESSION", "message": err.Error()})
 		return err
@@ -225,6 +243,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 	if err := emit("session", map[string]any{
 		"session_id": sess.UUID,
 		"persona":    sess.PersonaID,
+		"topic":      sess.Topic,
 		"balance":    balance,
 	}); err != nil {
 		return err
@@ -256,7 +275,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return err
 	}
 	llmMsgs := []llm.MessageWithTools{}
-	if sys := buildSystemPrompt(in.SystemHint, in.PortfolioContext); sys != "" {
+	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
 	// 只保留最近 MaxHistoryImageMessages 条带图消息的图片：图片每轮都会重发
@@ -274,7 +293,9 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		llmMsgs = append(llmMsgs, mapMessageToLLM(m, allowImages[i]))
 	}
 
-	tools := s.d.Tools.ToolListJSON()
+	// 按主题收窄工具：只暴露、只放行白名单内的工具（钓鱼会话调 get_quote 会被拒）。
+	toolView := s.d.Tools.Subset(tp.ID, tp.AllowedTools(s.d.Tools.Names()))
+	tools := toolView.ToolListJSON()
 	maxLoops := cfg.MaxToolLoops
 	if maxLoops <= 0 {
 		maxLoops = 6
@@ -345,7 +366,7 @@ LOOPS:
 			}); err != nil {
 				return err
 			}
-			result := s.d.Tools.Dispatch(ctx, tc.Function.Name, tc.Function.Arguments)
+			result := toolView.Dispatch(ctx, tc.Function.Name, tc.Function.Arguments)
 			if _, err := s.d.Sessions.AppendTool(ctx, sess.ID, tc.ID, tc.Function.Name, result); err != nil {
 				_ = emit("error", map[string]any{"code": "AI.PERSIST", "message": err.Error()})
 				return err
@@ -369,7 +390,10 @@ LOOPS:
 	// 实际扣费 = 预检时算好的 cost（base + deep）。工具数仅用于日志 / 展示。
 	totalCredits := cost
 
-	reason := billing.ReasonConsumeAI
+	reason := tp.ChatReason
+	if reason == "" {
+		reason = billing.ReasonConsumeAI
+	}
 	refType := "ai_session"
 	if in.BillingReason == billing.ReasonConsumeDing {
 		reason = billing.ReasonConsumeDing
@@ -406,7 +430,7 @@ LOOPS:
 		"deep_mode":     in.DeepMode,
 	})
 	if in.WantSuggestions && strings.TrimSpace(finalAssistant) != "" {
-		if qs := s.generateFollowUps(ctx, in.UserText, finalAssistant); len(qs) > 0 {
+		if qs := s.generateFollowUps(ctx, tp.FollowUpPrompt, in.UserText, finalAssistant); len(qs) > 0 {
 			_ = emit("suggestions", map[string]any{
 				"session_id": sess.UUID,
 				"questions":  qs,
@@ -446,23 +470,40 @@ func mapMessageToLLM(m Message, withImages bool) llm.MessageWithTools {
 	return out
 }
 
-// buildSystemPrompt 注入"我是中国 A 股助理"等基础人设；
+// buildTopicSystemPrompt 按主题拼 system prompt：
+//
+//   - 人设段落（"额外指令"）：钱主题优先用客户端上送的 system_hint（老版本
+//     App 的行为），没有时用服务端人设表里的 prompt —— 新版 App 只传 persona
+//     id，两条路径拼出的结果逐字一致；其它主题忽略 system_hint，只看 persona id。
+//   - 主题的 Guard 命中敏感词时，在末尾追加一段提醒。
+func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string) string {
+	extra := ""
+	if tp.AcceptSystemHint && strings.TrimSpace(systemHint) != "" {
+		extra = systemHint
+	} else if p := tp.Persona(personaID); p.Prompt != "" {
+		extra = p.Prompt
+	}
+	out := buildSystemPrompt(tp.Role, extra, pc)
+	if tp.Guard != nil {
+		if g := tp.Guard(userText); g != "" {
+			out += "\n\n" + g
+		}
+	}
+	return out
+}
+
+// buildSystemPrompt 注入主题基础段落（钱主题 = "我是中国 A 股助理"）；
 // 如有 portfolio context，再追加一段"用户当前组合快照"。
 //
 // 顶部强制注入「真实当前时间」段落：LLM 训练截止日远早于当前，且模型默认
 // 会用训练时的"今天"来推断"近 30 天 / 最新一期"等时间窗口。客户端没办法
 // 每次都在 user prompt 里写日期，因此一律在 system 这里钉死真实当下，并
 // 要求 LLM 不再自行猜测时间。
-func buildSystemPrompt(extra string, ctx *PortfolioContext) string {
+func buildSystemPrompt(role, extra string, ctx *PortfolioContext) string {
 	var b strings.Builder
 	b.WriteString(renderNowBlock())
 	b.WriteString("\n\n")
-	b.WriteString("你是面向中国 A 股 / ETF / 期货 / 期权市场的智能投研助理。回答用户问题时优先调用提供的 tool 拉真实数据；")
-	b.WriteString("涉及行情、估值、新闻、量化指标、合约信息时不要凭空猜测。所有金额和指标都基于工具返回的实际数据。")
-	b.WriteString("\n- 解析中文标的名称用 search_instrument。")
-	b.WriteString("\n- 涉及期货 / 期权的「主力合约」「近月合约」时（无论是 IF/IC/IH/IM/T、RB/CU/AU/原油 等期货，还是 50ETF期权/沪深300期权/豆粕期权/铜期权/沪深300股指期权 等四类期权 — ETF期权 / 商品期权 / 股指期权 / 期货），**必须先调用 get_dominant_contract 拿真实代码**，再用该 ts_code 调 get_quote / get_option_quote，绝对禁止凭印象猜某月份是主力。")
-	b.WriteString("\n- 期货行情有两类工具：盘中即时报价用 get_futures_realtime（单合约）/ get_futures_realtime_batch（多合约批量，最多 30 个），多日历史 K 线仍用 get_quote。")
-	b.WriteString("\n输出语言：简体中文。")
+	b.WriteString(role)
 	if extra != "" {
 		b.WriteString("\n\n额外指令：")
 		b.WriteString(extra)
@@ -472,6 +513,15 @@ func buildSystemPrompt(extra string, ctx *PortfolioContext) string {
 		b.WriteString(renderPortfolioBlock(ctx))
 	}
 	return b.String()
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // shanghaiLoc 缓存上海时区（中国大陆所有交易所统一使用）。

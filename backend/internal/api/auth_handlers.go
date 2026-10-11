@@ -9,6 +9,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/topic"
 )
 
 func mountAuth(r chi.Router, d *Deps) {
@@ -249,6 +250,8 @@ func handleMe(d *Deps) http.HandlerFunc {
 
 type updateMeReq struct {
 	Nickname *string `json:"nickname,omitempty"`
+	// PreferredTopic 是用户切换的主题（money / fishing）；空串 = 清除。
+	PreferredTopic *string `json:"preferred_topic,omitempty"`
 }
 
 func handleUpdateMe(d *Deps) http.HandlerFunc {
@@ -266,6 +269,17 @@ func handleUpdateMe(d *Deps) http.HandlerFunc {
 				return
 			}
 			if err := d.Users.UpdateNickname(r.Context(), uc.UserID, nick); err != nil {
+				WriteError(w, r, platform.ErrInternal("USER.UPDATE_FAILED", err))
+				return
+			}
+		}
+		if in.PreferredTopic != nil {
+			t := strings.TrimSpace(*in.PreferredTopic)
+			if !topic.Valid(t) {
+				WriteError(w, r, platform.ErrBadRequest("USER.TOPIC_INVALID", "unknown topic", nil))
+				return
+			}
+			if err := d.Users.UpdatePreferredTopic(r.Context(), uc.UserID, t); err != nil {
 				WriteError(w, r, platform.ErrInternal("USER.UPDATE_FAILED", err))
 				return
 			}

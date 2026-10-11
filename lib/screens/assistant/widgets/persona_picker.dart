@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/topic/topic_registry.dart';
 import '../../../models/persona.dart';
 import '../../../theme/app_theme.dart';
 import 'top_tag_chip.dart';
@@ -34,7 +35,7 @@ class PersonaPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = Personas.byId(activeId);
+    final active = Personas.byId(activeId, topic: topicOf(context).id);
     return TopTagChip(
       icon: active.icon,
       label: active.displayName,
@@ -54,6 +55,7 @@ class _PersonaSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
+    final personas = Personas.forTopic(topicOf(context).id);
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: h * 0.78),
       child: Column(
@@ -68,10 +70,10 @@ class _PersonaSheet extends StatelessWidget {
           Flexible(
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-              itemCount: Personas.all.length,
+              itemCount: personas.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, i) {
-                final p = Personas.all[i];
+                final p = personas[i];
                 final selected = p.id == activeId;
                 return _PersonaTile(
                   persona: p,
@@ -188,7 +190,7 @@ class _SheetHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.amber,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

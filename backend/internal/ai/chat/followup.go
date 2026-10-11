@@ -27,14 +27,11 @@ const (
 	followUpAnswerRunes = 1500
 )
 
-const followUpSystemPrompt = "你是投研助理的追问推荐器。根据用户的问题和助理的回答，" +
-	"站在用户角度，给出 3 个用户最可能接着问的简短问题。要求：每个问题不超过 30 个字；" +
-	"具体、可直接发送、和回答内容紧密相关；不要重复用户原问题；不要编号；" +
-	"只输出一个 JSON 字符串数组，例如 [\"问题1\",\"问题2\",\"问题3\"]，不要输出任何其他文字。"
+// 推荐追问的 system prompt 按主题给（见 internal/topic 的 FollowUpPrompt）。
 
 // generateFollowUps 调一次 LLM 生成推荐追问。失败返回 nil（静默降级）。
-func (s *Service) generateFollowUps(ctx context.Context, question, answer string) []string {
-	if s.d.LLM == nil || strings.TrimSpace(answer) == "" {
+func (s *Service) generateFollowUps(ctx context.Context, systemPrompt, question, answer string) []string {
+	if s.d.LLM == nil || strings.TrimSpace(answer) == "" || strings.TrimSpace(systemPrompt) == "" {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, followUpTimeout)
@@ -46,7 +43,7 @@ func (s *Service) generateFollowUps(ctx context.Context, question, answer string
 	user := "用户问题：\n" + truncateRunes(q, 300) +
 		"\n\n助理回答：\n" + truncateRunes(answer, followUpAnswerRunes)
 	res, err := s.d.LLM.ChatOnce(ctx, s.d.LLM.Chat, []llm.Message{
-		{Role: "system", Content: followUpSystemPrompt},
+		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: user},
 	})
 	if err != nil || res == nil {

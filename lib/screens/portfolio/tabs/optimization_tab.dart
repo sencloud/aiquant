@@ -251,7 +251,7 @@ class _WeightCompareCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const _LegendDot(color: AppColors.amber, text: '当前'),
+                _LegendDot(color: AppColors.amber, text: '当前'),
                 const SizedBox(width: 12),
                 const _LegendDot(color: AppColors.info, text: '建议（反向波动）'),
                 const Spacer(),
@@ -465,7 +465,7 @@ class _Title extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,

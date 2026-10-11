@@ -43,10 +43,10 @@ class _ReasoningBlockState extends State<ReasoningBlock> {
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.psychology_outlined,
+                  Icon(Icons.psychology_outlined,
                       size: 12, color: AppColors.amber),
                   const SizedBox(width: 4),
-                  const Text(
+                  Text(
                     '深度推理',
                     style: TextStyle(
                       fontSize: 10,

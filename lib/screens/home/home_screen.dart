@@ -4,18 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../core/topic/topic_pack.dart';
+import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../services/network_permission_service.dart';
-import '../../services/tushare_service.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
-import '../../state/ding_state.dart';
 import '../../theme/app_theme.dart';
-import '../assistant/assistant_screen.dart';
-import '../discover/discover_screen.dart';
-import '../settings/settings_screen.dart';
-import '../strategy/strategy_screen.dart';
 
+/// 主界面：底部页签由当前主题包提供（[TopicPack.tabs]）。
+///
+/// 喜爱钱：对话 / 策略 / 发现 / 我的；喜爱钓鱼：对话 / 出钓 / 渔获 / 我的。
+/// 底栏样式、登录门槛、角标、埋点对所有主题一致。
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -25,12 +25,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  // 0 = 对话, 1 = 策略, 2 = 发现, 3 = 我的
+  // 页签下标，对应 `pack.tabs`。
   //
-  // 底部四个页签：两个"主功能"（对话 / 策略）+ 发现 + 个人中心。
-  // 「发现」是第二梯队功能的归档页（照微信），想找什么翻它，而不是全堆首屏。
-  // 股票行情改成按需触达——聊天里提到某只股票时点链接进详情，而不是让人先切
-  // tab 再去搜。
+  // 底部四个页签：两个"主功能" + 一个二梯队/记录页 + 个人中心（照微信）。
   //
   // 仅用于设计走查：`--dart-define=INITIAL_TAB=1` 可以让 App 直接落在指定页签，
   // 免得每次截图都要手点。不影响正常构建（默认 0 = 对话）。
@@ -40,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen>
   int _reloadTick = 0;
   StreamSubscription<void>? _networkSub;
 
+  late final TopicPack _pack = topicOf(context);
+  late final List<TopicTab> _tabs = _pack.tabs;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +47,10 @@ class _HomeScreenState extends State<HomeScreen>
     _networkSub =
         NetworkPermissionService.instance.onNetworkAvailable.listen((_) {
       _onNetworkRestored();
+    });
+    // 进入主题（冷启动 / 切换主题后的首帧）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _pack.onEnter(context);
     });
   }
 
@@ -60,8 +64,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 回到前台时让 DING 调度器追赶一次（移动端无真后台 cron）
-      if (mounted) context.read<DingState>().resumeFromBackground();
+      if (mounted) _pack.onResume(context);
     }
   }
 
@@ -69,8 +72,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// bump reload tick 重建页面子树，让当前页面各 tab 重新执行初始加载。
   void _onNetworkRestored() {
     if (!mounted) return;
-    // ignore: unawaited_futures
-    TushareService().warmup();
+    _pack.onNetworkRestored(context);
     final auth = context.read<AuthState>();
     if (auth.isAuthenticated) {
       // ignore: unawaited_futures
@@ -81,39 +83,26 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _reloadTick++);
   }
 
-  /// 需要登录才能进入的 tab：只有「我的」(3)。
-  ///
-  /// 「策略」页签现在是证伪台，内容不依赖账号，而且它是获客内容 ——
-  /// 没有理由让新用户在登录墙后面才能看到它第一次回答「什么不行」。
-  /// 「发现」同理：内容可浏览，需要账号的动作自己会弹登录。
-  /// 「策略」里真正与账号相关的「实盘策略」入口也自己弹登录。
-  static const _gatedTabs = {3};
+  bool _gated(int i) => i >= 0 && i < _tabs.length && _tabs[i].requiresLogin;
 
   /// 切换 tab；命中需鉴权的 tab 时先弹登录，放弃登录则停留原 tab。
   Future<void> _selectTab(int i) async {
-    if (_gatedTabs.contains(i) && !context.read<AuthState>().isAuthenticated) {
+    if (_gated(i) && !context.read<AuthState>().isAuthenticated) {
       final ok = await requireLogin(context);
       if (!ok || !mounted) return;
     }
-    Analytics.instance.track(Analytics.evTabView, {'tab': _tabNames[i]});
+    Analytics.instance.track(Analytics.evTabView, {'tab': _tabs[i].key});
     setState(() => _index = i);
   }
 
-  static const _tabNames = ['chat', 'strategy', 'discover', 'me'];
-
   @override
   Widget build(BuildContext context) {
-    const pages = [
-      AssistantScreen(),
-      StrategyScreen(),
-      DiscoverScreen(),
-      SettingsScreen(),
-    ];
-    final unread = context.watch<DingState>().unreadCount;
+    final index = _index.clamp(0, _tabs.length - 1);
+    final pages = [for (final t in _tabs) t.builder(context)];
 
-    // 登出 / 强制下线后若仍停在需登录的 tab，退回助理首页，避免展示空白个人页。
+    // 登出 / 强制下线后若仍停在需登录的 tab，退回对话首页，避免展示空白个人页。
     final authed = context.watch<AuthState>().isAuthenticated;
-    if (!authed && _gatedTabs.contains(_index)) {
+    if (!authed && _gated(index)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !context.read<AuthState>().isAuthenticated) {
           setState(() => _index = 0);
@@ -124,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       body: KeyedSubtree(
         key: ValueKey(_reloadTick),
-        child: IndexedStack(index: _index, children: pages),
+        child: IndexedStack(index: index, children: pages),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -138,35 +127,15 @@ class _HomeScreenState extends State<HomeScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _NavItem(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  activeIcon: Icons.chat_bubble_rounded,
-                  label: '对话',
-                  active: _index == 0,
-                  onTap: () => _selectTab(0),
-                ),
-                _NavItem(
-                  icon: Icons.insights_rounded,
-                  activeIcon: Icons.insights_rounded,
-                  label: '策略',
-                  active: _index == 1,
-                  onTap: () => _selectTab(1),
-                ),
-                _NavItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: '发现',
-                  active: _index == 2,
-                  badge: unread,
-                  onTap: () => _selectTab(2),
-                ),
-                _NavItem(
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: '我的',
-                  active: _index == 3,
-                  onTap: () => _selectTab(3),
-                ),
+                for (var i = 0; i < _tabs.length; i++)
+                  _NavItem(
+                    icon: _tabs[i].icon,
+                    activeIcon: _tabs[i].activeIcon,
+                    label: _tabs[i].label,
+                    active: index == i,
+                    badge: _tabs[i].badge?.call(context) ?? 0,
+                    onTap: () => _selectTab(i),
+                  ),
               ],
             ),
           ),

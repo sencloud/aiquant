@@ -124,8 +124,8 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
         constraints: const BoxConstraints(maxWidth: 540, maxHeight: 600),
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text('填写数量与买入均价',
@@ -164,7 +164,7 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
                                       fontWeight: FontWeight.w700)),
                               const SizedBox(height: 2),
                               Text(ins.tsCode,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: AppColors.amber,
                                       fontSize: 11,
                                       fontFamily: 'monospace')),
@@ -261,8 +261,8 @@ class _AssetQuantityDialogState extends State<AssetQuantityDialog> {
   Widget? _statusIcon(String code) {
     switch (_status[code]) {
       case _PriceStatus.loading:
-        return const Padding(
-          padding: EdgeInsets.all(8),
+        return Padding(
+          padding: const EdgeInsets.all(8),
           child: SizedBox(
             width: 14,
             height: 14,

@@ -163,7 +163,7 @@ class MetricsCards extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('年化超额 Alpha',
+          Text('年化超额 Alpha',
               style: TextStyle(
                   color: AppColors.amber,
                   fontSize: 12,
@@ -195,7 +195,7 @@ class MetricsCards extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('期末持仓',
+          Text('期末持仓',
               style: TextStyle(
                   color: AppColors.amber,
                   fontSize: 12,
@@ -225,7 +225,7 @@ class MetricsCards extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         '${(h.weight * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.amber,
                             fontSize: 12,
                             fontWeight: FontWeight.w700),

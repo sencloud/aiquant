@@ -32,11 +32,11 @@ class _LiveScreenState extends State<LiveScreen> {
     final s = context.watch<LiveState>();
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.live_tv, color: AppColors.amber, size: 18),
-            SizedBox(width: 6),
-            Text('AI 直播间'),
+            const SizedBox(width: 6),
+            const Text('AI 直播间'),
           ],
         ),
         actions: [
@@ -242,7 +242,7 @@ class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
       backgroundColor: AppColors.bgRaised,
       title: Row(
         children: [
-          const Icon(Icons.live_tv, color: AppColors.amber, size: 18),
+          Icon(Icons.live_tv, color: AppColors.amber, size: 18),
           const SizedBox(width: 6),
           Text(
             '新建直播间',
@@ -314,7 +314,7 @@ class _NewManualRoomDialogState extends State<_NewManualRoomDialog> {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.toll, color: AppColors.amber, size: 14),
+              Icon(Icons.toll, color: AppColors.amber, size: 14),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -536,7 +536,7 @@ class _RoomCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.center_focus_strong,
+                    Icon(Icons.center_focus_strong,
                         color: AppColors.amber, size: 13),
                     const SizedBox(width: 4),
                     Expanded(
@@ -555,7 +555,7 @@ class _RoomCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.chat_bubble_outline,
+                  Icon(Icons.chat_bubble_outline,
                       color: AppColors.amber, size: 13),
                   const SizedBox(width: 4),
                   Text(
@@ -584,7 +584,7 @@ class _RoomCard extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.amber,
           fontWeight: FontWeight.w700,
           fontSize: 11,
@@ -661,7 +661,7 @@ Widget _emptyHint(String title, String subtitle) {
     physics: const AlwaysScrollableScrollPhysics(),
     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 80),
     children: [
-      const Icon(Icons.live_tv, color: AppColors.amber, size: 56),
+      Icon(Icons.live_tv, color: AppColors.amber, size: 56),
       const SizedBox(height: 14),
       Text(
         title,

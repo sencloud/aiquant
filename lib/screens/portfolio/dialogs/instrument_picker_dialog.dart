@@ -154,7 +154,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text('添加品种',
                   style: TextStyle(
                       color: AppColors.amber,
@@ -447,7 +447,7 @@ class _InstrumentPickerDialogState extends State<InstrumentPickerDialog> {
               ),
               const SizedBox(width: 8),
               Text(ins.tsCode,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.amber,
                       fontSize: 11,
                       fontFamily: 'monospace')),

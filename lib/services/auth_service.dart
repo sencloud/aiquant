@@ -81,6 +81,15 @@ class AuthService {
     return UserPublic.fromJson(r.data as Map<String, dynamic>);
   }
 
+  /// 同步偏好主题（换机后恢复）。
+  Future<UserPublic> updatePreferredTopic(String topic) async {
+    final r = await _api.dio.patch(
+      '/v1/me',
+      data: {'preferred_topic': topic},
+    );
+    return UserPublic.fromJson(r.data as Map<String, dynamic>);
+  }
+
   Future<void> upsertDevice({
     required String deviceId,
     required String platform,

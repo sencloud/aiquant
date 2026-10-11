@@ -210,7 +210,7 @@ class _SymbolDetailScreenState extends State<SymbolDetailScreen> {
           const SizedBox(height: 4),
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
                         color: AppColors.amber, strokeWidth: 2))
                 : _error != null

@@ -145,7 +145,7 @@ class _FalsificationDetailScreenState extends State<FalsificationDetailScreen> {
               if (entry.family.isNotEmpty) WkTag(entry.family),
               if (entry.needsRerun) ...[
                 const SizedBox(width: AppSpace.sm),
-                const WkTag('待重判', tone: AppColors.amber),
+                WkTag('待重判', tone: AppColors.amber),
               ],
               const Spacer(),
               Text(

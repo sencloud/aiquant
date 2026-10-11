@@ -41,7 +41,7 @@ class _ShellWalletScreenState extends State<ShellWalletScreen> {
                 padding: const EdgeInsets.all(16),
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [AppColors.amber, AppColors.amberDim],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,

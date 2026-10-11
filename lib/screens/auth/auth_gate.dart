@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/topic/topic_registry.dart';
+import '../../core/topic/topic_state.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
-import '../../state/ding_state.dart';
-import '../../core/config/features.dart';
-import '../../state/nautilus_state.dart';
 import '../../theme/app_theme.dart';
 import '../home/home_screen.dart';
 
@@ -18,9 +17,14 @@ import '../home/home_screen.dart';
 /// 需账号的 tab，或触发发送消息等需鉴权功能时，才由 requireLogin 弹登录页。
 ///
 /// 在登录态切换时，统一驱动其它状态：
-/// - 登录后：ChatState.bootstrap() + BillingState.refreshAll() + DingState.bootstrap()
-/// - 登出后：ChatState.reset() + BillingState.reset() + DingState.reset()
+/// - 共享状态：登录后 ChatState.bootstrap() + BillingState.refreshAll()；
+///   登出后 ChatState.reset() + BillingState.reset()；
+/// - 主题私有状态交给当前主题包的 [TopicPack.onAuthChanged]（喜爱钱：DING / 螺壳）；
+/// - 主题偏好与服务端对齐（[TopicState.reconcileWithServer]）。
 /// 这样切换账号时不会把上一个用户的 chat / inbox 留给下一个用户。
+///
+/// AuthGate 位于主题子树内：切换主题后会以「冷启动」身份重建一次，新主题
+/// 的私有状态由此完成首次 bootstrap。
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, this.homeBuilder});
 
@@ -57,28 +61,28 @@ class _AuthGateState extends State<AuthGate> {
       _wasAuthed = isAuthed;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        final pack = topicOf(context);
         if (isAuthed) {
           // 切换账号：登录前若之前已登录过，先清掉旧用户的本地缓存。
           // wasAuthed == null 表示这是冷启动后第一次确认登录态，不要 reset。
-          if (wasAuthed == true) {
-            context.read<ChatState>().reset();
-            context.read<DingState>().reset();
-            if (kEnableNautilus) {
-              context.read<NautilusState>().clearUserData();
-            }
-          }
+          final switched = wasAuthed == true;
+          if (switched) context.read<ChatState>().reset();
           context.read<ChatState>().bootstrap();
           context.read<BillingState>().refreshAll();
-          context.read<DingState>().bootstrap();
-          // 螺壳已冻结、鹦鹉螺隐藏：不再拉螺壳钱包。
-          if (kEnableNautilus) context.read<NautilusState>().refreshWallet();
+          pack.onAuthChanged(context,
+              authed: true, switchedAccount: switched, loggedOut: false);
+          // ignore: unawaited_futures
+          context.read<TopicState>().reconcileWithServer(
+                serverTopic: auth.currentUser?.preferredTopic,
+                freshLogin: wasAuthed == false,
+              );
         } else if (wasAuthed == true) {
           // 仅在从已登录显式跳到未登录（登出 / 强制下线）时才清空本地缓存，
           // 避免冷启动 splash 阶段误把 Hive 清掉。
           context.read<ChatState>().reset();
           context.read<BillingState>().reset();
-          context.read<DingState>().reset();
-          if (kEnableNautilus) context.read<NautilusState>().clearUserData();
+          pack.onAuthChanged(context,
+              authed: false, switchedAccount: false, loggedOut: true);
         }
       });
     }
@@ -87,4 +91,3 @@ class _AuthGateState extends State<AuthGate> {
     return widget.homeBuilder?.call(context) ?? const HomeScreen();
   }
 }
-

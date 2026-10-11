@@ -23,13 +23,14 @@ class PortfolioCompareScreen extends StatefulWidget {
 
 class _PortfolioCompareScreenState extends State<PortfolioCompareScreen> {
   static const _windowDays = 252;
-  static const _palette = [
+  // getter：品牌色是运行时字段（随主题换色），不能在首次访问时冻结。
+  static List<Color> get _palette => [
     AppColors.amber,
     AppColors.info,
     AppColors.positive,
     AppColors.negative,
-    Color(0xFF7C3AED),
-    Color(0xFF0891B2),
+    const Color(0xFF7C3AED),
+    const Color(0xFF0891B2),
   ];
 
   final _repo = PortfolioRepository();
@@ -353,7 +354,7 @@ class _CompareChart extends StatelessWidget {
           child: Text('暂无数据',
               style: TextStyle(color: AppColors.textTertiary, fontSize: 11)));
     }
-    const palette = _PortfolioCompareScreenState._palette;
+    final palette = _PortfolioCompareScreenState._palette;
     // 对每条 NAV，rebased = first / 100，按 index 画
     final allBars = <LineChartBarData>[];
     var idx = 0;
@@ -430,7 +431,7 @@ class _Title extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,
