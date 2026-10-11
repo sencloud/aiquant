@@ -269,7 +269,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.add, size: 14, color: AppColors.amber),
+                Icon(Icons.add, size: 14, color: AppColors.amber),
                 const SizedBox(width: 6),
                 Text(
                   '新对话',
@@ -384,7 +384,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.north_east,
+                  Icon(Icons.north_east,
                       color: AppColors.amber, size: 14),
                 ],
               ),
@@ -536,7 +536,7 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
         onPressed: () => chat.abort(),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.amber,
-          side: const BorderSide(color: AppColors.amber),
+          side: BorderSide(color: AppColors.amber),
           minimumSize: const Size(88, 46),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

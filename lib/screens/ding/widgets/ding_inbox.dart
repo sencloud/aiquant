@@ -443,11 +443,11 @@ class _GroupTileState extends State<_GroupTile>
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(
             color: AppColors.textPrimary, fontSize: 13, height: 1.55),
-        h1: const TextStyle(
+        h1: TextStyle(
             color: AppColors.amber,
             fontSize: 16,
             fontWeight: FontWeight.w800),
-        h2: const TextStyle(
+        h2: TextStyle(
             color: AppColors.amber,
             fontSize: 14,
             fontWeight: FontWeight.w800),
@@ -469,7 +469,7 @@ class _GroupTileState extends State<_GroupTile>
         ),
         blockquoteDecoration: BoxDecoration(
           color: AppColors.bgSurface,
-          border: const Border(
+          border: Border(
             left: BorderSide(color: AppColors.amber, width: 3),
           ),
         ),

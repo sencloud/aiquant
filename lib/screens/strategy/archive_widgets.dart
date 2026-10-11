@@ -132,7 +132,7 @@ class ArchiveRow extends StatelessWidget {
                         ],
                         if (entry.needsRerun) ...[
                           const SizedBox(width: AppSpace.xs),
-                          const WkTag('待重判', tone: AppColors.amber),
+                          WkTag('待重判', tone: AppColors.amber),
                         ],
                       ],
                     ),

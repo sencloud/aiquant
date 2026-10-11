@@ -180,7 +180,7 @@ class _LoginCta extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.account_balance_wallet_rounded,
+          Icon(Icons.account_balance_wallet_rounded,
               color: AppColors.amber, size: 20),
           const SizedBox(width: 10),
           Expanded(

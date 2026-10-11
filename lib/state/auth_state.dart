@@ -134,6 +134,20 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 把本机选择的主题同步到服务端（`PATCH /v1/me`），换机后恢复。
+  /// 未登录、或服务端已是同一主题时不发请求；失败静默（下次切换 / 登录再推）。
+  Future<void> syncPreferredTopic(String topic) async {
+    if (!isAuthenticated || _user?.preferredTopic == topic) return;
+    try {
+      final u = await _svc.updatePreferredTopic(topic);
+      _user = u;
+      await _api.storage.saveUser(u);
+      notifyListeners();
+    } catch (_) {
+      // 本地已生效；同步失败不打扰用户。
+    }
+  }
+
   Future<void> refreshProfile() async {
     if (!isAuthenticated) return;
     final u = await _svc.me();

@@ -176,7 +176,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
                 children: [
                   Expanded(
                     child: Text(isEdit ? '编辑定时任务' : '新建定时任务',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppColors.amber,
                             fontSize: 14,
                             fontWeight: FontWeight.w800,

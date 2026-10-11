@@ -154,13 +154,13 @@ class _PerformanceTabState extends State<PerformanceTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                _Title('组合 vs 沪深 300（rebased = 100）'),
-                Spacer(),
+                const _Title('组合 vs 沪深 300（rebased = 100）'),
+                const Spacer(),
                 _Legend(color: AppColors.amber, label: '组合'),
-                SizedBox(width: 12),
-                _Legend(color: AppColors.info, label: '沪深 300'),
+                const SizedBox(width: 12),
+                const _Legend(color: AppColors.info, label: '沪深 300'),
               ],
             ),
             const SizedBox(height: 8),
@@ -754,7 +754,7 @@ class _Title extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text,
-        style: const TextStyle(
+        style: TextStyle(
             color: AppColors.amber,
             fontSize: 12,
             fontWeight: FontWeight.w800,

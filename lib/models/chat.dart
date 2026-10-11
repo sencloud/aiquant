@@ -194,6 +194,9 @@ class ChatSession extends HiveObject {
   /// 是否启用工具调用（具体模型由服务端决定）
   bool toolsEnabled;
 
+  /// 所属主题（money / fishing）。主题化之前的老会话读出来是 money。
+  String topic;
+
   ChatSession({
     String? id,
     this.title = '新对话',
@@ -204,6 +207,7 @@ class ChatSession extends HiveObject {
     List<ChatMessage>? messages,
     this.personaId = 'default',
     this.toolsEnabled = true,
+    this.topic = 'money',
   })  : id = id ?? _uuid.v4(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
@@ -230,13 +234,14 @@ class ChatSessionAdapter extends TypeAdapter<ChatSession> {
       messages: (fields[6] as List).cast<ChatMessage>(),
       personaId: fields[7] as String? ?? 'default',
       toolsEnabled: fields[8] as bool? ?? true,
+      topic: fields[9] as String? ?? 'money',
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatSession obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -254,6 +259,8 @@ class ChatSessionAdapter extends TypeAdapter<ChatSession> {
       ..writeByte(7)
       ..write(obj.personaId)
       ..writeByte(8)
-      ..write(obj.toolsEnabled);
+      ..write(obj.toolsEnabled)
+      ..writeByte(9)
+      ..write(obj.topic);
   }
 }

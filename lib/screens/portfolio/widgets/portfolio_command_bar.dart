@@ -39,20 +39,20 @@ class PortfolioCommandBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: '新建组合',
-            icon: const Icon(Icons.create_new_folder_outlined,
+            icon: Icon(Icons.create_new_folder_outlined,
                 color: AppColors.amber, size: 18),
             onPressed: onCreate,
           ),
           IconButton(
             tooltip: '添加品种',
-            icon: const Icon(Icons.playlist_add,
+            icon: Icon(Icons.playlist_add,
                 color: AppColors.amber, size: 18),
             onPressed: onAddAsset,
           ),
           if (onImportScreenshot != null)
             IconButton(
               tooltip: '券商截图导入',
-              icon: const Icon(Icons.add_photo_alternate_outlined,
+              icon: Icon(Icons.add_photo_alternate_outlined,
                   color: AppColors.amber, size: 18),
               onPressed: onImportScreenshot,
             ),
@@ -88,11 +88,11 @@ class PortfolioCommandBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           child: Row(
             children: [
-              const Icon(Icons.folder_open,
+              Icon(Icons.folder_open,
                   color: AppColors.amber, size: 16),
               const SizedBox(width: 8),
               if (active?.isManaged ?? false) ...[
-                const Icon(Icons.lock_outline,
+                Icon(Icons.lock_outline,
                     color: AppColors.amber, size: 12),
                 const SizedBox(width: 4),
               ],
@@ -126,8 +126,8 @@ class PortfolioCommandBar extends StatelessWidget {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text('选择组合',
                   style: TextStyle(
                       color: AppColors.amber,
@@ -142,7 +142,7 @@ class PortfolioCommandBar extends StatelessWidget {
                     style: TextStyle(
                         color: AppColors.textPrimary, fontSize: 13)),
                 leading: p.isManaged
-                    ? const Icon(Icons.account_balance_wallet_rounded,
+                    ? Icon(Icons.account_balance_wallet_rounded,
                         color: AppColors.amber, size: 18)
                     : null,
                 subtitle: Text(
@@ -152,7 +152,7 @@ class PortfolioCommandBar extends StatelessWidget {
                     style: TextStyle(
                         color: AppColors.textTertiary, fontSize: 11)),
                 trailing: p.id == ps.activeId
-                    ? const Icon(Icons.check, color: AppColors.amber)
+                    ? Icon(Icons.check, color: AppColors.amber)
                     : null,
                 onTap: () {
                   ps.selectPortfolio(p.id);

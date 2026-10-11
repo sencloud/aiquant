@@ -226,11 +226,11 @@ class _QuantTabState extends State<QuantTab> {
           children: [
             const _Title('滚动指标（30 个交易日窗口）'),
             const SizedBox(height: 8),
-            const Row(
+            Row(
               children: [
                 _Legend(color: AppColors.amber, label: '滚动波动率（年化）'),
-                SizedBox(width: 12),
-                _Legend(color: AppColors.info, label: '滚动 Sharpe'),
+                const SizedBox(width: 12),
+                const _Legend(color: AppColors.info, label: '滚动 Sharpe'),
               ],
             ),
             const SizedBox(height: 4),
@@ -490,7 +490,7 @@ class _Title extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,

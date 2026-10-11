@@ -137,6 +137,12 @@ class CreditLedgerItem {
         return '新用户赠送';
       case 'consume_ai':
         return 'AI 回答';
+      case 'fishing.chat':
+        return 'AI 钓鱼助手';
+      case 'fishing.identify':
+        return '拍照识鱼';
+      case 'fishing.identify_refund':
+        return '识鱼退款';
       case 'consume_ding':
         return '定时任务';
       case 'dev_topup':

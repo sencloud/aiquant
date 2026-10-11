@@ -28,6 +28,8 @@ type Session struct {
 	UserID    int64  `db:"user_id"`
 	Title     string `db:"title"`
 	PersonaID string `db:"persona_id"`
+	// Topic 是会话所属主题（money / fishing）；0023 之前的会话一律是 money。
+	Topic     string `db:"topic"`
 	CreatedAt int64  `db:"created_at"`
 	UpdatedAt int64  `db:"updated_at"`
 }
@@ -57,17 +59,23 @@ type SessionRepo struct {
 // NewSessionRepo 构造。
 func NewSessionRepo(st *store.Store) *SessionRepo { return &SessionRepo{st: st} }
 
-// CreateOrLoad 加载已有 session（user 必须匹配），不存在或为空时新建。
-func (r *SessionRepo) CreateOrLoad(ctx context.Context, userID int64, sessionUUID, persona string) (*Session, error) {
+// CreateOrLoad 加载已有 session（user 与 topic 必须匹配），不存在或为空时新建。
+//
+// topic 为空按 money。客户端带来的 session_id 属于另一个主题时不复用、直接
+// 新建：主题之间的会话互不串台（钓鱼会话的历史不会被拼进量化 prompt）。
+func (r *SessionRepo) CreateOrLoad(ctx context.Context, userID int64, sessionUUID, persona, topicID string) (*Session, error) {
 	if persona == "" {
 		persona = "default"
+	}
+	if topicID == "" {
+		topicID = "money"
 	}
 	now := time.Now().UnixMilli()
 	if sessionUUID != "" {
 		var s Session
 		err := r.st.DB.GetContext(ctx, &s,
-			"SELECT * FROM ai_chat_sessions WHERE uuid=? AND user_id=?",
-			sessionUUID, userID)
+			"SELECT * FROM ai_chat_sessions WHERE uuid=? AND user_id=? AND topic=?",
+			sessionUUID, userID, topicID)
 		if err == nil {
 			return &s, nil
 		}
@@ -77,9 +85,9 @@ func (r *SessionRepo) CreateOrLoad(ctx context.Context, userID int64, sessionUUI
 	}
 	id := uuid.NewString()
 	res, err := r.st.DB.ExecContext(ctx, `
-		INSERT INTO ai_chat_sessions(uuid, user_id, title, persona_id, created_at, updated_at)
-		VALUES(?, ?, '', ?, ?, ?)`,
-		id, userID, persona, now, now)
+		INSERT INTO ai_chat_sessions(uuid, user_id, title, persona_id, topic, created_at, updated_at)
+		VALUES(?, ?, '', ?, ?, ?, ?)`,
+		id, userID, persona, topicID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
@@ -89,6 +97,7 @@ func (r *SessionRepo) CreateOrLoad(ctx context.Context, userID int64, sessionUUI
 		UUID:      id,
 		UserID:    userID,
 		PersonaID: persona,
+		Topic:     topicID,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil

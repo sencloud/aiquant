@@ -334,7 +334,7 @@ class ActionCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.today, size: 15, color: AppColors.amber),
+            Icon(Icons.today, size: 15, color: AppColors.amber),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -605,10 +605,10 @@ class _AskButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: AppColors.amber),
+              Icon(Icons.auto_awesome, size: 14, color: AppColors.amber),
               const SizedBox(width: 6),
               Text(label,
-                  style: const TextStyle(color: AppColors.amber, fontSize: 12)),
+                  style: TextStyle(color: AppColors.amber, fontSize: 12)),
             ],
           ),
         ),

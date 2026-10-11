@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/topic"
 )
 
 // mountAIHomePublic 挂载首页内容接口。
@@ -19,6 +20,20 @@ func mountAIHomePublic(r chi.Router, d *Deps) {
 
 func handleHomeSuggestions(d *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// ?topic= 缺省 = money（市场简报）；其它主题用主题自带的静态提问。
+		tp, err := topic.Resolve(r.URL.Query().Get("topic"))
+		if err != nil {
+			WriteError(w, r, platform.ErrBadRequest("AI.TOPIC_INVALID", "未知主题", nil))
+			return
+		}
+		if tp.ID != topic.Money {
+			qs := tp.HomeSuggestions
+			if qs == nil {
+				qs = []string{}
+			}
+			WriteJSON(w, http.StatusOK, map[string]any{"questions": qs, "topic": tp.ID})
+			return
+		}
 		if d.Brief == nil {
 			WriteJSON(w, http.StatusOK, map[string]any{"questions": []string{}})
 			return

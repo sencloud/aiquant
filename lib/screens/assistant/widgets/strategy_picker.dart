@@ -120,7 +120,7 @@ class _StrategyBubble extends StatelessWidget {
                   children: [
                     Text(
                       strategy.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.amber,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
@@ -228,7 +228,7 @@ class _SheetHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.amber,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

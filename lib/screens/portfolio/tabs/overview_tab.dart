@@ -178,7 +178,7 @@ class _PerformanceCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text('组合走势',
+                Text('组合走势',
                     style: TextStyle(
                         color: AppColors.amber,
                         fontSize: 12,

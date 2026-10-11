@@ -84,7 +84,7 @@ class _PositionsTableState extends State<PositionsTable> {
     return Row(
       children: [
         Text(widget.title,
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppColors.amber,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,

@@ -48,7 +48,7 @@ Future<void> askStrategyAI(
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    const Icon(Icons.north_east,
+                    Icon(Icons.north_east,
                         size: 14, color: AppColors.amber),
                     const SizedBox(width: 10),
                     Expanded(

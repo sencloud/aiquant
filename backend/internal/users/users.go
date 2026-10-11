@@ -53,6 +53,8 @@ type User struct {
 	InviteCode    sql.NullString `db:"invite_code"`
 	IsBot         bool   `db:"is_bot"`
 	RiskScore     int64  `db:"risk_score"`
+	// PreferredTopic 是用户上次选择的主题（0023 起；NULL = 未设置）。
+	PreferredTopic sql.NullString `db:"preferred_topic"`
 	CreatedAt     int64  `db:"created_at"`
 	UpdatedAt     int64  `db:"updated_at"`
 }
@@ -67,6 +69,8 @@ type PublicProfile struct {
 	HasEmail      bool   `json:"has_email"`
 	HasApple      bool   `json:"has_apple"`
 	CreatedAt     int64  `json:"created_at"`
+	// PreferredTopic 是用户上次选择的主题（money / fishing）；未设置时省略。
+	PreferredTopic string `json:"preferred_topic,omitempty"`
 }
 
 func (u *User) ToPublic() *PublicProfile {
@@ -83,6 +87,7 @@ func (u *User) ToPublic() *PublicProfile {
 		HasEmail:      u.EmailHmac.Valid,
 		HasApple:      u.AppleSub.Valid,
 		CreatedAt:     u.CreatedAt,
+		PreferredTopic: u.PreferredTopic.String,
 	}
 }
 
@@ -357,6 +362,15 @@ func (s *Service) UpdateNickname(ctx context.Context, userID int64, nick string)
 	_, err := s.st.DB.ExecContext(ctx,
 		"UPDATE users SET nickname=?, updated_at=? WHERE id=?",
 		sql.NullString{String: nick, Valid: nick != ""}, now, userID)
+	return err
+}
+
+// UpdatePreferredTopic 记录用户偏好主题（id 已在 handler 层校验）。
+func (s *Service) UpdatePreferredTopic(ctx context.Context, userID int64, topicID string) error {
+	now := time.Now().UnixMilli()
+	_, err := s.st.DB.ExecContext(ctx,
+		"UPDATE users SET preferred_topic=?, updated_at=? WHERE id=?",
+		sql.NullString{String: topicID, Valid: topicID != ""}, now, userID)
 	return err
 }
 

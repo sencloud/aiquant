@@ -379,7 +379,7 @@ class _PlanningTabState extends State<PlanningTab> {
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 11))),
               Text(value,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.amber,
                       fontWeight: FontWeight.w800,
                       fontSize: 12)),
@@ -549,7 +549,7 @@ class _T extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,

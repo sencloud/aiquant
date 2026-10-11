@@ -35,7 +35,7 @@ class DesktopSessionList extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '新建对话',
-                  icon: const Icon(Icons.add,
+                  icon: Icon(Icons.add,
                       size: 16, color: AppColors.amber),
                   onPressed: chat.streaming
                       ? null

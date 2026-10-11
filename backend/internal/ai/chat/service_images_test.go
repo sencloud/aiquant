@@ -38,7 +38,7 @@ func newTestRepo(t *testing.T) *SessionRepo {
 func TestUserImagesPersistAndMapToMultimodal(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepo(t)
-	sess, err := repo.CreateOrLoad(ctx, 1, "", "default")
+	sess, err := repo.CreateOrLoad(ctx, 1, "", "default", "")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestUserImagesPersistAndMapToMultimodal(t *testing.T) {
 func TestImageOnlyMessage(t *testing.T) {
 	ctx := context.Background()
 	repo := newTestRepo(t)
-	sess, err := repo.CreateOrLoad(ctx, 1, "", "default")
+	sess, err := repo.CreateOrLoad(ctx, 1, "", "default", "")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

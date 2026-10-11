@@ -153,8 +153,8 @@ class FaqSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text('常见问题',
               style: TextStyle(
                   color: AppColors.amber,
@@ -209,7 +209,7 @@ class _FaqTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             child: Row(
               children: [
-                const Icon(Icons.help_outline,
+                Icon(Icons.help_outline,
                     size: 15, color: AppColors.amber),
                 const SizedBox(width: 8),
                 Expanded(

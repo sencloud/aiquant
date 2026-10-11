@@ -67,7 +67,7 @@ class _ImportScreenshotDialogState extends State<ImportScreenshotDialog> {
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
       child: Row(
         children: [
-          const Icon(Icons.add_photo_alternate_outlined,
+          Icon(Icons.add_photo_alternate_outlined,
               color: AppColors.amber, size: 18),
           const SizedBox(width: 8),
           Expanded(
@@ -97,7 +97,7 @@ class _ImportScreenshotDialogState extends State<ImportScreenshotDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(color: AppColors.amber),
+              CircularProgressIndicator(color: AppColors.amber),
               const SizedBox(height: 12),
               Text('正在识别截图…',
                   style: TextStyle(
@@ -169,7 +169,7 @@ class _ImportScreenshotDialogState extends State<ImportScreenshotDialog> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
           child: Row(
             children: [
-              const Icon(Icons.check_circle_outline,
+              Icon(Icons.check_circle_outline,
                   color: AppColors.amber, size: 14),
               const SizedBox(width: 6),
               Expanded(

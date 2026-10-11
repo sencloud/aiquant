@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
+import '../../core/topic/topic_picker_screen.dart';
+import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../core/utils/image_data_url.dart';
@@ -212,7 +214,8 @@ class _AssistantScreenState extends State<AssistantScreen>
     // 发送即收起键盘 + 失焦，让聊天区视野最大化
     _focus.unfocus();
     Map<String, dynamic>? ctxJson;
-    if (_attachPortfolio) {
+    // 组合快照是喜爱钱私有状态；其它主题没有 PortfolioState。
+    if (_attachPortfolio && topicOf(context).id == 'money') {
       final ps = context.read<PortfolioState>();
       final summary = ps.currentSummary;
       if (summary != null && summary.holdings.isNotEmpty) {
@@ -269,14 +272,14 @@ class _AssistantScreenState extends State<AssistantScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined,
-                  color: AppColors.amber),
+              leading:
+                  Icon(Icons.photo_camera_outlined, color: AppColors.amber),
               title: const Text('拍照', style: TextStyle(fontSize: 14)),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: AppColors.amber),
+              leading:
+                  Icon(Icons.photo_library_outlined, color: AppColors.amber),
               title: const Text('从相册选择', style: TextStyle(fontSize: 14)),
               subtitle: const Text(
                 '最多 ${ImageAttachService.maxImages} 张',
@@ -418,13 +421,24 @@ class _AssistantScreenState extends State<AssistantScreen>
         ),
         title: Row(
           children: [
-            Text('喜爱',
-                style: AppType.title.copyWith(fontSize: 18, letterSpacing: 1)),
+            // 长按标题：切换主题（只有一个主题时什么都不做）。
+            GestureDetector(
+              key: const ValueKey('chat-title'),
+              behavior: HitTestBehavior.opaque,
+              onLongPress: () {
+                final topics = maybeTopicState(context);
+                if (topics != null && topics.canSwitch) {
+                  showTopicSwitcher(context);
+                }
+              },
+              child: Text(topicOf(context).chatTitle,
+                  style:
+                      AppType.title.copyWith(fontSize: 18, letterSpacing: 1)),
+            ),
             if (chat.totalTokens > 0) ...[
               const SizedBox(width: AppSpace.sm),
               Text('${chat.totalTokens} tok',
-                  style: AppType.micro
-                      .copyWith(color: AppColors.textTertiary)),
+                  style: AppType.micro.copyWith(color: AppColors.textTertiary)),
             ],
           ],
         ),
@@ -466,9 +480,8 @@ class _AssistantScreenState extends State<AssistantScreen>
                             showReasoning: _showReasoning,
                             isLatest: isLatest,
                             onSuggestion: isLatest ? _sendSuggestion : null,
-                            onRegenerate: isLatest
-                                ? () => _regenerate(chat, msg)
-                                : null,
+                            onRegenerate:
+                                isLatest ? () => _regenerate(chat, msg) : null,
                             onFeedback: (r) => chat.setFeedback(msg, r),
                           );
                         },
@@ -521,7 +534,8 @@ class _AssistantScreenState extends State<AssistantScreen>
     if (!await requireLogin(context)) return;
     if (!mounted) return;
     Map<String, dynamic>? ctxJson;
-    if (_attachPortfolio) {
+    // 组合快照是喜爱钱私有状态；其它主题没有 PortfolioState。
+    if (_attachPortfolio && topicOf(context).id == 'money') {
       final ps = context.read<PortfolioState>();
       final summary = ps.currentSummary;
       if (summary != null && summary.holdings.isNotEmpty) {
@@ -550,8 +564,9 @@ class _AssistantScreenState extends State<AssistantScreen>
       });
     }
     final market = _marketSuggestions;
-    final suggestions =
-        (market != null && market.isNotEmpty) ? market : persona.welcomeSuggestions;
+    final suggestions = (market != null && market.isNotEmpty)
+        ? market
+        : persona.welcomeSuggestions;
 
     // 问候语用昵称，没有昵称就叫「朋友」—— 跟元宝的「Hi, eric chan」同一个位置。
     final nickname = context.watch<AuthState>().currentUser?.nickname ?? '';
@@ -559,27 +574,32 @@ class _AssistantScreenState extends State<AssistantScreen>
 
     var slot = 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          _entrance(
-            slot++,
-            Text(
-              'Hi，$who',
-              style: AppType.display.copyWith(
-                  fontSize: 26, height: 1.3, color: AppColors.textPrimary),
+      padding:
+          const EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
+      // 撑满宽度：提问都很短时 Column 会收窄并被居中，问候语就不再贴左。
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Spacer(),
+            _entrance(
+              slot++,
+              Text(
+                'Hi，$who',
+                style: AppType.display.copyWith(
+                    fontSize: 26, height: 1.3, color: AppColors.textPrimary),
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          for (final q in suggestions.take(3))
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-              child: _entrance(slot++, _suggestion(q), from: 10),
-            ),
-          const SizedBox(height: AppSpace.xs),
-        ],
+            const SizedBox(height: AppSpace.lg),
+            for (final q in suggestions.take(3))
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                child: _entrance(slot++, _suggestion(q), from: 10),
+              ),
+            const SizedBox(height: AppSpace.xs),
+          ],
+        ),
       ),
     );
   }
@@ -589,7 +609,11 @@ class _AssistantScreenState extends State<AssistantScreen>
     if (_loadingSuggestions) return;
     _loadingSuggestions = true;
     try {
-      final list = await _briefing.loadSuggestions();
+      // 喜爱钱：按 A 股时段 + 行情生成；其它主题由主题包提供。
+      final pack = topicOf(context);
+      final list = (widget.briefing != null || pack.id == 'money')
+          ? await _briefing.loadSuggestions()
+          : await pack.loadHomeSuggestions();
       if (!mounted) return;
       setState(() {
         _marketSuggestions = list.isEmpty ? null : list;
@@ -649,8 +673,7 @@ class _AssistantScreenState extends State<AssistantScreen>
   /// 结构照元宝，配色走我们自己的纸墨金。
   Widget _composer(ChatState chat, Persona persona, ChatSession? session) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          AppSpace.md, AppSpace.sm, AppSpace.md,
+      padding: EdgeInsets.fromLTRB(AppSpace.md, AppSpace.sm, AppSpace.md,
           AppSpace.sm + MediaQuery.of(context).padding.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -684,8 +707,8 @@ class _AssistantScreenState extends State<AssistantScreen>
                     style: AppType.body.copyWith(fontSize: 14),
                     decoration: InputDecoration(
                       hintText: '发消息，或按住说话…',
-                      hintStyle: AppType.body
-                          .copyWith(fontSize: 14, color: AppColors.textTertiary),
+                      hintStyle: AppType.body.copyWith(
+                          fontSize: 14, color: AppColors.textTertiary),
                       isDense: true,
                       filled: false,
                       border: InputBorder.none,
@@ -801,16 +824,16 @@ class _AssistantScreenState extends State<AssistantScreen>
         padding: const EdgeInsets.all(2),
         child: Material(
           color: AppColors.bgSurface,
-          shape: const CircleBorder(
+          shape: CircleBorder(
             side: BorderSide(color: AppColors.amber, width: 1.2),
           ),
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: () => chat.abort(),
-            child: const SizedBox(
+            child: SizedBox(
               width: 36,
               height: 36,
-            child: Icon(Icons.stop_rounded, color: AppColors.amber, size: 20),
+              child: Icon(Icons.stop_rounded, color: AppColors.amber, size: 20),
             ),
           ),
         ),
@@ -827,8 +850,8 @@ class _AssistantScreenState extends State<AssistantScreen>
           child: const SizedBox(
             width: 40,
             height: 40,
-            child: Icon(Icons.arrow_upward_rounded,
-                color: Colors.white, size: 20),
+            child:
+                Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
           ),
         ),
       ),
@@ -885,16 +908,13 @@ class _ChatBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFF9F5EC),
-              Color(0xFFF1E9D9),
-            ],
-            stops: [0, 0.45, 1],
+            // 纸面色随主题（喜爱钱暖纸、喜爱钓鱼冷纸）。
+            colors: topicOf(context).palette.chatGradient,
+            stops: const [0, 0.45, 1],
           ),
         ),
         child: Stack(
@@ -902,9 +922,7 @@ class _ChatBackdrop extends StatelessWidget {
           children: [
             // 左上暖光：主光，落在问候语那一侧
             Positioned(
-                left: -130,
-                top: -90,
-                child: _glow(340, AppColors.amber, 0.11)),
+                left: -130, top: -90, child: _glow(340, AppColors.amber, 0.11)),
             // 右侧冷光：压在中间偏上，避免整页一个色调
             Positioned(
                 right: -150,
@@ -996,9 +1014,6 @@ class _RoundIconButton extends StatelessWidget {
         ),
       ),
     );
-    return tooltip == null
-        ? btn
-        : Tooltip(message: tooltip!, child: btn);
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
   }
 }
-

@@ -776,7 +776,7 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text,
-        style: const TextStyle(
+        style: TextStyle(
             color: AppColors.amber,
             fontSize: 12,
             fontWeight: FontWeight.w800,
@@ -795,7 +795,7 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.insights, color: AppColors.amber, size: 36),
+            Icon(Icons.insights, color: AppColors.amber, size: 36),
             const SizedBox(height: 12),
             Text(message,
                 textAlign: TextAlign.center,

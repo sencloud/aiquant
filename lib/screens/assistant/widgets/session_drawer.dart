@@ -21,7 +21,7 @@ class SessionDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text('对话记录',
                         style: TextStyle(
                             color: AppColors.amber,
@@ -31,7 +31,7 @@ class SessionDrawer extends StatelessWidget {
                   ),
                   IconButton(
                     tooltip: '新建对话',
-                    icon: const Icon(Icons.add, color: AppColors.amber),
+                    icon: Icon(Icons.add, color: AppColors.amber),
                     onPressed: () {
                       chat.newSession();
                       Navigator.of(context).maybePop();

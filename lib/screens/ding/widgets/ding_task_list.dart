@@ -120,7 +120,7 @@ class DingTaskList extends StatelessWidget {
                     IconButton(
                       tooltip: '立即执行',
                       icon: running
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(

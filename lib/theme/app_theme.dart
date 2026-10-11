@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 /// 一千多处引用会跟着一起换世界，不需要逐个改调用点。
 class AppColors {
   // ---- runtime fields (do NOT mark const at call sites) ----
-  static Color bgBase = _lightBgBase;
+  static Color bgBase = TopicPalette.money.bgBase;
   static Color bgSurface = _lightBgSurface;
   static Color bgRaised = _lightBgRaised;
   static Color bgHover = _lightBgHover;
@@ -23,10 +23,10 @@ class AppColors {
 
   static Color textPrimary = _lightTextPrimary;
   static Color textSecondary = _lightTextSecondary;
-  static Color textTertiary = _lightTextTertiary;
+  static Color textTertiary = TopicPalette.money.textTertiary;
 
   /// 主色浅底：选中态、标签底、引用块。
-  static Color accentSoft = _lightAccentSoft;
+  static Color accentSoft = TopicPalette.money.accentSoft;
 
   /// 主色上的前景色（按钮文字、选中图标）。
   static Color onAccent = _lightOnAccent;
@@ -34,11 +34,17 @@ class AppColors {
   /// 唯一的投影色：暖墨的低透明度，别处不要再 hand-roll 阴影。
   static const Color shadow = Color(0x1A2A2118);
 
-  /// 品牌主色「墨金」。旧的亮金黄 (#D97706) 是为深色底准备的，落在暖纸上会
-  /// 发飘；这里压深一档，白字压在上面 5.4:1，够正文门槛。
-  /// **全 App 的品牌色一律引用这个字段**，不要写死色值。
-  static const Color amber = Color(0xFF9E6322);
-  static const Color amberDim = Color(0xFF7A4A16);
+  /// 品牌主色。喜爱钱是「墨金」：旧的亮金黄 (#D97706) 是为深色底准备的，落在
+  /// 暖纸上会发飘；这里压深一档，白字压在上面 5.4:1，够正文门槛。
+  /// 主题化之后它是**运行时字段**（喜爱钓鱼 = 湖青），由 [applyTopic] 换色；
+  /// **全 App 的品牌色一律引用这个字段**，不要写死色值，也不要放进 const 表达式。
+  static Color amber = TopicPalette.money.brand;
+  static Color amberDim = TopicPalette.money.brandDim;
+
+  /// 当前主题色组（见 [TopicPalette]）。
+  static TopicPalette _topic = TopicPalette.money;
+  static TopicPalette get topic => _topic;
+  static ThemeMode _mode = ThemeMode.light;
 
   // 中国市场惯例：涨 = 红、跌 = 绿。positive 永远代表「正向 = 上涨 / 盈利 /
   // 买入」→ 红；negative 永远代表「负向 = 下跌 / 亏损 / 卖出」→ 绿。
@@ -66,7 +72,7 @@ class AppColors {
   ];
 
   // ---- light palette：纸 / 墨 / 墨金 ----
-  static const _lightBgBase = Color(0xFFF3F0E8); // 纸
+  // 纸 / 主色浅底 / 弱文字随主题变化，取自 [TopicPalette]；其余共享。
   static const _lightBgSurface = Color(0xFFFFFFFF); // 面
   static const _lightBgRaised = Color(0xFFF8F5EE); // 内嵌块
   static const _lightBgHover = Color(0xFFEDE8DC);
@@ -74,8 +80,6 @@ class AppColors {
   static const _lightBorderMed = Color(0xFFD5CDBD);
   static const _lightTextPrimary = Color(0xFF1F1C17); // 墨
   static const _lightTextSecondary = Color(0xFF5F5850);
-  static const _lightTextTertiary = Color(0xFF7C746A);
-  static const _lightAccentSoft = Color(0xFFF1E6D3);
   static const _lightOnAccent = Color(0xFFFFFFFF);
 
   // ---- dark palette：墨夜（当前入口已隐藏，保留完整一套以免半残）----
@@ -94,8 +98,12 @@ class AppColors {
   /// Push a palette into the static fields. The next `build` on the
   /// `MaterialApp` will pick it up.
   static void applyMode(ThemeMode mode) {
+    _mode = mode;
     final dark = mode == ThemeMode.dark;
-    bgBase = dark ? _darkBgBase : _lightBgBase;
+    final t = _topic;
+    amber = t.brand;
+    amberDim = t.brandDim;
+    bgBase = dark ? _darkBgBase : t.bgBase;
     bgSurface = dark ? _darkBgSurface : _lightBgSurface;
     bgRaised = dark ? _darkBgRaised : _lightBgRaised;
     bgHover = dark ? _darkBgHover : _lightBgHover;
@@ -103,10 +111,68 @@ class AppColors {
     borderMed = dark ? _darkBorderMed : _lightBorderMed;
     textPrimary = dark ? _darkTextPrimary : _lightTextPrimary;
     textSecondary = dark ? _darkTextSecondary : _lightTextSecondary;
-    textTertiary = dark ? _darkTextTertiary : _lightTextTertiary;
-    accentSoft = dark ? _darkAccentSoft : _lightAccentSoft;
+    textTertiary = dark ? _darkTextTertiary : t.textTertiary;
+    accentSoft = dark ? _darkAccentSoft : t.accentSoft;
     onAccent = dark ? _darkOnAccent : _lightOnAccent;
   }
+
+  /// 切换主题色组（喜爱钱 ↔ 喜爱钓鱼）。下一次 `MaterialApp` build 生效。
+  static void applyTopic(TopicPalette palette) {
+    _topic = palette;
+    applyMode(_mode);
+  }
+}
+
+/// 主题色组：每个主题只换这几种颜色，面、墨、语义色全主题共享。
+///
+/// | 角色 | 喜爱钱 | 喜爱钓鱼 |
+/// |---|---|---|
+/// | 主色 brand（= AppColors.amber） | 墨金 #9E6322 | 湖青 #1F6A7A |
+/// | 主色深 brandDim | #7A4A16 | #154C58 |
+/// | 主色浅底 accentSoft | #F1E6D3 | #DCEBEE |
+/// | 纸 bgBase | 暖纸 #F3F0E8 | 冷纸 #EEF2F0 |
+/// | 弱文字 textTertiary | #7C746A | #646A67 |
+///
+/// 钓鱼避开纯绿：语义色里「负向 / 跌」仍是 #17864E，计费等共享页面还会用到。
+@immutable
+class TopicPalette {
+  const TopicPalette({
+    required this.brand,
+    required this.brandDim,
+    required this.accentSoft,
+    required this.bgBase,
+    required this.textTertiary,
+    required this.chatGradient,
+  });
+
+  final Color brand;
+  final Color brandDim;
+  final Color accentSoft;
+  final Color bgBase;
+  final Color textTertiary;
+
+  /// 对话页柔光纸面的三段竖向渐变（上 → 中 → 下）。
+  final List<Color> chatGradient;
+
+  /// 喜爱钱：纸上墨金（主题化之前的唯一配色，逐值不变）。
+  static const money = TopicPalette(
+    brand: Color(0xFF9E6322),
+    brandDim: Color(0xFF7A4A16),
+    accentSoft: Color(0xFFF1E6D3),
+    bgBase: Color(0xFFF3F0E8),
+    textTertiary: Color(0xFF7C746A),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF9F5EC), Color(0xFFF1E9D9)],
+  );
+
+  /// 喜爱钓鱼：冷纸湖青（像晨雾里的水面）。
+  static const fishing = TopicPalette(
+    brand: Color(0xFF1F6A7A),
+    brandDim: Color(0xFF154C58),
+    accentSoft: Color(0xFFDCEBEE),
+    bgBase: Color(0xFFEEF2F0),
+    textTertiary: Color(0xFF646A67),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF3F7F6), Color(0xFFE2EDEC)],
+  );
 }
 
 /// 间距刻度。全 App 只用这几个值，禁止再写 7 / 11 / 13 这类散数。
@@ -223,7 +289,9 @@ class AppType {
 }
 
 class AppTheme {
-  static ThemeData build(ThemeMode mode) {
+  /// [palette] 为空时沿用当前主题色组（见 [AppColors.applyTopic]）。
+  static ThemeData build(ThemeMode mode, {TopicPalette? palette}) {
+    if (palette != null) AppColors._topic = palette;
     AppColors.applyMode(mode);
     return mode == ThemeMode.dark ? _dark() : _light();
   }
@@ -347,7 +415,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.amber, width: 1.4),
+          borderSide: BorderSide(color: AppColors.amber, width: 1.4),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -421,7 +489,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
       progressIndicatorTheme:
-          const ProgressIndicatorThemeData(color: AppColors.amber),
+          ProgressIndicatorThemeData(color: AppColors.amber),
       splashColor: AppColors.bgHover,
       highlightColor: AppColors.bgHover,
     );

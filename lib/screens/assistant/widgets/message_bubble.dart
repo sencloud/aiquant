@@ -298,7 +298,7 @@ class MessageBubble extends StatelessWidget {
         ),
         blockquoteDecoration: BoxDecoration(
           color: AppColors.bgSurface,
-          border: const Border(
+          border: Border(
             left: BorderSide(color: AppColors.amber, width: 3),
           ),
         ),
@@ -833,7 +833,7 @@ class _SourcesSheet extends StatelessWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.article_outlined,
+                leading: Icon(Icons.article_outlined,
                     size: 18, color: AppColors.amber),
                 title: Text(s.title,
                     maxLines: 2,

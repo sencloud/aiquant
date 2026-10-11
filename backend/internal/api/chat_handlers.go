@@ -14,6 +14,7 @@ import (
 
 	"github.com/sencloud/finme-backend/internal/ai/chat"
 	"github.com/sencloud/finme-backend/internal/platform"
+	"github.com/sencloud/finme-backend/internal/topic"
 )
 
 // sseHeartbeatInterval 是 SSE 流上的心跳间隔。DeepSeek 思考阶段 / 慢工具
@@ -117,7 +118,8 @@ func handleAIChatFeedback(d *Deps) http.HandlerFunc {
 // handleAIChatStream 是 AI 助理的 SSE 入口。
 //
 // 协议：
-//   - 请求体 JSON： { session_id?, persona?, deep_mode?, system_hint?, messages:[{role:user,content:...}] }
+//   - 请求体 JSON： { session_id?, persona?, deep_mode?, system_hint?, topic?, messages:[{role:user,content:...}] }
+//     topic 缺省 = money（老版本 App 不传）；钓鱼主题忽略 system_hint，人设只看 persona。
 //     兼容前端简化形态：可以传 message:"..." 字段（单条 user 消息）。
 //   - 响应 Content-Type: text/event-stream
 //   - 服务端按 chat.Service.Run 派发的事件名输出：session / text_delta /
@@ -143,6 +145,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		// WantSuggestions 为 true 时 done 之后追加一条 `suggestions` 事件
 		// （推荐追问）。新版 App 才会传；旧版不传则协议完全不变。
 		WantSuggestions bool `json:"want_suggestions,omitempty"`
+		// Topic 是主题 id（money / fishing）。不传 = money：老版本 App 行为不变。
+		Topic string `json:"topic,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		uc := MustUser(r)
@@ -154,6 +158,10 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		var body reqBody
 		if err := decodeJSONLarge(r, &body, maxChatBodyBytes); err != nil {
 			WriteError(w, r, err)
+			return
+		}
+		if !topic.Valid(body.Topic) {
+			WriteError(w, r, platform.ErrBadRequest("AI.TOPIC_INVALID", "未知主题", nil))
 			return
 		}
 		images, err := normalizeChatImages(body.Images)
@@ -249,6 +257,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			PortfolioContext: body.PortfolioContext,
 			Images:           images,
 			WantSuggestions:  body.WantSuggestions,
+			Topic:            strings.TrimSpace(body.Topic),
 		}, emit)
 		close(stopHeartbeat)
 	}

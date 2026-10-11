@@ -180,9 +180,9 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
             ),
           ),
           if (_busy)
-            const Positioned.fill(
+            Positioned.fill(
               child: ColoredBox(
-                color: Color(0x66000000),
+                color: const Color(0x66000000),
                 child: Center(
                   child: CircularProgressIndicator(color: AppColors.amber),
                 ),

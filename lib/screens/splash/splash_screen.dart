@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
@@ -137,6 +138,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final pack = topicOf(context);
     final ease = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
     // 时间走满了还在等，说明真的是网络慢 —— 如实说，别让它看着像卡住。
     final waiting = _minElapsed && (_auth?.bootstrapping ?? false);
@@ -171,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: AppSpace.md),
                       Text(
-                        '喜 AI · 策略证伪台',
+                        pack.splashSubtitle,
                         style: AppType.caption.copyWith(
                           color: AppColors.textSecondary,
                           letterSpacing: 2,
@@ -182,13 +184,13 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               const Spacer(flex: 4),
-              // 一句话把产品立场写在开屏上：这里不卖策略，只做证伪。
+              // 一句话把产品立场写在开屏上（由主题包提供）。
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxl),
                 child: FadeTransition(
                   opacity: ease,
                   child: Text(
-                    '不是策略生成器，是策略证伪器',
+                    pack.splashMotto,
                     textAlign: TextAlign.center,
                     style: AppType.caption.copyWith(
                         color: AppColors.textTertiary, letterSpacing: 1),

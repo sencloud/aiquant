@@ -99,7 +99,7 @@ class _ReportsTabState extends State<ReportsTab> {
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_awesome,
+                Icon(Icons.auto_awesome,
                     color: AppColors.amber, size: 14),
                 const SizedBox(width: 6),
                 const Expanded(child: _Title('AI 持仓诊断')),
@@ -204,7 +204,7 @@ class _ReportsTabState extends State<ReportsTab> {
         children: [
           Row(
             children: [
-              const Icon(Icons.psychology_outlined,
+              Icon(Icons.psychology_outlined,
                   color: AppColors.amber, size: 12),
               const SizedBox(width: 4),
               Text('推理中…',
@@ -242,15 +242,15 @@ class _ReportsTabState extends State<ReportsTab> {
         styleSheet: MarkdownStyleSheet(
           p: TextStyle(
               color: AppColors.textPrimary, fontSize: 12, height: 1.55),
-          h1: const TextStyle(
+          h1: TextStyle(
               color: AppColors.amber,
               fontWeight: FontWeight.w800,
               fontSize: 16),
-          h2: const TextStyle(
+          h2: TextStyle(
               color: AppColors.amber,
               fontWeight: FontWeight.w800,
               fontSize: 14),
-          h3: const TextStyle(
+          h3: TextStyle(
               color: AppColors.amber,
               fontWeight: FontWeight.w800,
               fontSize: 13),
@@ -258,7 +258,7 @@ class _ReportsTabState extends State<ReportsTab> {
               TextStyle(color: AppColors.textPrimary, fontSize: 12),
           strong: TextStyle(
               color: AppColors.textPrimary, fontWeight: FontWeight.w800),
-          tableHead: const TextStyle(
+          tableHead: TextStyle(
               color: AppColors.amber,
               fontSize: 11,
               fontWeight: FontWeight.w800),
@@ -480,7 +480,7 @@ class _ReportsTabState extends State<ReportsTab> {
                 dataRowMaxHeight: 30,
                 columnSpacing: 18,
                 horizontalMargin: 4,
-                headingTextStyle: const TextStyle(
+                headingTextStyle: TextStyle(
                   color: AppColors.amber,
                   fontWeight: FontWeight.w800,
                   fontSize: 11,
@@ -576,7 +576,7 @@ class _ReportsTabState extends State<ReportsTab> {
                           value: (e.value / 100).clamp(0.0, 1.0),
                           minHeight: 6,
                           backgroundColor: AppColors.bgBase,
-                          valueColor: const AlwaysStoppedAnimation(
+                          valueColor: AlwaysStoppedAnimation(
                               AppColors.amber),
                         ),
                       ),
@@ -967,7 +967,7 @@ class _Title extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: TextStyle(
           color: AppColors.amber,
           fontSize: 12,
           fontWeight: FontWeight.w800,
@@ -1025,7 +1025,7 @@ class _AiThinkingDotsState extends State<_AiThinkingDots>
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(

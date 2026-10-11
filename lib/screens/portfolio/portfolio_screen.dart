@@ -142,7 +142,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.inbox_outlined,
+              Icon(Icons.inbox_outlined,
                   color: AppColors.amber, size: 56),
               const SizedBox(height: 16),
               Text('还没有任何组合',

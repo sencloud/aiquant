@@ -63,6 +63,12 @@ type Runner interface {
 // Registry 集中注册 + 调度全部工具。
 type Registry struct {
 	tools map[string]Runner
+	// scope 非空表示这是 [Registry.Subset] 产出的白名单视图（如 "fishing"），
+	// 只用于拒绝信息里说明「该主题不可用」。
+	scope string
+	// parent 是白名单视图的来源注册表：白名单外但存在于全集的工具，拒绝信息
+	// 会写明是「主题不允许」而不是「不存在」，便于排查。
+	parent *Registry
 }
 
 // New 构造空 Registry。
@@ -90,6 +96,30 @@ func (r *Registry) Names() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// Subset 返回只包含 names 中工具的白名单视图（共享同一组 Runner）。
+//
+// 视图的 ToolListJSON 只输出白名单内的工具；Dispatch 只放行白名单，模型
+// 幻觉调用白名单外的工具（比如钓鱼会话里调 get_quote）会被拒绝并以
+// `{"error":...}` 回给模型。names 里不存在的工具名被静默忽略。
+func (r *Registry) Subset(scope string, names []string) *Registry {
+	out := &Registry{tools: make(map[string]Runner, len(names)), scope: scope, parent: r}
+	for _, n := range names {
+		if t, ok := r.tools[n]; ok {
+			out.tools[n] = t
+		}
+	}
+	return out
+}
+
+// Scope 返回白名单视图的作用域名；全集注册表返回空串。
+func (r *Registry) Scope() string { return r.scope }
+
+// Has 判断工具是否在本注册表（或白名单视图）内。
+func (r *Registry) Has(name string) bool {
+	_, ok := r.tools[name]
+	return ok
 }
 
 // Find 查工具 / nil。
@@ -127,6 +157,9 @@ func (r *Registry) ToolListJSON() []map[string]any {
 func (r *Registry) Dispatch(ctx context.Context, name string, argsJSON string) string {
 	t := r.tools[name]
 	if t == nil {
+		if r.parent != nil && r.parent.Has(name) {
+			return errorJSON(fmt.Errorf("tool %q is not available in topic %q", name, r.scope))
+		}
 		return errorJSON(fmt.Errorf("unknown tool %q", name))
 	}
 	args := json.RawMessage(argsJSON)

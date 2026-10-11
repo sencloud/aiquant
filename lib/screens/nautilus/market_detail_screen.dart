@@ -74,7 +74,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('预测详情')),
       body: market == null
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
                   color: AppColors.amber, strokeWidth: 2))
           : RefreshIndicator(
@@ -119,7 +119,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                   const SizedBox(height: 10),
                   _metaRow(market),
                   const SizedBox(height: 16),
-                  const Text('选项与赔率',
+                  Text('选项与赔率',
                       style: TextStyle(
                           color: AppColors.amber,
                           fontSize: 12,
@@ -165,7 +165,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                       )),
                   if (_loadedBets && _myBets.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    const Text('我的下注',
+                    Text('我的下注',
                         style: TextStyle(
                             color: AppColors.amber,
                             fontSize: 12,
@@ -424,7 +424,7 @@ class _BetSheetState extends State<_BetSheet> {
           const SizedBox(height: 6),
           Text(
             '押「${widget.option.label}」',
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppColors.amber,
                 fontSize: 15,
                 fontWeight: FontWeight.w800),
@@ -481,7 +481,7 @@ class _BetSheetState extends State<_BetSheet> {
               if (_amount > 0)
                 Text(
                   '押中预估可得 ${_estimatedReturn.toStringAsFixed(0)} 螺壳',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.amber,
                       fontSize: 11,
                       fontWeight: FontWeight.w700),
