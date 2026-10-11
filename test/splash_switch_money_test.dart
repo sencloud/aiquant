@@ -7,6 +7,7 @@ import 'package:fincept_app/core/topic/topic_registry.dart';
 import 'package:fincept_app/core/topic/topic_state.dart';
 import 'package:fincept_app/screens/discover/discover_screen.dart';
 import 'package:fincept_app/screens/settings/settings_screen.dart';
+import 'package:fincept_app/screens/splash/splash_backdrop.dart';
 import 'package:fincept_app/screens/splash/splash_screen.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
@@ -86,65 +87,109 @@ void main() {
   tearDown(() => AppColors.applyTopic(TopicPalette.money));
 
   group('开屏', () {
-    testWidgets('品牌标居中（与原生启动屏同位）+ 喜爱 + 口号，停够时间后收工', (tester) async {
+    SplashBackdropPainter painter(WidgetTester tester) => tester
+        .widget<CustomPaint>(find.byKey(const Key('splash-backdrop')))
+        .painter! as SplashBackdropPainter;
+    double opacityOf(WidgetTester tester, Finder f) => tester
+        .widget<Opacity>(
+            find.ancestor(of: f, matching: find.byType(Opacity)).first)
+        .opacity;
+    Widget splash({
+        int minMs = 1200,
+        int maxMs = 3000,
+        VoidCallback? onDone,
+      }) =>
+        SplashScreen(
+          onDone: onDone ?? () {},
+          minDuration: Duration(milliseconds: minMs),
+          maxWait: Duration(milliseconds: maxMs),
+        );
+
+    testWidgets('无图标：第一帧只有中性渐变（= 原生启动屏），随后题字 + 口号入场，停够时间后收工',
+        (tester) async {
       _phone(tester);
       final topics = TopicState(packs: builtInTopicPacks(fishing: true));
       var done = 0;
-      await tester.pumpWidget(_host(
-        topics,
-        SplashScreen(
-          onDone: () => done++,
-          minDuration: const Duration(milliseconds: 1200),
-          maxWait: const Duration(milliseconds: 3000),
-        ),
-      ));
+      await tester.pumpWidget(_host(topics, splash(onDone: () => done++)));
 
-      // 第一帧：品牌标已经在整屏正中、尺寸 152（= 原生 LaunchImage 152pt）。
-      final mark = find.byKey(const Key('splash-mark'));
-      expect(mark, findsOneWidget);
-      expect(tester.getSize(mark), const Size(152, 152));
-      expect(tester.getCenter(mark), const Offset(195, 422));
-      expect(find.text('喜爱'), findsOneWidget);
-      expect(find.text('喜爱什么，就有什么'), findsOneWidget);
-      // 旧文案不再出现。
+      // 没有任何图片 / 品牌标。
+      expect(find.byType(Image), findsNothing);
+      expect(find.byKey(const Key('splash-mark')), findsNothing);
+      // 第一帧：中性渐变，星光 / 细线 / 辉光都还没出现，题字透明。
+      final first = painter(tester);
+      expect(first.palette.stops, SplashPalette.neutral.stops);
+      expect(first.stars, 0);
+      expect(first.lines, 0);
+      expect(first.ambient, 0);
+      expect(opacityOf(tester, find.text('喜爱')), lessThan(0.01));
+      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), lessThan(0.01));
+      // 加载文字已换成发丝线。
+      expect(find.textContaining('正在'), findsNothing);
+      expect(find.byKey(const Key('splash-progress')), findsOneWidget);
       expect(find.textContaining('证伪'), findsNothing);
 
-      // 题字从透明淡入。
-      double opacityOf(Finder f) => tester
-          .widget<FadeTransition>(
-              find.ancestor(of: f, matching: find.byType(FadeTransition)).first)
-          .opacity
-          .value;
-      expect(opacityOf(find.text('喜爱什么，就有什么')), lessThan(0.05));
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(opacityOf(find.text('喜爱什么，就有什么')), closeTo(1, 0.001));
-      // 动效期间品牌标不动。
-      expect(tester.getCenter(mark), const Offset(195, 422));
+      await tester.pump(const Duration(milliseconds: 1500));
+      final end = painter(tester);
+      expect(end.palette.stops, SplashPalette.money.stops);
+      expect(end.stars, 1);
+      expect(end.lines, 1);
+      expect(opacityOf(tester, find.text('喜爱')), closeTo(1, 0.001));
+      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), closeTo(1, 0.001));
+      // 题字落在屏高 43% 附近（略高于正中）。
+      expect(tester.getCenter(find.text('喜爱')).dy, closeTo(844 * 0.43, 24));
+      // 星光在闪：时钟还在走。
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(painter(tester).clock, greaterThan(end.clock));
 
       expect(done, 0);
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 3000));
+      await tester.pump(const Duration(seconds: 3));
       expect(done, 1);
+    });
+
+    testWidgets('色组随主题：喜爱钓鱼 = 湖青到黎明；还没选主题 = 中性夜色', (tester) async {
+      _phone(tester);
+      final fishing = TopicState(packs: builtInTopicPacks(fishing: true))
+        ..debugSet('fishing');
+      await tester.pumpWidget(_host(fishing, splash()));
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(painter(tester).palette.stops, SplashPalette.fishing.stops);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
+
+      final fresh = TopicState(packs: builtInTopicPacks(fishing: true))
+        ..debugSet('money', needsPick: true);
+      await tester.pumpWidget(_host(fresh, splash()));
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(painter(tester).palette.stops, SplashPalette.neutral.stops);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
     });
 
     testWidgets('最短停留很短时动效按比例压缩，仍能放完', (tester) async {
       _phone(tester);
       final topics = TopicState(packs: builtInTopicPacks(fishing: true));
-      await tester.pumpWidget(_host(
-        topics,
-        SplashScreen(
-          onDone: () {},
-          minDuration: const Duration(milliseconds: 100),
-          maxWait: const Duration(milliseconds: 500),
-        ),
-      ));
+      await tester.pumpWidget(_host(topics, splash(minMs: 100, maxMs: 500)));
       await tester.pump(const Duration(milliseconds: 90));
-      final fade = tester.widget<FadeTransition>(find
-          .ancestor(
-              of: find.text('喜爱什么，就有什么'), matching: find.byType(FadeTransition))
-          .first);
-      expect(fade.opacity.value, closeTo(1, 0.001));
+      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), closeTo(1, 0.001));
+      expect(painter(tester).lines, 1);
       await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('系统减少动态效果：直接最终静帧，不跑动画', (tester) async {
+      _phone(tester);
+      final topics = TopicState(packs: builtInTopicPacks(fishing: true));
+      await tester.pumpWidget(MediaQuery(
+        data: const MediaQueryData(size: Size(390, 844), disableAnimations: true),
+        child: _host(topics, splash()),
+      ));
+      expect(opacityOf(tester, find.text('喜爱')), 1);
+      final p = painter(tester);
+      expect(p.stars, 1);
+      expect(p.palette.stops, SplashPalette.money.stops);
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(painter(tester).clock, p.clock);
+      await tester.pump(const Duration(seconds: 4));
     });
   });
 
