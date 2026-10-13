@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
 import '../../screens/hub/hub_screen.dart';
+import '../../screens/assistant/assistant_screen.dart';
 import 'topic_mark.dart';
 import 'topic_pack.dart';
 import 'topic_registry.dart';
@@ -61,7 +62,8 @@ class TopicTodayScreen extends StatelessWidget {
             WkNote(
               title: pack.aiLive ? null : '这个圈还在上线中',
               text: pack.aiLive
-                  ? '点一条就带着问题进对话，不用自己想怎么问。'
+                  ? '点一条就把问题填进对话，你可以改完再发；'
+                      '它会先读你在这个圈的记录再回答。'
                   : '这个圈的 AI 还在上线中，现在这几条是只读预览；'
                       '上线后点一条就带着问题进对话，它会先读你在这个圈的记录。',
             ),
@@ -77,28 +79,11 @@ class TopicTodayScreen extends StatelessWidget {
   }
 
   void _ask(BuildContext context, TopicJob job) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.bgBase,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(job.title, style: AppType.title),
-            const SizedBox(height: AppSpace.sm),
-            Text(job.ask, style: AppType.read.copyWith(color: AppColors.textSecondary)),
-            const SizedBox(height: AppSpace.lg),
-            WkNote(
-              text: '把这句话发进「${topicOf(context).name}」的对话里，'
-                  'AI 会先读这个圈的记录再回答。',
-            ),
-          ],
+    // 带着问题进对话，但不自动发送：一轮对话 1 喜点，发不发由用户决定。
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AssistantScreen(
+          launch: AssistantLaunch(initialMessage: job.ask),
         ),
       ),
     );

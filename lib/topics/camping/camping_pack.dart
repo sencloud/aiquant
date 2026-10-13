@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/single_child_widget.dart';
 
-import '../../core/topic/topic_community_screen.dart';
 import '../../core/topic/topic_log_screen.dart';
 import '../../core/topic/topic_pack.dart';
 import '../../core/topic/topic_today.dart';
 import '../../core/topic/topic_today_screen.dart';
+import '../../screens/assistant/assistant_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
 
@@ -33,9 +33,6 @@ class CampingPack extends TopicPack {
 
   @override
   String get chatTitle => '喜爱露营';
-
-  @override
-  bool get aiLive => false;
 
   @override
   TopicToday get today => const TopicToday(
@@ -102,11 +99,11 @@ class CampingPack extends TopicPack {
           builder: (_) => const TopicLogScreen(),
         ),
         TopicTab(
-          key: 'community',
-          label: '动态圈',
-          icon: Icons.forum_outlined,
-          activeIcon: Icons.forum_rounded,
-          builder: (_) => const TopicCommunityScreen(),
+          key: 'chat',
+          label: '对话',
+          icon: Icons.chat_bubble_outline_rounded,
+          activeIcon: Icons.chat_bubble_rounded,
+          builder: (_) => const AssistantScreen(),
         ),
         TopicTab(
           key: 'me',

@@ -4,6 +4,10 @@
 // 客户端按主题切换整个 App（页签 / 助手 / 内容 / 配色），服务端只认 topic id：
 //   - money   喜爱钱：给你量化（默认；老版本 App 不传 topic 时一律按 money）
 //   - fishing 喜爱钓鱼：给你钓鱼相关的一切
+//   - cat     喜爱养猫：给你养猫的一切
+//   - coffee  喜爱咖啡：给你咖啡的一切
+//   - camping 喜爱露营：给你露营的一切
+//   - hanfu   喜爱汉服：给你汉服的一切
 //
 // 喜点、内购、邀请全主题共享一个余额；钓鱼主题的流水用 reason 前缀 fishing.* 区分。
 package topic
@@ -18,6 +22,10 @@ import (
 const (
 	Money   = "money"
 	Fishing = "fishing"
+	Cat     = "cat"
+	Coffee  = "coffee"
+	Camping = "camping"
+	Hanfu   = "hanfu"
 	// Default 是缺省主题：老客户端不传 topic 时使用。
 	Default = Money
 )
@@ -52,6 +60,11 @@ type Topic struct {
 	// Tools 非空时是工具白名单（只暴露、只放行这些工具）。
 	// 为空表示「全集减去 ExcludeTools」。
 	Tools []string
+	// NoTools 为 true 时这个主题不暴露任何工具（养猫 / 咖啡 / 汉服：
+	// 它们靠模型本身与用户自己的记录回答，没有任何需要联网查的东西）。
+	// 比「白名单里什么都不写」明确：空列表在 [AllowedTools] 里的含义是
+	// 「全集减去 ExcludeTools」，会被误读成放开全部行情工具。
+	NoTools bool
 	// ExcludeTools 只在 Tools 为空时生效：全集里排除这些工具（钱主题用它
 	// 挡掉其它主题专属的工具）。
 	ExcludeTools []string
@@ -148,6 +161,9 @@ func (t *Topic) HasPersona(id string) bool {
 
 // AllowedTools 从全集工具名里算出本主题可用的工具名（排序）。
 func (t *Topic) AllowedTools(all []string) []string {
+	if t.NoTools {
+		return nil
+	}
 	var out []string
 	if len(t.Tools) > 0 {
 		have := make(map[string]bool, len(all))

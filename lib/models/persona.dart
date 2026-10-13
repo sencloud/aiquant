@@ -51,13 +51,47 @@ class Personas {
   /// 钓鱼主题的默认人设 id。
   static const String fishingDefaultId = 'fishing_buddy';
 
+  /// 兴趣圈（方案五）新开四个主题的默认人设 id。
+  static const String catDefaultId = 'cat_buddy';
+  static const String coffeeDefaultId = 'coffee_pourover';
+  static const String campingDefaultId = 'camp_gear';
+  static const String hanfuDefaultId = 'hanfu_history';
+
   /// 某主题的人设列表。
-  static List<Persona> forTopic(String topic) =>
-      topic == 'fishing' ? fishing : all;
+  static List<Persona> forTopic(String topic) {
+    switch (topic) {
+      case 'fishing':
+        return fishing;
+      case 'cat':
+        return cat;
+      case 'coffee':
+        return coffee;
+      case 'camping':
+        return camping;
+      case 'hanfu':
+        return hanfu;
+      default:
+        return all;
+    }
+  }
 
   /// 某主题的默认人设 id。
-  static String defaultIdFor(String topic) =>
-      topic == 'fishing' ? fishingDefaultId : defaultId;
+  static String defaultIdFor(String topic) {
+    switch (topic) {
+      case 'fishing':
+        return fishingDefaultId;
+      case 'cat':
+        return catDefaultId;
+      case 'coffee':
+        return coffeeDefaultId;
+      case 'camping':
+        return campingDefaultId;
+      case 'hanfu':
+        return hanfuDefaultId;
+      default:
+        return defaultId;
+    }
+  }
 
   /// 喜爱钱的人设（也是 DING 定时任务可选的人设）。
   static final List<Persona> all = <Persona>[
@@ -77,7 +111,10 @@ class Personas {
   /// 按 id 找人设；[topic] 给定时只在该主题里找，找不到回落到该主题默认人设。
   static Persona byId(String? id, {String topic = 'money'}) {
     final list = forTopic(topic);
-    final fallback = topic == 'fishing' ? _fishingBuddy : _default;
+    final fallback = list.firstWhere(
+      (p) => p.id == defaultIdFor(topic),
+      orElse: () => _default,
+    );
     if (id == null) return fallback;
     return list.firstWhere(
       (p) => p.id == id,
@@ -91,6 +128,194 @@ class Personas {
     _taidiaoTeacher,
     _lureCoach,
   ];
+
+  // ---- 兴趣圈（方案五）：四个新主题的人设 ----
+  // prompt 一律在服务端（backend/internal/topic/{cat,coffee,camping,hanfu}.go），
+  // 客户端只保留 id、展示名、图标与欢迎提问 —— 与钓鱼主题同一套做法。
+
+  /// 喜爱养猫的人设。
+  static const List<Persona> cat = <Persona>[
+    _catBuddy,
+    _catNutrition,
+    _catBehavior,
+  ];
+
+  /// 喜爱咖啡的人设。
+  static const List<Persona> coffee = <Persona>[
+    _coffeePourover,
+    _coffeeEspresso,
+    _coffeeBean,
+  ];
+
+  /// 喜爱露营的人设。
+  static const List<Persona> camping = <Persona>[
+    _campGear,
+    _campWeather,
+    _campBeginner,
+  ];
+
+  /// 喜爱汉服的人设。
+  static const List<Persona> hanfu = <Persona>[
+    _hanfuHistory,
+    _hanfuStyling,
+    _hanfuBeginner,
+  ];
+
+  static const Persona _catBuddy = Persona(
+    id: 'cat_buddy',
+    displayName: '综合猫友',
+    title: '喂养 · 护理 · 症状要不要去医院',
+    icon: Icons.pets_rounded,
+    topic: 'cat',
+    welcomeSuggestions: [
+      '它这周掉毛变多，正常吗？',
+      '这两款猫粮哪个更适合它？',
+      '半夜跑酷怎么治？',
+    ],
+  );
+
+  static const Persona _catNutrition = Persona(
+    id: 'cat_nutrition',
+    displayName: '营养与喂养',
+    title: '成分 · 喂食量 · 换粮节奏',
+    icon: Icons.restaurant_rounded,
+    topic: 'cat',
+    welcomeSuggestions: [
+      '猫粮成分表怎么看？',
+      '冻干能当主食吗？',
+      '换粮软便怎么过渡？',
+    ],
+  );
+
+  static const Persona _catBehavior = Persona(
+    id: 'cat_behavior',
+    displayName: '行为解读',
+    title: '乱尿 · 抓挠 · 多猫关系',
+    icon: Icons.psychology_rounded,
+    topic: 'cat',
+    welcomeSuggestions: [
+      '它总在床上尿，怎么办？',
+      '两只猫一直打架怎么处理？',
+      '怎么让它不抓沙发？',
+    ],
+  );
+
+  static const Persona _coffeePourover = Persona(
+    id: 'coffee_pourover',
+    displayName: '手冲咖啡师',
+    title: '研磨 · 水温 · 粉水比 · 注水',
+    icon: Icons.coffee_rounded,
+    topic: 'coffee',
+    welcomeSuggestions: [
+      '新买的豆子怎么冲才对味？',
+      '手冲总是发苦，问题出在哪？',
+      'V60 和蛋糕杯差在哪？',
+    ],
+  );
+
+  static const Persona _coffeeEspresso = Persona(
+    id: 'coffee_espresso',
+    displayName: '意式与奶咖',
+    title: '萃取 · 粉液比 · 打奶 · 拉花',
+    icon: Icons.coffee_maker_rounded,
+    topic: 'coffee',
+    welcomeSuggestions: [
+      '浓缩总是偏酸怎么调？',
+      '家用机打奶总是打过头',
+      '拉花从哪个图案练起？',
+    ],
+  );
+
+  static const Persona _coffeeBean = Persona(
+    id: 'coffee_bean',
+    displayName: '选豆与风味',
+    title: '产区 · 处理法 · 养豆期',
+    icon: Icons.local_cafe_rounded,
+    topic: 'coffee',
+    welcomeSuggestions: [
+      '想喝果酸明显的豆子怎么挑？',
+      '日晒和水洗差在哪？',
+      '豆子养几天最好喝？',
+    ],
+  );
+
+  static const Persona _campGear = Persona(
+    id: 'camp_gear',
+    displayName: '装备清单官',
+    title: '帐篷 · 睡袋温标 · 炉具 · 电源',
+    icon: Icons.luggage_rounded,
+    topic: 'camping',
+    welcomeSuggestions: [
+      '两人两天一夜要带什么？',
+      '睡袋温标怎么选？',
+      '帐篷怎么挑？',
+    ],
+  );
+
+  static const Persona _campWeather = Persona(
+    id: 'camp_weather',
+    displayName: '天气与风险',
+    title: '风 · 雨 · 露点 · 山洪 · 失温',
+    icon: Icons.thunderstorm_rounded,
+    topic: 'camping',
+    welcomeSuggestions: [
+      '这周末适合露营吗？',
+      '晚上露水大怎么办？',
+      '多大的风不建议搭天幕？',
+    ],
+  );
+
+  static const Persona _campBeginner = Persona(
+    id: 'camp_beginner',
+    displayName: '新手向导',
+    title: '从一次过夜开始',
+    icon: Icons.terrain_rounded,
+    topic: 'camping',
+    welcomeSuggestions: [
+      '新手第一次露营去哪？',
+      '公园野餐式露营要买什么？',
+      '第一次过夜要注意什么？',
+    ],
+  );
+
+  static const Persona _hanfuHistory = Persona(
+    id: 'hanfu_history',
+    displayName: '形制考据',
+    title: '形制 · 出土与文献依据',
+    icon: Icons.history_edu_rounded,
+    topic: 'hanfu',
+    welcomeSuggestions: [
+      '宋制褙子配什么下裙？',
+      '这套是不是形制正确的？',
+      '明制有哪些常见形制？',
+    ],
+  );
+
+  static const Persona _hanfuStyling = Persona(
+    id: 'hanfu_styling',
+    displayName: '穿搭妆造',
+    title: '场合 · 温度 · 发型 · 妆容',
+    icon: Icons.checkroom_rounded,
+    topic: 'hanfu',
+    welcomeSuggestions: [
+      '明天 18 度，穿汉服怎么搭？',
+      '日常通勤穿汉服会不会太隆重？',
+      '明制怎么盘发？',
+    ],
+  );
+
+  static const Persona _hanfuBeginner = Persona(
+    id: 'hanfu_beginner',
+    displayName: '入坑向导',
+    title: '第一套 · 尺码 · 面料 · 预算',
+    icon: Icons.school_rounded,
+    topic: 'hanfu',
+    welcomeSuggestions: [
+      '新手第一套买什么形制？',
+      '怎么量尺寸才不踩坑？',
+      '租一套和买一套哪个划算？',
+    ],
+  );
 
   static const Persona _fishingBuddy = Persona(
     id: 'fishing_buddy',
