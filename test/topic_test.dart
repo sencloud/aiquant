@@ -110,8 +110,9 @@ void main() {
       expect(t.needsPick, isFalse);
     });
 
-    test('只有一个主题（钓鱼开关关闭）：永不弹选择页、不能切换', () async {
-      final t = TopicState(packs: builtInTopicPacks(fishing: false));
+    test('只有一个主题（钓鱼与兴趣圈开关都关闭）：永不弹选择页、不能切换', () async {
+      final t = TopicState(
+          packs: builtInTopicPacks(fishing: false, circles: false));
       await t.bootstrap(hasLocalAccount: () async => false);
       expect(t.needsPick, isFalse);
       expect(t.canSwitch, isFalse);

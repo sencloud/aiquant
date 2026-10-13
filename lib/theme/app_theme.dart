@@ -173,6 +173,50 @@ class TopicPalette {
     textTertiary: Color(0xFF646A67),
     chatGradient: [Color(0xFFFFFFFF), Color(0xFFF3F7F6), Color(0xFFE2EDEC)],
   );
+
+  // ---- 兴趣圈（方案五）：新开的四个圈 ----
+  // 取值都过对比度门槛（白字压主色 ≥ 4.5:1，弱字压纸 ≥ 4.5:1，实测见
+  // design/xiai/contrast.py）。主色一律不取绿：语义色里「跌」是 #17864E。
+
+  /// 喜爱咖啡：深焙褐。
+  static const coffee = TopicPalette(
+    brand: Color(0xFF6F4A2A),
+    brandDim: Color(0xFF553616),
+    accentSoft: Color(0xFFEDE3D6),
+    bgBase: Color(0xFFF2EFE9),
+    textTertiary: Color(0xFF6E665D),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF7F1E9), Color(0xFFEADFD1)],
+  );
+
+  /// 喜爱养猫：绒紫。
+  static const cat = TopicPalette(
+    brand: Color(0xFF6E5A8C),
+    brandDim: Color(0xFF554470),
+    accentSoft: Color(0xFFE7E3EE),
+    bgBase: Color(0xFFEFEBF2),
+    textTertiary: Color(0xFF6C6770),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF5F2F8), Color(0xFFE8E3EF)],
+  );
+
+  /// 喜爱露营：夜营蓝（帐篷外那片天，刻意避开湖青与信息蓝）。
+  static const camping = TopicPalette(
+    brand: Color(0xFF33587A),
+    brandDim: Color(0xFF26425C),
+    accentSoft: Color(0xFFDDE6EE),
+    bgBase: Color(0xFFEFF2F6),
+    textTertiary: Color(0xFF626C78),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF2F5F9), Color(0xFFE3EAF2)],
+  );
+
+  /// 喜爱汉服：绛红（传统色里的深绛，比「涨」的 #CC3A2E 暗得多）。
+  static const hanfu = TopicPalette(
+    brand: Color(0xFF8C3A4A),
+    brandDim: Color(0xFF6D2B39),
+    accentSoft: Color(0xFFF0DFE2),
+    bgBase: Color(0xFFF4EFF0),
+    textTertiary: Color(0xFF756469),
+    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF8F2F3), Color(0xFFEFE2E4)],
+  );
 }
 
 /// 间距刻度。全 App 只用这几个值，禁止再写 7 / 11 / 13 这类散数。

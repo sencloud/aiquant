@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/single_child_widget.dart';
 
 import '../../theme/app_theme.dart';
+import 'topic_today.dart';
 
 /// 主题包（TopicPack）：「喜爱什么，就有什么」。
 ///
@@ -20,6 +21,15 @@ abstract class TopicPack {
 
   /// 主题名，例如「喜爱钱」。
   String get name;
+
+  /// 圈徽记：一个汉字，用在兴趣圈首页与切换面板上（喜爱钓鱼 → 钓）。
+  /// 默认取「喜爱」之后的第一字。
+  String get mark {
+    final rest = name.startsWith('喜爱') && name.length > 2
+        ? name.substring(2)
+        : name;
+    return rest.isEmpty ? '圈' : rest.substring(0, 1);
+  }
 
   /// 一句话，例如「给你量化」。
   String get slogan;
@@ -59,6 +69,19 @@ abstract class TopicPack {
 
   /// 对话首页的快捷提问（空会话时展示）；返回空列表则用当前人设的默认提问。
   Future<List<String>> loadHomeSuggestions() async => const [];
+
+  /// 「今天」的判断：把「今天该做什么」压成一个数加一句话。
+  ///
+  /// 返回 null 表示这个圈还没有今日判断（页面照实写「今天还没有判断」，
+  /// 不编数字）。兴趣圈首页与圈内「今天」页都用它。
+  TopicToday? get today => null;
+
+  /// 这个圈的人设与工具是否已在服务端上线。
+  ///
+  /// 服务端 `topic.Resolve` 对未知 topic 返回 ErrUnknownTopic，所以新圈在
+  /// 服务端上线之前，「今天」页里「AI 能替你做的事」只作为只读预览，
+  /// 不引导用户去点一个必然会失败的入口。
+  bool get aiLive => true;
 
   /// 进入主题时（冷启动 / 切换后首帧）执行一次的副作用，例如钱主题预热 Tushare。
   void onEnter(BuildContext context) {}

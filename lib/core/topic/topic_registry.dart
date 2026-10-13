@@ -3,14 +3,24 @@ import 'package:provider/provider.dart';
 
 import '../../topics/fishing/fishing_pack.dart';
 import '../../topics/money/money_pack.dart';
+import '../../topics/camping/camping_pack.dart';
+import '../../topics/cat/cat_pack.dart';
+import '../../topics/coffee/coffee_pack.dart';
+import '../../topics/hanfu/hanfu_pack.dart';
 import 'topic_flags.dart';
 import 'topic_pack.dart';
 import 'topic_state.dart';
 
 /// 内置主题包。顺序即首启选择页 / 切换面板的顺序；第一个是默认主题。
-List<TopicPack> builtInTopicPacks({bool? fishing}) => [
+List<TopicPack> builtInTopicPacks({bool? fishing, bool? circles}) => [
       const MoneyPack(),
       if (fishing ?? kEnableTopicFishing) const FishingPack(),
+      if (circles ?? kEnableTopicCircles) ...[
+        const CatPack(),
+        const CoffeePack(),
+        const CampingPack(),
+        const HanfuPack(),
+      ],
     ];
 
 /// 当前主题包（由 app.dart 在 `MaterialApp` 之上注入）。

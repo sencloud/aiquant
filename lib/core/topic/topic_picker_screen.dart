@@ -70,22 +70,30 @@ class TopicPickerScreen extends StatelessWidget {
                 style: AppType.section.copyWith(color: AppColors.textPrimary),
               ),
               const SizedBox(height: AppSpace.md),
-              for (final p in topics.available) ...[
-                TopicCard(
-                  pack: p,
-                  selected: switching && p.id == topics.currentId,
-                  onTap: () {
-                    if (switching) {
-                      Navigator.of(context).pop(p.id);
-                      return;
-                    }
-                    Analytics.instance.track('topic_pick', {'topic': p.id});
-                    context.read<TopicState>().completePick(p.id);
-                  },
+              // 兴趣圈多起来之后这里放不下：卡片区自己滚，页头与脚注固定。
+              // 两个主题时看不出区别，六个主题时不会溢出（小屏尤其明显）。
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (final p in topics.available) ...[
+                      TopicCard(
+                        pack: p,
+                        selected: switching && p.id == topics.currentId,
+                        onTap: () {
+                          if (switching) {
+                            Navigator.of(context).pop(p.id);
+                            return;
+                          }
+                          Analytics.instance.track('topic_pick', {'topic': p.id});
+                          context.read<TopicState>().completePick(p.id);
+                        },
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: AppSpace.md),
-              ],
-              const Spacer(),
+              ),
               Text(
                 switching
                     ? '整个 App 随之切换；账号、喜点通用，对话各自保留'

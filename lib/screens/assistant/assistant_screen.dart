@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/auth/require_login.dart';
 import '../../core/topic/topic_picker_screen.dart';
+import '../hub/hub_screen.dart';
 import '../../core/topic/topic_registry.dart';
 import '../../services/analytics.dart';
 import '../../core/format/credit_fmt.dart';
@@ -443,6 +444,14 @@ class _AssistantScreenState extends State<AssistantScreen>
           ],
         ),
         actions: [
+          _RoundIconButton(
+            icon: Icons.grid_view_rounded,
+            tooltip: '兴趣圈',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HubScreen()),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
           _RoundIconButton(
             icon: Icons.add_comment_rounded,
             tooltip: '新建对话',

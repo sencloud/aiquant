@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
 import '../../core/auth/require_login.dart';
+import '../hub/hub_screen.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../core/topic/topic_picker_screen.dart';
 import '../../core/topic/topic_registry.dart';
@@ -116,6 +117,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               WkGroup(
                 header: '主题',
                 children: [
+                  ProfileIndexRow(
+                    key: const ValueKey('settings-hub'),
+                    icon: Icons.grid_view_rounded,
+                    title: '兴趣圈首页',
+                    note: '六个圈今天的状态，一行一个',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const HubScreen()),
+                    ),
+                  ),
                   ProfileIndexRow(
                     key: const ValueKey('settings-switch-topic'),
                     icon: pack.icon,

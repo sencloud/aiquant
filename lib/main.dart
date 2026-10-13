@@ -54,7 +54,10 @@ Future<void> _bootstrap() async {
   // 桌面端只保留喜爱钱。本机切换主题时，已登录则同步到服务端（换机恢复）。
   final auth = AuthState();
   final topics = TopicState(
-    packs: builtInTopicPacks(fishing: isDesktopPlatform ? false : null),
+    packs: builtInTopicPacks(
+      fishing: isDesktopPlatform ? false : null,
+      circles: isDesktopPlatform ? false : null,
+    ),
     // ignore: unawaited_futures
     onSwitched: (id) => auth.syncPreferredTopic(id),
   );
