@@ -59,10 +59,15 @@ def main() -> int:
         # 兴趣圈首页左上角返回，回到「喜爱养猫」继续看页签。
         page.mouse.click(28, 46)
         page.wait_for_timeout(900)
+        # 「AI 能替你做的事」第一条（症状判断）→ 带着问题进对话（不自动发送）。
+        page.mouse.click(207, 480)
+        shot("46-cat-ask", 1400)
+        page.go_back()
+        page.wait_for_timeout(1000)
         page.mouse.click(TABS[1], TAB_Y)
         shot("42-cat-log")
         page.mouse.click(TABS[2], TAB_Y)
-        shot("43-cat-community")
+        shot("43-cat-chat")
         page.mouse.click(TABS[3], TAB_Y)
         shot("44-cat-me", 1100)
 
