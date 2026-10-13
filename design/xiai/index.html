@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="zh-CN" data-circle="money">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>喜爱 · 兴趣圈 AI 助手 — 高保真原型</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- 图标（一笔一画，同一粗细；不用 emoji） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="i-plus" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <path d="M10 3.5v13M3.5 10h13"/></g>
+    <g id="i-search" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <circle cx="8.8" cy="8.8" r="5.6"/><path d="M13 13l3.4 3.4"/></g>
+    <g id="i-chev" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></g>
+    <g id="i-back" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></g>
+    <g id="i-ticket" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+      <path d="M3.4 5.6h13.2v3a1.6 1.6 0 000 3.2v3H3.4v-3a1.6 1.6 0 000-3.2z"/>
+      <path d="M10 6.4v1.8M10 9.6v1.6M10 12.6v1.6" stroke-dasharray="1 1.6"/></g>
+    <g id="i-home" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M3.6 8.6L10 3.4l6.4 5.2v7.4a1 1 0 01-1 1H4.6a1 1 0 01-1-1z"/></g>
+    <g id="i-circles" fill="none" stroke="currentColor" stroke-width="1.6">
+      <circle cx="6" cy="6" r="2.4"/><circle cx="14" cy="6" r="2.4"/>
+      <circle cx="6" cy="14" r="2.4"/><circle cx="14" cy="14" r="2.4"/></g>
+    <g id="i-user" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <circle cx="10" cy="7.4" r="3.1"/><path d="M4.2 16.6c.6-3 3-4.4 5.8-4.4s5.2 1.4 5.8 4.4"/></g>
+    <g id="i-camera" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M3.4 6.8h2.4l1.2-1.6h5.6l1.2 1.6h2.4v8.4H3.4z"/><circle cx="10" cy="10.8" r="2.6"/></g>
+    <g id="i-pin" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M10 3.4c2.6 0 4.4 2 4.4 4.4 0 3.2-4.4 8.8-4.4 8.8S5.6 11 5.6 7.8c0-2.4 1.8-4.4 4.4-4.4z"/>
+      <circle cx="10" cy="7.8" r="1.6"/></g>
+    <g id="i-send" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M10 16V4.6M5.4 9L10 4.2 14.6 9"/></g>
+    <g id="i-clock" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="10" cy="10" r="6.6"/><path d="M10 5.8V10l2.8 1.8" stroke-linecap="round"/></g>
+    <g id="i-flag" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M5 16.6V4.2h9.4l-1.8 3.4 1.8 3.4H5"/></g>
+    <g id="i-gear" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M3.6 6.6h12.8M3.6 13.4h12.8" stroke-linecap="round"/>
+      <circle cx="7.4" cy="6.6" r="1.7"/><circle cx="12.6" cy="13.4" r="1.7"/></g>
+    <g id="i-bag" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M4.6 6.6h10.8l1 9.8H3.6z"/><path d="M7.4 8.2V5.4a2.6 2.6 0 015.2 0v2.8"/></g>
+    <g id="i-spark" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9z"/></g>
+    <g id="i-lock" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="4.4" y="8.8" width="11.2" height="7.4" rx="2"/>
+      <path d="M7 8.8V7a3 3 0 016 0v1.8"/></g>
+    <g id="i-check" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M4.8 10.4l3.4 3.4 7-7.6"/></g>
+    <!-- 品牌记号：四角星（沿用「喜宽」时期，见 DESIGN.md 开屏装饰） -->
+    <path id="i-brand" d="M10 1.6l1.85 6.55L18.4 10l-6.55 1.85L10 18.4l-1.85-6.55L1.6 10l6.55-1.85z"/>
+  </defs>
+</svg>
+
+<div class="stage">
+<div class="device" id="device">
+
+  <div class="statusbar">
+    <span class="num">15:20</span>
+    <span class="sig">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+        <rect x="0" y="7" width="3" height="4" rx="1"/>
+        <rect x="4.5" y="5" width="3" height="6" rx="1"/>
+        <rect x="9" y="2.5" width="3" height="8.5" rx="1"/>
+        <rect x="13.5" y="0" width="3" height="11" rx="1" opacity=".35"/>
+      </svg>
+      <svg width="24" height="12" viewBox="0 0 24 12" aria-hidden="true">
+        <rect x=".5" y=".5" width="20" height="11" rx="3" fill="none" stroke="currentColor"
+          opacity=".5"/>
+        <rect x="2" y="2" width="13" height="8" rx="1.6" fill="currentColor"/>
+        <path d="M22 4v4a2.4 2.4 0 000-4z" fill="currentColor" opacity=".5"/>
+      </svg>
+    </span>
+  </div>
+
+  <!-- ═══ 首页 · 今天 ═══════════════════════════════════════ -->
+  <section class="view">
+  <div class="screen" id="s-home">
+    <div class="topbar">
+      <div class="stack">
+        <div class="title"><svg class="brandmark"><use href="#i-brand"/></svg>喜爱</div>
+        <div class="sub" id="home-count">5 个圈 · 3 个今天有话说</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="iconbtn" data-go="circles"><svg><use href="#i-search"/></svg></div>
+      <div class="iconbtn" data-go="quiz"><svg><use href="#i-plus"/></svg></div>
+    </div>
+
+    <div class="pad">
+      <h1 class="display">今天，先看这三个数</h1>
+      <p class="lede">每个圈今天只交一个判断：点数字进圈，点小票看它凭什么。</p>
+    </div>
+    <div class="gap"></div>
+
+    <div class="pad">
+    <div class="card">
+
+      <!-- 钓鱼 -->
+      <article class="index" data-go="circle" data-enter="fishing" style="--brand:#1F6A7A">
+        <div class="who">
+          <span class="mark" style="background:#1F6A7A">钓</span>
+          <span class="nm">喜爱钓鱼</span>
+          <span class="lv">Lv.12</span>
+        </div>
+        <div class="reading">
+          <span class="big num">72</span><span class="verdict">适合出钓</span>
+        </div>
+        <div class="rail">
+          <div class="cell half" style="height:13px;--d:0ms"></div>
+          <div class="cell half" style="height:10px;--d:60ms"></div>
+          <div class="cell" style="height:6px;--d:120ms"></div>
+          <div class="cell" style="height:6px;--d:180ms"></div>
+          <div class="cell on" style="height:26px;--d:240ms"></div>
+          <div class="cell on" style="height:28px;--d:300ms"></div>
+          <div class="cell half" style="height:14px;--d:360ms"></div>
+          <div class="cell half" style="height:9px;--d:420ms"></div>
+          <div class="now" style="left:58%"></div>
+        </div>
+        <div class="rail-legend"><span>06:00</span><span class="n">现在 15:20</span><span>22:00</span></div>
+        <div class="why">
+          <b>今天 15:00–18:00 最好：</b>东北风 2 级、水温 21℃，鱼口在傍晚回深水；十一后禁渔期已过，东明湖可下竿。
+        </div>
+        <div class="ticket" data-sheet="ticket">
+          <svg><use href="#i-ticket"/></svg>
+          <span>凭你 9 月在东明湖的 3 次记录 + 今夜东北风降温</span>
+          <span class="go">看小票</span>
+        </div>
+      </article>
+
+      <!-- 咖啡 -->
+      <article class="index" data-go="circle" data-enter="coffee" style="--brand:#6F4A2A">
+        <div class="who">
+          <span class="mark" style="background:#6F4A2A">咖</span>
+          <span class="nm">喜爱咖啡</span>
+          <span class="lv">Lv.8</span>
+        </div>
+        <div class="reading">
+          <span class="big num">3</span><span class="verdict">天赏味期</span>
+        </div>
+        <div class="rail">
+          <div class="cell half" style="height:22px;--d:0ms"></div>
+          <div class="cell half" style="height:24px;--d:60ms"></div>
+          <div class="cell on" style="height:27px;--d:120ms"></div>
+          <div class="cell on" style="height:25px;--d:180ms"></div>
+          <div class="cell half" style="height:14px;--d:240ms"></div>
+          <div class="cell half" style="height:10px;--d:300ms"></div>
+          <div class="cell" style="height:6px;--d:360ms"></div>
+          <div class="cell" style="height:6px;--d:420ms"></div>
+          <div class="now" style="left:12%"></div>
+        </div>
+        <div class="rail-legend"><span>今天</span><span class="n">现在</span><span>第 7 天</span></div>
+        <div class="why">
+          <b>茉香日晒该喝了：</b>今天起 3 天内风味最好。15g / 92℃ / 1:15，比你昨天那杯再快 5 秒。
+        </div>
+        <div class="ticket" data-sheet="ticket">
+          <svg><use href="#i-ticket"/></svg>
+          <span>凭你记的豆子烘焙日与 42 次冲煮参数</span>
+          <span class="go">看小票</span>
+        </div>
+      </article>
+
+      <!-- 养猫 -->
+      <article class="index" data-go="circle" data-enter="cat" style="--brand:#6E5A8C">
+        <div class="who">
+          <span class="mark" style="background:#6E5A8C">猫</span>
+          <span class="nm">喜爱养猫</span>
+          <span class="lv">Lv.15</span>
+        </div>
+        <div class="reading">
+          <span class="big num">6</span><span class="verdict">天猫粮余量</span>
+        </div>
+        <div class="rail">
+          <div class="cell half" style="height:22px;--d:0ms"></div>
+          <div class="cell half" style="height:24px;--d:60ms"></div>
+          <div class="cell on" style="height:27px;--d:120ms"></div>
+          <div class="cell half" style="height:22px;--d:180ms"></div>
+          <div class="cell half" style="height:15px;--d:240ms"></div>
+          <div class="cell half" style="height:10px;--d:300ms"></div>
+          <div class="cell" style="height:6px;--d:360ms"></div>
+          <div class="cell" style="height:6px;--d:420ms"></div>
+          <div class="now" style="left:12%"></div>
+        </div>
+        <div class="rail-legend"><span>今天</span><span class="n">现在</span><span>第 7 天</span></div>
+        <div class="why">
+          <b>该补猫砂了：</b>按你 8 月以来的记录，4.2kg 的布偶这周体重持平，掉毛量比上月多。
+        </div>
+        <div class="ticket" data-sheet="ticket">
+          <svg><use href="#i-ticket"/></svg>
+          <span>凭你上传的 2 次体重记录与猫砂购买日</span>
+          <span class="go">看小票</span>
+        </div>
+      </article>
+    </div>
+    </div>
+
+    <div class="pad">
+      <div class="sect"><h2>其余 2 个圈</h2><span>今天没有要说的</span></div>
+      <div class="card rows">
+        <div class="line" data-go="circle" data-enter="fitness">
+          <span class="mark" style="background:#45536B">健</span>
+          <div class="stack">
+            <div class="lead">喜爱健身</div>
+            <div class="note">今日恢复 58 · 建议轻量：昨天深蹲后股四头肌仍紧</div>
+          </div>
+          <span class="val num">Lv.4</span>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="money">
+          <span class="mark" style="background:#9E6322">钱</span>
+          <div class="stack">
+            <div class="lead">喜爱钱</div>
+            <div class="note">收盘后给结论：你写的「缩量假突破」今天没过样本闸门</div>
+          </div>
+          <span class="val num">Lv.3</span>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="pad">
+      <div class="sect"><h2>今日推荐</h2><span>每条都带一张小票</span></div>
+      <div class="card rows">
+        <div class="line" data-go="circle" data-enter="fishing">
+          <span class="mark" style="background:#1F6A7A">钓</span>
+          <div class="stack">
+            <div class="lead">东明湖北岸的浅滩开始返鱼</div>
+            <div class="note">同好 7 条记录都指向北岸 2–3 米水深处</div>
+          </div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="cat">
+          <span class="mark" style="background:#6E5A8C">猫</span>
+          <div class="stack">
+            <div class="lead">掉毛变多先别急着换粮</div>
+            <div class="note">换季正常掉毛与病理性掉毛的 3 个区别</div>
+          </div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+      <p class="footnote">推荐只按你自己的档案与实测数据排序。点进去可以问它「凭什么」。</p>
+      <div class="rule"><i></i><b></b><i></i></div>
+    </div>
+  </div>
+
+  <!-- ═══ 圈子目录 ══════════════════════════════════════════ -->
+  <div class="screen" id="s-circles" hidden>
+    <div class="topbar center"><div class="title">我的兴趣圈</div></div>
+    <div class="pad">
+      <p class="lede" style="margin:0 0 14px">5 个圈。每个圈有自己的 AI、自己的档案、自己的配色。</p>
+    </div>
+    <div class="pad">
+      <div class="card rows">
+        <div class="line" data-go="circle" data-enter="fishing">
+          <span class="mark lg" style="background:#1F6A7A">钓</span>
+          <div class="stack">
+            <div class="lead">喜爱钓鱼</div>
+            <div class="note">今天 15:00–18:00 适合出钓</div>
+          </div>
+          <span class="val num">Lv.12</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="coffee">
+          <span class="mark lg" style="background:#6F4A2A">咖</span>
+          <div class="stack">
+            <div class="lead">喜爱咖啡</div>
+            <div class="note">茉香日晒还有 3 天赏味期</div>
+          </div>
+          <span class="val num">Lv.8</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="cat">
+          <span class="mark lg" style="background:#6E5A8C">猫</span>
+          <div class="stack">
+            <div class="lead">喜爱养猫</div>
+            <div class="note">猫粮剩 6 天 · 该补猫砂</div>
+          </div>
+          <span class="val num">Lv.15</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="fitness">
+          <span class="mark lg" style="background:#45536B">健</span>
+          <div class="stack">
+            <div class="lead">喜爱健身</div>
+            <div class="note">今日恢复 58 · 建议轻量</div>
+          </div>
+          <span class="val num">Lv.4</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="circle" data-enter="money">
+          <span class="mark lg" style="background:#9E6322">钱</span>
+          <div class="stack">
+            <div class="lead">喜爱钱</div>
+            <div class="note">收盘后给结论</div>
+          </div>
+          <span class="val num">Lv.3</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="quiz">
+          <span class="mark lg" style="background:transparent;border:1px dashed var(--edge);color:var(--ink-3)">
+            <svg style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+          <div class="stack"><div class="lead">添加兴趣</div>
+            <div class="note">回答 3 个问题，AI 给你推荐 2 个圈</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+      <p class="footnote">AI 只读你在这个圈里的记录。跨圈数据不会自动混用，除非你允许。</p>
+    </div>
+  </div>
+
+  <!-- ═══ 我的 ══════════════════════════════════════════════ -->
+  <div class="screen" id="s-me" hidden>
+    <div class="topbar center"><div class="title">我的</div></div>
+    <div class="pad">
+      <div class="card rows">
+        <div class="line">
+          <span class="avatar" style="width:38px;height:38px;font-size:15px">老</span>
+          <div class="stack">
+            <div class="lead">老陈</div>
+            <div class="note">138****2210 · 2026-03 加入</div>
+          </div>
+          <span class="tag plain">未开会员</span>
+        </div>
+      </div>
+
+      <div class="sect"><h2>喜点</h2><span>全圈共用</span></div>
+      <div class="card pad">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span class="num" style="font-size:28px">12</span>
+          <span style="font-size:13px;color:var(--ink-2)">喜点</span>
+          <span style="margin-left:auto">
+            <button class="thinbtn solid" data-sheet="upgrade">充值</button></span>
+        </div>
+        <p style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hair);
+          font-size:12px;color:var(--ink-3);line-height:1.7">
+          对话每轮 1 喜点，深度模式 5 喜点；记录渔获、看小票、出钓指数免费。</p>
+      </div>
+
+      <div class="sect"><h2>会员</h2></div>
+      <div class="card rows">
+        <div class="line" data-sheet="upgrade">
+          <svg class="glyph"><use href="#i-spark"/></svg>
+          <div class="stack">
+            <div class="lead">喜爱会员</div>
+            <div class="note">跨圈深度分析、月度装备盘点、无上限的档案容量</div>
+          </div>
+          <span class="val">¥18 / 月</span><svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+
+      <div class="sect"><h2>我的数据</h2><span>5 个圈加总</span></div>
+      <div class="stat">
+        <div><div class="v">23</div><div class="k">条记录</div></div>
+        <div><div class="v">31</div><div class="k">次出钓</div></div>
+        <div><div class="v">156</div><div class="k">轮对话</div></div>
+      </div>
+
+      <div class="sect"><h2>AI 与隐私</h2></div>
+      <div class="card rows">
+        <div class="line">
+          <div class="stack"><div class="lead">跨圈记忆</div>
+            <div class="note">关着：AI 只在单个圈里记你的档案</div></div>
+          <span class="lv">关</span>
+        </div>
+        <div class="line">
+          <div class="stack"><div class="lead">定位与天气</div>
+            <div class="note">只在使用时获取，出钓指数只上报 1 公里精度</div></div>
+          <span class="lv">已允许</span>
+        </div>
+        <div class="line">
+          <div class="stack"><div class="lead">清空某个圈的档案</div>
+            <div class="note">装备、战绩、对话一起删，不留副本</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+
+      <div class="sect"><h2>其它</h2></div>
+      <div class="card rows">
+        <div class="line"><svg class="glyph"><use href="#i-flag"/></svg>
+          <div class="stack"><div class="lead">邀请好友</div></div>
+          <span class="val">各得 100 喜点</span><svg class="chev"><use href="#i-chev"/></svg></div>
+        <div class="line"><svg class="glyph"><use href="#i-gear"/></svg>
+          <div class="stack"><div class="lead">设置</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+      <p class="footnote">喜爱（喜 AI）· 你爱什么，AI 帮你玩明白<br>原型演示数据，非真实账户</p>
+    </div>
+  </div>
+
+  <!-- ═══ 兴趣测试 ══════════════════════════════════════════ -->
+  <div class="screen" id="s-quiz" hidden>
+    <div class="topbar">
+      <div class="back" data-go="back"><svg><use href="#i-back"/></svg></div>
+      <div class="stack"><div class="title">添加兴趣</div></div>
+    </div>
+    <div class="quiz">
+      <div class="steps"><i class="on" data-step-dot="1"></i><i data-step-dot="2"></i><i data-step-dot="3"></i></div>
+
+      <div data-step="1">
+        <h2 class="qtext">半夜最容易点开的是哪种视频？</h2>
+        <div class="opts">
+          <div class="opt" data-opt="fishing"><div class="t">野钓、装备开箱
+            <em>看别人怎么钓，也想知道自己该买什么</em></div></div>
+          <div class="opt" data-opt="coffee"><div class="t">拉花、手冲、探店
+            <em>想把这杯做得更好喝一点</em></div></div>
+          <div class="opt" data-opt="cat"><div class="t">猫片、养猫避坑
+            <em>养着养着想少踩坑</em></div></div>
+          <div class="opt" data-opt="fitness"><div class="t">动作拆解、训练计划
+            <em>想练得明白，别白练</em></div></div>
+        </div>
+      </div>
+
+      <div data-step="2" hidden>
+        <h2 class="qtext">你最想要哪一种帮忙？</h2>
+        <div class="opts">
+          <div class="opt" data-opt="buy"><div class="t">告诉我该买什么
+            <em>预算有限，怕买错</em></div></div>
+          <div class="opt" data-opt="go"><div class="t">出门之前告诉我值不值
+            <em>时间比钱贵，别白跑一趟</em></div></div>
+          <div class="opt" data-opt="learn"><div class="t">按进度教我下一步
+            <em>不想看一百篇教程</em></div></div>
+        </div>
+      </div>
+
+      <div data-step="3" hidden>
+        <h2 class="qtext">每周大概能花多少时间？</h2>
+        <div class="opts">
+          <div class="opt" data-opt="t1"><div class="t">1 小时以内<em>碎片时间</em></div></div>
+          <div class="opt" data-opt="t2"><div class="t">3–5 小时<em>周末会安排</em></div></div>
+          <div class="opt" data-opt="t3"><div class="t">几乎每天<em>已经上头了</em></div></div>
+        </div>
+      </div>
+
+      <div data-step="result" hidden>
+        <h2 class="qtext">根据你的回答，先从这两个圈开始</h2>
+        <p class="lede" style="margin-bottom:16px">随时可以再加，也随时可以退。</p>
+        <div class="reco">
+          <div class="hd">
+            <span class="mark lg" style="background:#1F6A7A">钓</span>
+            <span style="font-size:16px;font-weight:600">喜爱钓鱼</span>
+            <span class="tag" style="margin-left:auto">淡水钓</span>
+          </div>
+          <p>你的回答里有「想知道自己该买什么」。这个圈第一次对话就会问清预算与常去的钓点，
+            <b>先给配置方案再谈装备</b>，不给结论的推荐这里不出现。</p>
+        </div>
+        <div class="reco">
+          <div class="hd">
+            <span class="mark lg" style="background:#6F4A2A">咖</span>
+            <span style="font-size:16px;font-weight:600">喜爱咖啡</span>
+            <span class="tag" style="margin-left:auto">手冲</span>
+          </div>
+          <p>你选了「把这杯做得更好喝一点」。这个圈会记住你每一支豆子的烘焙日，
+            <b>到期前提醒你把它喝掉</b>，而不是等你喝完再推荐新豆。</p>
+        </div>
+        <div class="btnrow" style="margin-top:16px">
+          <button class="primary ghost" data-go="back">再说一次</button>
+          <button class="primary" data-go="add-circles">加入这 2 个圈</button>
+        </div>
+        <p class="footnote">加入后首页会多出两行今天的判断。</p>
+      </div>
+
+      <div data-step="nav"><div class="btnrow" style="margin-top:18px">
+        <button class="primary" id="quiz-next" disabled>下一步</button>
+      </div>
+      <p class="footnote">不收集手机号之前的问题答案，答完可以随时删。</p></div>
+    </div>
+  </div>
+
+  <!-- ═══ 空状态 · 新用户还没有圈 ═══════════════════════════ -->
+  <div class="screen" id="s-empty" hidden>
+    <div class="topbar center"><div class="title">喜爱</div></div>
+    <div class="empty">
+      <h3>你还没有圈子</h3>
+      <p>有了圈子，这里每天会给你三个数：今天值不值得去、你养的东西还够几天、<br>
+        哪件事该现在做。别的 App 给你信息流，这里给你结论。</p>
+      <button class="primary" data-go="quiz">做个 3 题的兴趣测试</button>
+    </div>
+    <div class="pad">
+      <div class="sect"><h2>也可以先逛逛</h2><span>别人今天在看什么</span></div>
+      <div class="card rows">
+        <div class="line" data-go="quiz">
+          <span class="mark" style="background:#1F6A7A">钓</span>
+          <div class="stack"><div class="lead">喜爱钓鱼</div>
+            <div class="note">今天 15:00–18:00 适合出钓 · 12,804 人在这个圈</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="quiz">
+          <span class="mark" style="background:#6E5A8C">猫</span>
+          <div class="stack"><div class="lead">喜爱养猫</div>
+            <div class="note">换季掉毛的 3 个区别 · 9,172 人在这个圈</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+        <div class="line" data-go="quiz">
+          <span class="mark" style="background:#6F4A2A">咖</span>
+          <div class="stack"><div class="lead">喜爱咖啡</div>
+            <div class="note">你的豆子还剩几天最好喝 · 6,430 人在这个圈</div></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+      <p class="footnote">圈子内容由 AI 先答、达人补充；AI 答不了的问题会明确写「不确定」。</p>
+    </div>
+  </div>
+
+  <!-- ═══ 圈内：四个页签 ════════════════════════════════════ -->
+  <div class="screen" id="s-circle" hidden>
+    <div class="topbar">
+      <div class="back" data-go="home"><svg><use href="#i-back"/></svg></div>
+      <span class="mark lg" id="circle-mark">钓</span>
+      <div class="stack">
+        <div class="title" id="circle-name">喜爱钓鱼</div>
+        <div class="sub" id="circle-sub">Lv.12 · 今天 15:00–18:00 适合出钓</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="iconbtn" data-go="chat"><svg><use href="#i-spark"/></svg></div>
+    </div>
+
+    <div class="seg">
+      <a class="on" data-seg="ai">AI 参谋</a>
+      <a data-seg="feed">动态圈</a>
+      <a data-seg="archive">我的档案</a>
+      <a data-seg="shop">好物</a>
+    </div>
+
+    <!-- AI 参谋 -->
+    <div data-panel="ai">
+      <div class="pad">
+        <div class="card">
+          <div class="index" id="circle-index" style="cursor:default"></div>
+        </div>
+      </div>
+      <div class="pad">
+        <div class="sect"><h2>AI 能替你做的事</h2><span id="circle-jobs-note">点一条就开始问</span></div>
+        <div class="card rows" id="circle-jobs"></div>
+      </div>
+      <div class="pad">
+        <div class="sect"><h2>上次聊到</h2><span>接着问就行</span></div>
+        <div class="card pad" id="circle-last"></div>
+      </div>
+    </div>
+
+    <!-- 动态圈 -->
+    <div data-panel="feed" hidden>
+      <div class="chips" id="feed-chips">
+        <span class="chip on">全部</span><span class="chip">渔获</span>
+        <span class="chip">装备</span><span class="chip">钓点</span><span class="chip">问达人</span>
+      </div>
+      <div class="pad" id="feed-list"></div>
+      <div class="pad">
+        <button class="primary ghost" data-sheet="log">记录我今天的渔获</button>
+        <p class="footnote">发帖不排序算法：按时间倒序，只有「同好」与「达人」两种身份。</p>
+      </div>
+    </div>
+
+    <!-- 我的档案 -->
+    <div data-panel="archive" hidden>
+      <div class="pad" id="archive-body"></div>
+    </div>
+
+    <!-- 好物 -->
+    <div data-panel="shop" hidden>
+      <div class="pad" id="shop-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══ AI 参谋对话 ═══════════════════════════════════════ -->
+  <div class="screen" id="s-chat" hidden>
+    <div class="topbar">
+      <div class="back" data-go="circle"><svg><use href="#i-back"/></svg></div>
+      <span class="mark" id="chat-mark" style="background:#1F6A7A">钓</span>
+      <div class="stack">
+        <div class="title" id="chat-title">AI 参谋</div>
+        <div class="sub" id="chat-sub">喜爱钓鱼 · 余额 12 喜点</div>
+      </div>
+    </div>
+    <div class="chat" id="chat-log"></div>
+  </div>
+</section>
+
+<!-- 底部：问 AI + 页签 -->
+<div class="bottom" id="bottom">
+  <div class="ask" id="ask" data-go="chat">
+    <span class="dot"></span>
+    <span class="ph" id="ask-ph">问问 AI：这周末适合出钓吗？</span>
+    <span class="kbd">1 喜点</span>
+  </div>
+  <div id="composer" hidden>
+    <div class="composer">
+      <div class="row">
+        <input class="field" id="field" placeholder="说说你想干什么…" autocomplete="off">
+        <div class="tool" data-sheet="log" title="拍照识鱼（已下线）"><svg><use href="#i-camera"/></svg></div>
+        <div class="send" id="send"><svg><use href="#i-send"/></svg></div>
+      </div>
+      <div class="ctx"><span class="dot" id="ctx-dot"></span><span id="ctx-text">当前在「喜爱钓鱼」</span></div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <a class="on" data-go="home"><svg><use href="#i-home"/></svg>首页</a>
+    <a data-go="circles"><svg><use href="#i-circles"/></svg>圈子</a>
+    <a data-go="me"><svg><use href="#i-user"/></svg>我的</a>
+  </nav>
+</div>
+
+<!-- 底页 -->
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet" id="sheet-ticket">
+  <div class="grip"></div>
+  <h3>这张小票</h3>
+  <div class="sub">它写清了「凭什么」：每一条都能回到你自己的记录或公开数据</div>
+  <div class="ticketcard">
+    <dl>
+      <dt>用到的你的记录</dt>
+      <dd>9 月 6 日 · 东明湖 · 鲫鱼 1.2kg · 18:40<br>9 月 20 日 · 东明湖 · 鲫鱼 0.8kg · 17:10<br>9 月 27 日 · 东明湖 · 无渔获 · 12:30</dd>
+      <dt>用到的公开数据</dt>
+      <dd>Open-Meteo 今夜东北风 2 级、气温降 4℃；水温按近三年同期插值 21℃</dd>
+      <dt>算法</dt>
+      <dd>出钓指数 = 水温适宜度 40% + 风压 25% + 气压变化 20% + 你的历史时段胜率 15%</dd>
+    </dl>
+  </div>
+  <p class="footnote" style="text-align:left;margin-top:14px">
+    指数只说明条件，不保证渔获。禁渔期、水域规定以当地公告为准。</p>
+  <div class="btnrow" style="margin-top:14px">
+    <button class="primary ghost" data-sheet-close>知道了</button>
+    <button class="primary" data-go="chat-why">追问这条依据</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-upgrade">
+  <div class="grip"></div>
+  <h3>喜爱会员</h3>
+  <div class="sub">¥18 / 月 · 随时可退</div>
+  <div class="card rows" style="margin-bottom:14px">
+    <div class="line"><svg class="glyph"><use href="#i-spark"/></svg>
+      <div class="stack"><div class="lead">跨圈深度分析</div>
+        <div class="note">把两个圈的记录放在一起看，例如出钓与睡眠</div></div></div>
+    <div class="line"><svg class="glyph"><use href="#i-bag"/></svg>
+      <div class="stack"><div class="lead">每月的装备盘点</div>
+        <div class="note">哪些买了没用过、哪些该换了，写在一条结论里</div></div></div>
+    <div class="line"><svg class="glyph"><use href="#i-lock"/></svg>
+      <div class="stack"><div class="lead">档案不限量</div>
+        <div class="note">免费版最多保存 200 条记录</div></div></div>
+  </div>
+  <button class="primary" data-sheet-close>用 Apple 内购开通</button>
+  <p class="footnote">充值只走 App Store 内购；余额与订阅在所有圈里共用。</p>
+</div>
+
+</div><!-- /device -->
+
+<!-- 走查台（不属于产品界面，桌面宽度才显示） -->
+<aside class="review">
+  <h2 class="rtitle">喜爱 · 兴趣圈</h2>
+  <p class="tagline">方案五「兴趣圈 AI 助手」高保真原型。<br>
+    世界：纸上墨金 + 每圈一套主题色。</p>
+
+  <h3>屏幕</h3>
+  <div class="btns">
+    <button class="rbtn on" data-go="home">1 首页 · 今天</button>
+    <button class="rbtn" data-go="circle" data-enter="fishing">2 圈内 · AI 参谋</button>
+    <button class="rbtn" data-seg="feed">3 圈内 · 动态圈</button>
+    <button class="rbtn" data-seg="archive">4 圈内 · 我的档案</button>
+    <button class="rbtn" data-seg="shop">5 圈内 · 好物</button>
+    <button class="rbtn" data-go="chat">6 AI 参谋对话</button>
+    <button class="rbtn" data-go="quiz">7 兴趣测试</button>
+    <button class="rbtn" data-go="circles">8 圈子目录</button>
+    <button class="rbtn" data-go="me">9 我的</button>
+    <button class="rbtn" data-go="empty">10 空状态 · 新用户</button>
+  </div>
+
+  <h3>当前圈的配色</h3>
+  <div class="btns">
+    <button class="rbtn" data-circle="money">钱</button>
+    <button class="rbtn on" data-circle="fishing">钓鱼</button>
+    <button class="rbtn" data-circle="coffee">咖啡</button>
+    <button class="rbtn" data-circle="cat">养猫</button>
+    <button class="rbtn" data-circle="fitness">健身</button>
+  </div>
+  <div class="swatch" id="swatch"></div>
+
+  <h3>状态</h3>
+  <div class="btns">
+    <button class="rbtn" data-state="ask-loading">AI 正在答</button>
+    <button class="rbtn" data-state="ticket">小票底页</button>
+    <button class="rbtn" data-state="upgrade">会员底页</button>
+  </div>
+
+  <p class="hint">换成别的圈，整屏（纸底、主色、选中态）一起换。这就是 App 里既有的
+    主题包规则：兴趣圈只是把「切主题」变成了「切圈」。<br><br>
+    ← → 键翻屏，空格回到首页。</p>
+</aside>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
