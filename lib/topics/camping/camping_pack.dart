@@ -42,18 +42,6 @@ class CampingPack extends TopicPack {
             '「这周末值不值得出发」。',
         ticket: '依据：你自己记的营地与装备；公开数据用 Open-Meteo 的风、温、'
             '降水与露点。恶劣天气只写不建议，不给折中方案。',
-        rail: [
-          RailCell(0.18),
-          RailCell(0.22),
-          RailCell(0.32, good: true),
-          RailCell(0.42, best: true),
-          RailCell(0.38, good: true),
-          RailCell(0.26, good: true),
-          RailCell(0.24, good: true),
-          RailCell(0.14),
-        ],
-        nowPercent: 0.38,
-        legend: ['周五', '现在', '周一'],
         jobs: [
           TopicJob(
             icon: Icons.checklist_rounded,

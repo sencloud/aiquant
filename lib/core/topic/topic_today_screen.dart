@@ -1,31 +1,31 @@
 import 'package:flutter/material.dart';
 
+import '../../screens/assistant/assistant_screen.dart';
+import '../../screens/hub/hub_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
-import '../../screens/hub/hub_screen.dart';
-import '../../screens/assistant/assistant_screen.dart';
 import 'topic_mark.dart';
 import 'topic_pack.dart';
+import 'topic_rail.dart';
 import 'topic_registry.dart';
 import 'topic_today.dart';
+import 'topic_today_service.dart';
 
 /// 圈内「今天」：这个圈今天只交一个判断。
 ///
-/// 签名是那条时间轨 —— 把「今天什么时候该去」压成一条不断行的轨道，「现在」
-/// 是一根细线，最好的时段是最深的两格。换圈时轨道换色、换尺度（钓鱼按小时、
-/// 咖啡与养猫按天）。
+/// 判断来自 [resolveToday]（静态模板 + 本地记录算出来的天数），算不出就照实写
+/// 「还没有判断」。签名是那条时间轨，与首页共用 [TopicRail]。
 class TopicTodayScreen extends StatelessWidget {
   const TopicTodayScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final pack = topicOf(context, listen: true);
-    final today = pack.today;
+    final today = resolveToday(pack);
     if (today == null) {
-      return WkPage(
+      return const WkPage(
         title: '今天',
-        actions: const [_HubAction()],
-        child: const WkEmpty(
+        child: WkEmpty(
           icon: Icons.hourglass_empty_rounded,
           title: '这个圈还没有今天的判断',
           hint: '接上数据之后，这里会给出今天该做什么。',
@@ -34,12 +34,12 @@ class TopicTodayScreen extends StatelessWidget {
     }
     return WkPage(
       title: '今天',
-      actions: const [_HubAction()],
+      actions: const [HubEntryAction()],
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
             AppSpace.gutter, AppSpace.sm, AppSpace.gutter, AppSpace.xxl),
         children: [
-          _TodayCard(pack: pack, today: today),
+          TodayCard(pack: pack, today: today),
           const SizedBox(height: AppSpace.xl),
           if (today.jobs.isNotEmpty) ...[
             WkGroup(
@@ -54,16 +54,15 @@ class TopicTodayScreen extends StatelessWidget {
                     trailing: pack.aiLive
                         ? null
                         : WkTag('即将开放', tone: AppColors.textTertiary),
-                    // 服务端还没上这个圈时不给可点的入口：点了必然失败。
-                    onTap: pack.aiLive ? () => _ask(context, job) : null,
+                    onTap:
+                        pack.aiLive ? () => openJobInChat(context, job) : null,
                   ),
               ],
             ),
             WkNote(
               title: pack.aiLive ? null : '这个圈还在上线中',
               text: pack.aiLive
-                  ? '点一条就把问题填进对话，你可以改完再发；'
-                      '它会先读你在这个圈的记录再回答。'
+                  ? '点一条就把问题填进对话，你可以改完再发；它会先读你在这个圈的记录再回答。'
                   : '这个圈的 AI 还在上线中，现在这几条是只读预览；'
                       '上线后点一条就带着问题进对话，它会先读你在这个圈的记录。',
             ),
@@ -77,46 +76,35 @@ class TopicTodayScreen extends StatelessWidget {
       ),
     );
   }
-
-  void _ask(BuildContext context, TopicJob job) {
-    // 带着问题进对话，但不自动发送：一轮对话 1 喜点，发不发由用户决定。
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AssistantScreen(
-          launch: AssistantLaunch(initialMessage: job.ask),
-        ),
-      ),
-    );
-  }
 }
 
-/// 「今天」页顶栏的兴趣圈入口。
-///
-/// 新开的四个圈没有「对话」页签（服务端人设还没上线），所以这个入口不能只挂在
-/// 对话页上 —— 否则未登录用户进了圈就出不来。
-class _HubAction extends StatelessWidget {
-  const _HubAction();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const ValueKey('today-hub'),
-      icon: const Icon(Icons.grid_view_rounded),
-      tooltip: '兴趣圈',
-      color: AppColors.amber,
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const HubScreen()),
+/// 带着问题进对话，但不自动发送：一轮对话 1 喜点，发不发由用户决定。
+void openJobInChat(BuildContext context, TopicJob job) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => AssistantScreen(
+        launch: AssistantLaunch(initialMessage: job.ask),
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// 今日判断卡：徽记 + 数 + 判定 + 时间轨 + 一句结论 + 一张小票。
-class _TodayCard extends StatelessWidget {
-  const _TodayCard({required this.pack, required this.today});
+///
+/// 首页与圈内「今天」页共用同一张卡 —— 同一枚签名在两处必须长得一样。
+class TodayCard extends StatelessWidget {
+  const TodayCard({
+    super.key,
+    required this.pack,
+    required this.today,
+    this.showHeader = true,
+    this.onTicketTap,
+  });
 
   final TopicPack pack;
   final TopicToday today;
+  final bool showHeader;
+  final VoidCallback? onTicketTap;
 
   @override
   Widget build(BuildContext context) {
@@ -129,18 +117,21 @@ class _TodayCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              TopicMark(pack.mark),
-              const SizedBox(width: AppSpace.sm),
-              Expanded(
-                child: Text(pack.name,
-                    style: AppType.body.copyWith(fontWeight: FontWeight.w600)),
-              ),
-              WkTag(today.label),
-            ],
-          ),
-          const SizedBox(height: AppSpace.md),
+          if (showHeader) ...[
+            Row(
+              children: [
+                TopicMark(pack.mark),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(pack.name,
+                      style:
+                          AppType.body.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                WkTag(today.label),
+              ],
+            ),
+            const SizedBox(height: AppSpace.md),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -150,13 +141,15 @@ class _TodayCard extends StatelessWidget {
                 style: AppType.display.copyWith(
                   fontSize: 34,
                   fontFamilyFallback: AppType.numericFallback,
-                  color: today.hasValue ? AppColors.amber : AppColors.textTertiary,
+                  color:
+                      today.hasValue ? AppColors.amber : AppColors.textTertiary,
                 ),
               ),
               if (today.unit.isNotEmpty) ...[
                 const SizedBox(width: AppSpace.xs),
                 Text(today.unit,
-                    style: AppType.body.copyWith(color: AppColors.textSecondary)),
+                    style:
+                        AppType.body.copyWith(color: AppColors.textSecondary)),
               ],
               const SizedBox(width: AppSpace.sm),
               Flexible(
@@ -174,7 +167,7 @@ class _TodayCard extends StatelessWidget {
           ),
           if (today.rail != null) ...[
             const SizedBox(height: AppSpace.md),
-            _Rail(
+            TopicRail(
               cells: today.rail!,
               nowPercent: today.nowPercent ?? 0.5,
               legend: today.legend,
@@ -183,124 +176,44 @@ class _TodayCard extends StatelessWidget {
           const SizedBox(height: AppSpace.md),
           Text(today.why, style: AppType.read),
           const SizedBox(height: AppSpace.md),
-          _Ticket(text: today.ticket),
+          TicketLine(text: today.ticket, onTap: onTicketTap),
         ],
       ),
     );
   }
 }
 
-/// 时间轨：八格 + 「现在」一根细线 + 一行刻度。
-class _Rail extends StatelessWidget {
-  const _Rail({required this.cells, required this.nowPercent, this.legend});
+/// 小票行：一条发丝线之上写清「凭什么」。
+class TicketLine extends StatelessWidget {
+  const TicketLine({super.key, required this.text, this.onTap});
 
-  final List<RailCell> cells;
-  final double nowPercent;
-  final List<String>? legend;
+  final String text;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    const maxBar = 28.0;
-    final legendStyle = AppType.micro.copyWith(
-      color: AppColors.textTertiary,
-      fontFamilyFallback: AppType.numericFallback,
-      fontWeight: FontWeight.w400,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: maxBar + 6,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  bottom: 6,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (var i = 0; i < cells.length; i++) ...[
-                        Expanded(
-                          child: Container(
-                            height: 6 + cells[i].height * (maxBar - 6),
-                            decoration: BoxDecoration(
-                              color: cells[i].best
-                                  ? AppColors.amber
-                                  : cells[i].good
-                                      ? AppColors.amber.withValues(alpha: 0.38)
-                                      : AppColors.borderDim,
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(4),
-                                  bottom: Radius.circular(2)),
-                            ),
-                          ),
-                        ),
-                        if (i != cells.length - 1) const SizedBox(width: 3),
-                      ],
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: nowPercent.clamp(0.0, 1.0) * (constraints.maxWidth - 1),
-                  top: 0,
-                  bottom: 0,
-                  width: 1,
-                  child: Container(
-                      color: AppColors.textPrimary.withValues(alpha: 0.5)),
-                ),
-              ],
-            ),
-          ),
-          if (legend != null && legend!.length == 3) ...[
-            const SizedBox(height: AppSpace.sm),
-            Row(
-              children: [
-                Text(legend![0], style: legendStyle),
-                const Spacer(),
-                Row(children: [
-                  Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                          color: AppColors.amber, shape: BoxShape.circle)),
-                  const SizedBox(width: 5),
-                  Text(legend![1],
-                      style: legendStyle.copyWith(color: AppColors.textSecondary)),
-                ]),
-                const Spacer(),
-                Text(legend![2], style: legendStyle),
-              ],
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.only(top: AppSpace.sm),
+        decoration: BoxDecoration(
+          border:
+              Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                size: 14, color: AppColors.textTertiary),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Text(text,
+                  style: AppType.micro.copyWith(
+                      color: AppColors.textTertiary,
+                      fontWeight: FontWeight.w400)),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// 小票行：一条虚线之上写清「凭什么」。
-class _Ticket extends StatelessWidget {
-  const _Ticket({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(top: AppSpace.sm),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.receipt_long_outlined, size: 14, color: AppColors.textTertiary),
-          const SizedBox(width: AppSpace.sm),
-          Expanded(
-            child: Text(text,
-                style: AppType.micro.copyWith(
-                    color: AppColors.textTertiary, fontWeight: FontWeight.w400)),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -46,18 +46,6 @@ class CatPack extends TopicPack {
             '以及这个月该注意什么。',
         ticket: '依据：你自己记的体重、开封日与购买日；症状类问题一律给排查顺序与'
             '就医线，不给诊断。',
-        rail: [
-          RailCell(0.30),
-          RailCell(0.36),
-          RailCell(0.42, best: true),
-          RailCell(0.34, good: true),
-          RailCell(0.24, good: true),
-          RailCell(0.16),
-          RailCell(0.10),
-          RailCell(0.10),
-        ],
-        nowPercent: 0.06,
-        legend: ['今天', '现在', '第 7 天'],
         jobs: [
           TopicJob(
             icon: Icons.medical_information_outlined,
@@ -84,6 +72,14 @@ class CatPack extends TopicPack {
             ask: '我还缺什么？',
           ),
         ],
+      );
+
+  @override
+  TopicWindow get window => const TopicWindow(
+        days: 30,
+        startLabel: '开封日',
+        verdictFresh: '够吃',
+        verdictSoon: '该补了',
       );
 
   @override

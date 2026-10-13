@@ -6,6 +6,7 @@ import 'package:fincept_app/core/topic/topic_picker_screen.dart';
 import 'package:fincept_app/core/topic/topic_registry.dart';
 import 'package:fincept_app/core/topic/topic_state.dart';
 import 'package:fincept_app/screens/discover/discover_screen.dart';
+import 'package:fincept_app/screens/hub/hub_state.dart';
 import 'package:fincept_app/screens/settings/settings_screen.dart';
 import 'package:fincept_app/screens/splash/splash_backdrop.dart';
 import 'package:fincept_app/screens/splash/splash_screen.dart';
@@ -32,6 +33,8 @@ Widget _host(TopicState topics, Widget home) {
       ChangeNotifierProvider(create: (_) => BillingState()),
       ChangeNotifierProvider.value(value: topics),
       ChangeNotifierProvider(create: (_) => ChatState()),
+      // 首屏改成兴趣圈之后，「我的」等页面会读它（是否在圈内）。
+      ChangeNotifierProvider(create: (_) => HubState()),
     ],
     child: MultiProvider(
       providers: [

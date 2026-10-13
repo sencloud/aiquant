@@ -25,9 +25,8 @@ abstract class TopicPack {
   /// 圈徽记：一个汉字，用在兴趣圈首页与切换面板上（喜爱钓鱼 → 钓）。
   /// 默认取「喜爱」之后的第一字。
   String get mark {
-    final rest = name.startsWith('喜爱') && name.length > 2
-        ? name.substring(2)
-        : name;
+    final rest =
+        name.startsWith('喜爱') && name.length > 2 ? name.substring(2) : name;
     return rest.isEmpty ? '圈' : rest.substring(0, 1);
   }
 
@@ -82,6 +81,11 @@ abstract class TopicPack {
   /// 服务端上线之前，「今天」页里「AI 能替你做的事」只作为只读预览，
   /// 不引导用户去点一个必然会失败的入口。
   bool get aiLive => true;
+
+  /// 「按起算日算天数」的圈在这里声明窗口（咖啡赏味期、猫粮开封）。
+  /// 返回 null 表示这个圈的「今天」不能这么算（露营看天气、汉服看温度，
+  /// 它们的判断由 AI 在对话里给）。
+  TopicWindow? get window => null;
 
   /// 进入主题时（冷启动 / 切换后首帧）执行一次的副作用，例如钱主题预热 Tushare。
   void onEnter(BuildContext context) {}

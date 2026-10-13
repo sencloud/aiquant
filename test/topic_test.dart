@@ -6,6 +6,7 @@ import 'package:fincept_app/core/topic/topic_picker_screen.dart';
 import 'package:fincept_app/core/topic/topic_registry.dart';
 import 'package:fincept_app/core/topic/topic_state.dart';
 import 'package:fincept_app/models/chat.dart';
+import 'package:fincept_app/screens/hub/hub_state.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
 import 'package:fincept_app/state/chat_state.dart';
@@ -240,7 +241,7 @@ void main() {
       expect(topics.currentId, 'fishing');
     });
 
-    testWidgets('整个 App 随主题切换：页签换掉，喜爱钱私有状态被销毁', (tester) async {
+    testWidgets('首屏是兴趣圈首页；进圈后页签换掉，喜爱钱私有状态被销毁', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -250,6 +251,7 @@ void main() {
       await tester.runAsync(
           () => topics.bootstrap(hasLocalAccount: () async => true));
       final auth = AuthState()..bootstrap();
+      final hub = HubState();
       await tester.pumpWidget(MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => SettingsState()),
@@ -257,9 +259,20 @@ void main() {
           ChangeNotifierProvider(create: (_) => BillingState()),
           ChangeNotifierProvider.value(value: topics),
           ChangeNotifierProvider(create: (_) => ChatState()),
+          ChangeNotifierProvider.value(value: hub),
         ],
         child: const XiaiApp(),
       ));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      // App 首屏 = 兴趣圈首页：一行一个圈，圈内的页签还没出现。
+      expect(find.text('喜爱钱'), findsOneWidget);
+      expect(find.text('喜爱钓鱼'), findsOneWidget);
+      expect(find.text('发现'), findsNothing);
+
+      // 进喜爱钱。
+      hub.enter();
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 500));
       }

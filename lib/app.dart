@@ -9,6 +9,8 @@ import 'core/topic/topic_picker_screen.dart';
 import 'core/topic/topic_state.dart';
 import 'desktop/desktop_shell.dart';
 import 'screens/auth/auth_gate.dart';
+import 'screens/hub/hub_shell.dart';
+import 'screens/hub/hub_state.dart';
 import 'screens/splash/splash_screen.dart';
 import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
@@ -33,19 +35,23 @@ class _XiaiAppState extends State<XiaiApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<SettingsState, TopicState>(
-      builder: (context, settings, topics, _) {
+    return Consumer3<SettingsState, TopicState, HubState>(
+      builder: (context, settings, topics, hub, _) {
         final mode = settings.themeMode;
         final pack = topics.current;
+        // 首页是「喜爱」自己的首页，不属于任何单个圈 —— 它用品牌墨金渲染；
+        // 进圈之后整屏才换成那个圈的颜色。（桌面端没有兴趣圈外壳。）
+        final showHub = !_isDesktop && !hub.insideCircle;
+        final palette = showHub ? TopicPalette.money : pack.palette;
         // Build a single ThemeData for the active mode + topic palette — also
         // pushes the matching palette into `AppColors` so widgets that
         // reference it pick up the new colours on this rebuild.
-        final theme = AppTheme.build(mode, palette: pack.palette);
+        final theme = AppTheme.build(mode, palette: palette);
         return AnimatedSwitcher(
           // 切换主题：整屏淡出、换色、淡入。
           duration: const Duration(milliseconds: 300),
           child: MultiProvider(
-            key: ValueKey('topic:${pack.id}'),
+            key: ValueKey('topic:${pack.id}:${hub.insideCircle}'),
             providers: [
               Provider<TopicPack>.value(value: pack),
               ...pack.providers(),
@@ -64,9 +70,13 @@ class _XiaiAppState extends State<XiaiApp> {
                     )
                   : topics.needsPick
                       ? const TopicPickerScreen()
-                      : (_isDesktop
-                          ? AuthGate(homeBuilder: (_) => const DesktopShell())
-                          : const AuthGate()),
+                      : showHub
+                          // 首屏 = 兴趣圈首页（首页 / 圈子 / 我的）。
+                          ? const HubShell()
+                          : (_isDesktop
+                              ? AuthGate(
+                                  homeBuilder: (_) => const DesktopShell())
+                              : const AuthGate()),
             ),
           ),
         );

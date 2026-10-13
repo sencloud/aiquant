@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/billing_models.dart';
 import '../../core/auth/require_login.dart';
-import '../hub/hub_screen.dart';
+import '../hub/hub_state.dart';
 import '../../core/format/credit_fmt.dart';
 import '../../core/topic/topic_picker_screen.dart';
 import '../../core/topic/topic_registry.dart';
@@ -93,7 +93,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(
               AppSpace.gutter, AppSpace.sm, AppSpace.gutter, AppSpace.xxl),
           children: [
-            ProfileFolderHead(nickname: user?.nickname ?? '未登录', uid: user?.uuid ?? ''),
+            ProfileFolderHead(
+                nickname: user?.nickname ?? '未登录', uid: user?.uuid ?? ''),
             const SizedBox(height: 22),
             ProfileCreditBureau(
               balance: billing.balance,
@@ -117,15 +118,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               WkGroup(
                 header: '主题',
                 children: [
-                  ProfileIndexRow(
-                    key: const ValueKey('settings-hub'),
-                    icon: Icons.grid_view_rounded,
-                    title: '兴趣圈首页',
-                    note: '六个圈今天的状态，一行一个',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const HubScreen()),
+                  // 已经在首页（兴趣圈外壳的「我的」）时不必出现这一行。
+                  if (context.watch<HubState>().insideCircle)
+                    ProfileIndexRow(
+                      key: const ValueKey('settings-hub'),
+                      icon: Icons.grid_view_rounded,
+                      title: '兴趣圈首页',
+                      note: '六个圈今天的状态，一行一个',
+                      onTap: () => context.read<HubState>().leave(),
                     ),
-                  ),
                   ProfileIndexRow(
                     key: const ValueKey('settings-switch-topic'),
                     icon: pack.icon,
@@ -172,8 +173,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     AppSpace.xs, 0, AppSpace.xs, AppSpace.sm),
                 child: Text(
                   note,
-                  style: AppType.caption.copyWith(
-                      color: AppColors.textTertiary, height: 1.5),
+                  style: AppType.caption
+                      .copyWith(color: AppColors.textTertiary, height: 1.5),
                 ),
               ),
             const SizedBox(height: AppSpace.md),
@@ -221,8 +222,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('退出登录'),
         content: const Text('退出后本地缓存的对话会一并清空，重新登录可恢复喜点余额。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('再想想')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('再想想')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('退出')),
         ],
       ),
     );
@@ -241,8 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await auth.deleteAccount();
       messenger.showSnackBar(const SnackBar(content: Text('账号已注销')));
     } catch (_) {
-      messenger.showSnackBar(
-          const SnackBar(content: Text('注销失败，请检查网络后再试')));
+      messenger.showSnackBar(const SnackBar(content: Text('注销失败，请检查网络后再试')));
     }
   }
 
@@ -261,8 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 /// 当前平台能不能充值喜点（仅 iOS / macOS 走 Apple IAP；Android 暂不发布、
 /// Web 不开放付费）。
-bool get rechargeAvailable =>
-    !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+bool get rechargeAvailable => !kIsWeb && (Platform.isIOS || Platform.isMacOS);
 
 /// 充值套餐收进弹层：首屏只留一个「充值」动作，不再让套餐列表占地。
 ///
@@ -333,9 +336,7 @@ Future<void> showRechargeSheet(BuildContext context) {
                 '喜点是虚拟商品，购买后不支持退款或转让；'
                 '调用行情、新闻等数据工具不再额外计费。',
                 style: TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 10.5,
-                    height: 1.5),
+                    color: AppColors.textTertiary, fontSize: 10.5, height: 1.5),
               ),
             ],
           ),
@@ -346,7 +347,7 @@ Future<void> showRechargeSheet(BuildContext context) {
 }
 
 Future<void> _onPackageTap(
-  BuildContext context, BillingState b, CreditSku sku) async {
+    BuildContext context, BillingState b, CreditSku sku) async {
   Analytics.instance.track(Analytics.evRechargeStart, {'sku': sku.code});
   final ok = await b.purchase(sku);
   if (!context.mounted) return;
@@ -425,7 +426,8 @@ class ProfileRule extends StatelessWidget {
 
 /// 用户抬头：方头像 + 昵称 + 档案号。
 class ProfileFolderHead extends StatelessWidget {
-  const ProfileFolderHead({super.key, required this.nickname, required this.uid});
+  const ProfileFolderHead(
+      {super.key, required this.nickname, required this.uid});
 
   final String nickname;
   final String uid;
@@ -563,8 +565,8 @@ class _StampButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: radius,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.lg, vertical: 9),
+          padding:
+              const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: 9),
           decoration: BoxDecoration(
             borderRadius: radius,
             border: Border.all(
@@ -738,6 +740,7 @@ class ProfileColophon extends StatelessWidget {
     );
   }
 }
+
 /// 充值套餐行：等宽数字对齐，档位一眼可比。
 class _SkuRow extends StatelessWidget {
   const _SkuRow({
@@ -789,9 +792,11 @@ class _SkuRow extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2))
               else
                 Text('¥${sku.priceYuan.toStringAsFixed(2)}',
-                    style: mono(size: 14, color: enabled
-                        ? AppColors.amber
-                        : AppColors.textTertiary)),
+                    style: mono(
+                        size: 14,
+                        color: enabled
+                            ? AppColors.amber
+                            : AppColors.textTertiary)),
             ],
           ),
         ),
@@ -828,8 +833,7 @@ class _LedgerSheetState extends State<_LedgerSheet> {
       builder: (ctx, controller) => Column(
         children: [
           const SizedBox(height: 14),
-          Text('喜点明细',
-              style: AppType.title.copyWith(fontSize: 16)),
+          Text('喜点明细', style: AppType.title.copyWith(fontSize: 16)),
           const SizedBox(height: 6),
           Text('充值和赠送是正的，AI 回答和定时任务是负的',
               style: AppType.micro.copyWith(color: AppColors.textTertiary)),
@@ -844,13 +848,13 @@ class _LedgerSheetState extends State<_LedgerSheet> {
                 : items.isEmpty
                     ? Center(
                         child: Text('还没有喜点记录',
-                            style: AppType.body.copyWith(
-                                color: AppColors.textTertiary)),
+                            style: AppType.body
+                                .copyWith(color: AppColors.textTertiary)),
                       )
                     : ListView.builder(
                         controller: controller,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpace.lg),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: AppSpace.lg),
                         itemCount: items.length,
                         itemBuilder: (_, i) => _LedgerRow(item: items[i]),
                       ),
@@ -894,8 +898,8 @@ class _LedgerRow extends StatelessWidget {
                     style: AppType.body.copyWith(color: AppColors.textPrimary)),
                 const SizedBox(height: 4),
                 Text(stamp,
-                    style: AppType.micro
-                        .copyWith(color: AppColors.textTertiary)),
+                    style:
+                        AppType.micro.copyWith(color: AppColors.textTertiary)),
               ],
             ),
           ),
@@ -916,8 +920,7 @@ class _LedgerRow extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text('余额 ${CreditFmt.balance(item.balanceAfter)}',
-                  style: AppType.micro
-                      .copyWith(color: AppColors.textTertiary)),
+                  style: AppType.micro.copyWith(color: AppColors.textTertiary)),
             ],
           ),
         ],

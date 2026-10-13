@@ -42,18 +42,6 @@ class HanfuPack extends TopicPack {
             '场合与你的衣柜给出今天怎么穿、缺什么。',
         ticket: '依据：你自己记的形制、尺码与场合；形制考据给出处，不用「大概是的」'
             '那种口吻。',
-        rail: [
-          RailCell(0.20),
-          RailCell(0.24),
-          RailCell(0.30, good: true),
-          RailCell(0.36, good: true),
-          RailCell(0.42, best: true),
-          RailCell(0.34, good: true),
-          RailCell(0.22),
-          RailCell(0.16),
-        ],
-        nowPercent: 0.52,
-        legend: ['早', '现在', '晚'],
         jobs: [
           TopicJob(
             icon: Icons.history_edu_outlined,

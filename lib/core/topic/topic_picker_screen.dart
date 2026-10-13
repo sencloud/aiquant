@@ -85,7 +85,8 @@ class TopicPickerScreen extends StatelessWidget {
                             Navigator.of(context).pop(p.id);
                             return;
                           }
-                          Analytics.instance.track('topic_pick', {'topic': p.id});
+                          Analytics.instance
+                              .track('topic_pick', {'topic': p.id});
                           context.read<TopicState>().completePick(p.id);
                         },
                       ),

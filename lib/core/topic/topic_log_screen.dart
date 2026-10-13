@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
+import '../../screens/hub/hub_screen.dart';
 import '../storage/hive_setup.dart';
 import 'topic_registry.dart';
 
@@ -13,14 +14,27 @@ import 'topic_registry.dart';
 /// 第一版只存在本机（Hive 的 `app_prefs`，键 `topic_log_v1_<topicId>`）；
 /// 服务端同步、以及「档案 → 该升级什么了」的回流留到下一版。
 class TopicLogEntry {
-  TopicLogEntry({required this.title, this.note = '', required this.at});
+  TopicLogEntry({
+    required this.title,
+    this.note = '',
+    required this.at,
+    this.start = false,
+  });
 
   final String title;
   final String note;
   final DateTime at;
 
-  Map<String, dynamic> toJson() =>
-      {'t': title, 'n': note, 'a': at.toIso8601String()};
+  /// 起算日记录：这个圈的「今天」用它算天数（咖啡的烘焙日、猫粮的开封日）。
+  /// 只有它是**有类型**的，其余记录是自由文本 —— 判断不能从随意写的字里猜。
+  final bool start;
+
+  Map<String, dynamic> toJson() => {
+        't': title,
+        'n': note,
+        'a': at.toIso8601String(),
+        if (start) 's': true,
+      };
 
   static TopicLogEntry? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -31,6 +45,7 @@ class TopicLogEntry {
       title: t,
       note: n is String ? n : '',
       at: DateTime.tryParse('${raw['a']}') ?? DateTime.now(),
+      start: raw['s'] == true,
     );
   }
 }
@@ -57,8 +72,8 @@ List<TopicLogEntry> loadTopicLog(String topicId) {
 }
 
 Future<void> saveTopicLog(String topicId, List<TopicLogEntry> entries) =>
-    prefsBox.put(_logKey(topicId),
-        jsonEncode([for (final e in entries) e.toJson()]));
+    prefsBox.put(
+        _logKey(topicId), jsonEncode([for (final e in entries) e.toJson()]));
 
 class TopicLogScreen extends StatefulWidget {
   const TopicLogScreen({super.key});
@@ -86,7 +101,8 @@ class _TopicLogScreenState extends State<TopicLogScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
-      builder: (_) => const _LogEditor(),
+      builder: (_) =>
+          _LogEditor(startLabel: topicOf(context).window?.startLabel),
     );
     if (entry == null) return;
     setState(() => _entries = [entry, ..._entries]);
@@ -137,6 +153,7 @@ class _TopicLogScreenState extends State<TopicLogScreen> {
     return WkPage(
       title: '记录',
       actions: [
+        const HubEntryAction(),
         IconButton(
           key: const ValueKey('log-add'),
           icon: const Icon(Icons.add_rounded),
@@ -181,7 +198,10 @@ class _TopicLogScreenState extends State<TopicLogScreen> {
 }
 
 class _LogEditor extends StatefulWidget {
-  const _LogEditor();
+  const _LogEditor({this.startLabel});
+
+  /// 这个圈的「起算日」叫什么（烘焙日 / 开封日）；null = 这个圈没有起算日。
+  final String? startLabel;
 
   @override
   State<_LogEditor> createState() => _LogEditorState();
@@ -190,6 +210,7 @@ class _LogEditor extends StatefulWidget {
 class _LogEditorState extends State<_LogEditor> {
   final _title = TextEditingController();
   final _note = TextEditingController();
+  bool _start = false;
 
   @override
   void dispose() {
@@ -226,6 +247,35 @@ class _LogEditorState extends State<_LogEditor> {
             style: AppType.body,
             decoration: const InputDecoration(hintText: '补充（可留空）'),
           ),
+          if (widget.startLabel != null) ...[
+            const SizedBox(height: AppSpace.sm),
+            InkWell(
+              key: const ValueKey('log-start'),
+              onTap: () => setState(() => _start = !_start),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                child: Row(
+                  children: [
+                    Icon(
+                      _start
+                          ? Icons.check_box_rounded
+                          : Icons.check_box_outline_blank_rounded,
+                      size: 20,
+                      color: _start ? AppColors.amber : AppColors.textTertiary,
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Text(
+                        '这条是${widget.startLabel}，「今天」用它算天数',
+                        style: AppType.caption
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpace.lg),
           WkPrimaryButton(
             label: '保存',
@@ -236,6 +286,7 @@ class _LogEditorState extends State<_LogEditor> {
                 title: t,
                 note: _note.text.trim(),
                 at: DateTime.now(),
+                start: _start,
               ));
             },
           ),

@@ -25,6 +25,8 @@ def main() -> int:
     ap.add_argument("--url", default="http://127.0.0.1:8779/")
     ap.add_argument("--out", default=".impeccable/review/circles")
     ap.add_argument("--cat-card-y", type=int, default=420)
+    ap.add_argument("--coffee-row-y", type=int, default=632)
+    ap.add_argument("--camping-row-y", type=int, default=250)
     args = ap.parse_args()
 
     out = pathlib.Path(args.out)
@@ -50,26 +52,43 @@ def main() -> int:
         # 全新浏览器 = 全新安装：开屏之后是选主题页（现在六个圈）。
         shot("40-picker", 300)
 
-        # 选「喜爱养猫」（第三张卡）。
+        # 选「喜爱养猫」（第三张卡）→ 现在是 App 首屏：兴趣圈首页。
         page.mouse.click(207, args.cat_card_y)
-        shot("41-cat-today", 1200)
-        # 「今天」页右上角的兴趣圈入口 → 兴趣圈首页。
-        page.mouse.click(386, 46)
-        shot("45-hub", 1200)
-        # 兴趣圈首页左上角返回，回到「喜爱养猫」继续看页签。
-        page.mouse.click(28, 46)
-        page.wait_for_timeout(900)
-        # 「AI 能替你做的事」第一条（症状判断）→ 带着问题进对话（不自动发送）。
-        page.mouse.click(207, 480)
-        shot("46-cat-ask", 1400)
-        page.go_back()
-        page.wait_for_timeout(1000)
+        shot("41-first-screen", 1400)
+
+        # 首屏三个页签：首页 / 圈子 / 我的（三等分）。
+        page.mouse.click(207, TAB_Y)
+        shot("42-circles")
+        page.mouse.click(69, TAB_Y)
+        page.wait_for_timeout(700)
+
+        # 进「喜爱咖啡」（第四行）→ 圈内的「今天」。
+        page.mouse.click(207, args.coffee_row_y)
+        shot("44-coffee-today", 1300)
+
+        # 记录 → 记一条（把烘焙日标成起算日）→ 回首页看这一行长出真数字。
         page.mouse.click(TABS[1], TAB_Y)
-        shot("42-cat-log")
-        page.mouse.click(TABS[2], TAB_Y)
-        shot("43-cat-chat")
-        page.mouse.click(TABS[3], TAB_Y)
-        shot("44-cat-me", 1100)
+        shot("45-coffee-log")
+        page.mouse.click(386, 46)
+        page.wait_for_timeout(900)
+        page.mouse.click(207, 700)
+        page.keyboard.type("茉香日晒 200g")
+        page.wait_for_timeout(400)
+        page.mouse.click(207, 838)
+        page.wait_for_timeout(400)
+        shot("46-log-editor", 300)
+        page.mouse.click(207, 872)
+        page.wait_for_timeout(900)
+        page.mouse.click(TABS[0], TAB_Y)
+        shot("47-coffee-today-real", 1300)
+
+        # 回首页：这一行现在应该有真数字与轨道。
+        page.mouse.click(386, 46)
+        shot("48-first-screen-real", 1300)
+
+        # 「我的」要登录，会全屏弹出登录页 —— 放最后，否则后面的点击都打在它上面。
+        page.mouse.click(345, TAB_Y)
+        shot("43-me", 1100)
 
         browser.close()
     return 0

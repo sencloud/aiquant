@@ -63,6 +63,36 @@ class RailCell {
   final bool good;
 }
 
+/// 「按一条起算日记录算天数」的圈：咖啡的烘焙日、猫粮的开封日。
+///
+/// 只有起算日是**有类型**的数据，其余记录是自由文本 —— 判断不从随意写的字里
+/// 猜。所以这类圈的「今天」只认用户显式标了起算日的那条记录。
+@immutable
+class TopicWindow {
+  const TopicWindow({
+    required this.days,
+    required this.startLabel,
+    required this.verdictFresh,
+    required this.verdictSoon,
+    this.soonAt = 0.4,
+  });
+
+  /// 窗口长度（天）：烘焙日 + 14 天、开封日 + 30 天。
+  final int days;
+
+  /// 起算日在记录里的叫法，例如「烘焙日」「开封日」。
+  final String startLabel;
+
+  /// 剩余比例还宽松时的判定词，例如「在最香的时候」。
+  final String verdictFresh;
+
+  /// 剩余比例小于 [soonAt] 时的判定词，例如「这几天得喝完」。
+  final String verdictSoon;
+
+  /// 进入「该动手了」的阈值（剩余 / 总长）。
+  final double soonAt;
+}
+
 /// 「AI 能替你做的事」里的一条：点它带着一句问题进对话。
 @immutable
 class TopicJob {

@@ -11,6 +11,7 @@ import '../../services/network_permission_service.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../theme/app_theme.dart';
+import '../hub/hub_state.dart';
 
 /// 主界面：底部页签由当前主题包提供（[TopicPack.tabs]）。
 ///
@@ -23,8 +24,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // 页签下标，对应 `pack.tabs`。
   //
   // 底部四个页签：两个"主功能" + 一个二梯队/记录页 + 个人中心（照微信）。
@@ -43,6 +43,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // 从首页进来时可能指定了要落在哪个页签（例如「记烘焙日」直接进记录）。
+    final pending = context.read<HubState>().takePendingTab();
+    if (pending != null) _index = pending;
     WidgetsBinding.instance.addObserver(this);
     _networkSub =
         NetworkPermissionService.instance.onNetworkAvailable.listen((_) {
@@ -110,33 +113,42 @@ class _HomeScreenState extends State<HomeScreen>
       });
     }
 
-    return Scaffold(
-      body: KeyedSubtree(
-        key: ValueKey(_reloadTick),
-        child: IndexedStack(index: index, children: pages),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          border: Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
+    // 圈内是首屏的下一层：系统返回键回到兴趣圈首页，而不是退出 App。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.read<HubState>().leave();
+      },
+      child: Scaffold(
+        body: KeyedSubtree(
+          key: ValueKey(_reloadTick),
+          child: IndexedStack(index: index, children: pages),
         ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 54,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                for (var i = 0; i < _tabs.length; i++)
-                  _NavItem(
-                    icon: _tabs[i].icon,
-                    activeIcon: _tabs[i].activeIcon,
-                    label: _tabs[i].label,
-                    active: index == i,
-                    badge: _tabs[i].badge?.call(context) ?? 0,
-                    onTap: () => _selectTab(i),
-                  ),
-              ],
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            border:
+                Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 54,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < _tabs.length; i++)
+                    _NavItem(
+                      icon: _tabs[i].icon,
+                      activeIcon: _tabs[i].activeIcon,
+                      label: _tabs[i].label,
+                      active: index == i,
+                      badge: _tabs[i].badge?.call(context) ?? 0,
+                      onTap: () => _selectTab(i),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

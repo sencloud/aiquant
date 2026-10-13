@@ -46,18 +46,6 @@ class CoffeePack extends TopicPack {
             '以及这一杯该用多少度、多少粉。',
         ticket: '依据：你自己记的豆子与冲煮参数；公开数据用烘焙商建议的养豆期。'
             '没记录就写「还没有判断」。',
-        rail: [
-          RailCell(0.30),
-          RailCell(0.34),
-          RailCell(0.42, best: true),
-          RailCell(0.38, good: true),
-          RailCell(0.22, good: true),
-          RailCell(0.16),
-          RailCell(0.10),
-          RailCell(0.10),
-        ],
-        nowPercent: 0.06,
-        legend: ['今天', '现在', '第 7 天'],
         jobs: [
           TopicJob(
             icon: Icons.local_cafe_outlined,
@@ -84,6 +72,14 @@ class CoffeePack extends TopicPack {
             ask: '我的豆子还剩几天？',
           ),
         ],
+      );
+
+  @override
+  TopicWindow get window => const TopicWindow(
+        days: 14,
+        startLabel: '烘焙日',
+        verdictFresh: '在最香的时候',
+        verdictSoon: '这几天得喝完',
       );
 
   @override
