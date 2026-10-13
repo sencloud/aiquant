@@ -7,7 +7,12 @@ publish_to: 'none'
 # 1.0.6 → 1.1.0：这次是更名（喜宽 → 喜爱）加整体改版，属于里程碑，单独抬一个
 # minor。也顺手绕开「1.0.6 是否已被审核」这个不确定性 —— 抬到 1.1.0 之后，
 # 无论 1.0.6 处于什么状态都不会撞 90062。要改回 1.0.6 就改这一行。
-version: 1.1.0+1
+#
+# 1.1.0 → 1.2.0：1.1.0 已过审上线，Apple 关闭了该 train。2026-10-13 的 TestFlight
+# 上传被拒：90062（CFBundleShortVersionString 必须高于已过审的 1.1.0）与
+# 90186（train '1.1.0' is closed for new build submissions）。App Store Connect
+# 上已建好 1.2.0 版本页，这一行必须跟着抬，否则同号构建还是会被拒。
+version: 1.2.0+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
