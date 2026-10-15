@@ -7,6 +7,7 @@ import 'package:fincept_app/core/topic/topic_registry.dart';
 import 'package:fincept_app/core/topic/topic_state.dart';
 import 'package:fincept_app/models/chat.dart';
 import 'package:fincept_app/screens/hub/hub_state.dart';
+import 'package:fincept_app/social/social_state.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
 import 'package:fincept_app/state/chat_state.dart';
@@ -216,6 +217,8 @@ void main() {
             ChangeNotifierProvider(create: (_) => BillingState()),
             ChangeNotifierProvider.value(value: topics),
             ChangeNotifierProvider(create: (_) => ChatState()),
+            ChangeNotifierProvider(
+                create: (_) => SocialState(store: MemorySocialStore())),
           ],
           child: child,
         );
@@ -241,7 +244,7 @@ void main() {
       expect(topics.currentId, 'fishing');
     });
 
-    testWidgets('首屏是兴趣圈首页；进圈后页签换掉，喜爱钱私有状态被销毁', (tester) async {
+    testWidgets('首屏是「今天」；进圈后页签换掉，喜爱钱私有状态被销毁', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -260,16 +263,28 @@ void main() {
           ChangeNotifierProvider.value(value: topics),
           ChangeNotifierProvider(create: (_) => ChatState()),
           ChangeNotifierProvider.value(value: hub),
+          ChangeNotifierProvider(
+              create: (_) => SocialState(store: MemorySocialStore())),
         ],
         child: const XiaiApp(),
       ));
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 500));
       }
-      // App 首屏 = 兴趣圈首页：一行一个圈，圈内的页签还没出现。
+      // App 首屏 = 「今天」（新社交骨架）：四个页签。
+      for (final label in ['今天', '圈子', '信箱', '我的']) {
+        expect(find.text(label), findsWidgets, reason: '页签 $label 应该在');
+      }
+      // 今天没有事 —— 页面照实写空，不生成内容。
+      expect(find.text('今天还没有事'), findsOneWidget);
+      expect(find.text('发现'), findsNothing);
+      // 切到「圈子」页签：一行一个圈，圈内的页签还没出现。
+      await tester.tap(find.text('圈子').first);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
       expect(find.text('喜爱钱'), findsOneWidget);
       expect(find.text('喜爱钓鱼'), findsOneWidget);
-      expect(find.text('发现'), findsNothing);
 
       // 进喜爱钱。
       hub.enter();

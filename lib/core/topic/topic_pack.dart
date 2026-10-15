@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/single_child_widget.dart';
 
 import '../../theme/app_theme.dart';
+import '../../social/social_models.dart';
 import 'topic_today.dart';
 
-/// 主题包（TopicPack）：「喜爱什么，就有什么」。
+/// 主题包（TopicPack）：一个「圈」—— 一个兴趣、一批记录、一位 AI 居民。
 ///
-/// 整个 App 随主题切换 —— 页签、助手、内容、配色都由主题包提供，用户一次
+/// 进圈之后整屏随主题切换 —— 页签、助手、内容、配色都由主题包提供，用户一次
 /// 只在一个主题里。共享的只有账号、喜点 / 内购、邀请、对话 UI 骨架与
 /// 「我的」骨架；主题之间的差异**只能**通过这个接口注入，不在共享层写
 /// `if (topic == ...)`。
@@ -81,6 +82,23 @@ abstract class TopicPack {
   /// 服务端上线之前，「今天」页里「AI 能替你做的事」只作为只读预览，
   /// 不引导用户去点一个必然会失败的入口。
   bool get aiLive => true;
+
+  // ── 新社交（今天 / 圈 / 信箱）────────────────────────────────
+  //
+  // 这三支是「圈」向共享层上报自己**真实**数据的地方（共享层不写
+  // `if (topic == ...)`）。没实现就是不参与，返回空 —— 空是合法状态。
+
+  /// 这个圈今天发生的事（渔获、豆单、猫的记录……）。
+  ///
+  /// 只上报真实记录：App 不生成「别人钓到了一条鱼」这类内容，
+  /// 今天没有事，「今天」页就照实写空。
+  List<SocialEvent> socialEvents(BuildContext context) => const [];
+
+  /// 说话时可以挂靠的「一件东西 / 一个地方」（竿、豆子、常去的钓点）。
+  List<SocialTarget> socialTargets(BuildContext context) => const [];
+
+  /// 共有物的水位线：最近 14 天每天记录了几条（0 表示那天没有）。
+  List<int> socialWaterline(BuildContext context) => const [];
 
   /// 「按起算日算天数」的圈在这里声明窗口（咖啡赏味期、猫粮开封）。
   /// 返回 null 表示这个圈的「今天」不能这么算（露营看天气、汉服看温度，

@@ -14,6 +14,7 @@ import 'core/topic/topic_state.dart';
 import 'services/analytics.dart';
 import 'services/client_error_reporter.dart';
 import 'services/network_permission_service.dart';
+import 'social/social_state.dart';
 import 'screens/hub/hub_state.dart';
 import 'state/auth_state.dart';
 import 'state/billing_state.dart';
@@ -82,6 +83,9 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => HubState()),
         ChangeNotifierProvider.value(value: auth..bootstrap()),
         ChangeNotifierProvider(create: (_) => BillingState()),
+        // 新社交的本地状态：事、话、回声、见面礼、今晚不在。
+        // 全主题共享 —— 换圈不清空你说过的话。
+        ChangeNotifierProvider(create: (_) => SocialState()..load()),
         ChangeNotifierProvider.value(value: topics),
         // ChatState 的 bootstrap() 由 AuthGate 在登录态切换时驱动，
         // 避免未登录就把上一个用户的本地缓存读出来。

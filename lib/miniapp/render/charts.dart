@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
-import '../expr/xel.dart' show numStr;
 
 /// 序列配色：品牌色在前，其余固定。
 List<Color> seriesColors() =>

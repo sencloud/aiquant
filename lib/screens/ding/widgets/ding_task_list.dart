@@ -84,7 +84,7 @@ class DingTaskList extends StatelessWidget {
                     ),
                     Switch(
                       value: t.enabled,
-                      activeColor: AppColors.amber,
+                      activeThumbColor: AppColors.amber,
                       onChanged: (v) =>
                           context.read<DingState>().setEnabled(t, v),
                     ),

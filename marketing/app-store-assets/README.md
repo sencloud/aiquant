@@ -19,7 +19,7 @@ app-store-assets/
 
 | # | iPhone 6.9"（1320×2868） | iPad 13"（2064×2752） | 标题 / 副标题 | 画面 |
 |---|---|---|---|---|
-| 1 | iphone69/01_theme.png | ipad13/01_theme.png | 喜爱什么，就有什么 / 一个 App，两种喜爱：喜爱钱 · 喜爱钓鱼 | 选主题页 |
+| 1 | iphone69/01_theme.png | ipad13/01_theme.png | 喜爱，并不是一定要得到 / 一个 App，两种喜爱：喜爱钱 · 喜爱钓鱼 | 选主题页 |
 | 2 | iphone69/02_money_chat.png | ipad13/02_money_chat.png | 行情数据，开口就问 / 期货、A 股、财报、资金流，AI 帮你查数、算指标 | 喜爱钱 · 对话（豆油 / 棕榈油价差） |
 | 3 | iphone69/03_money_discover.png | ipad13/03_money_discover.png | 常看的，放到发现页 / 一句话做个小应用，数据自动更新 | 喜爱钱 · 发现页小应用 |
 | 4 | iphone69/04_money_miniapp.png | ipad13/04_money_miniapp.png | 想看什么，一句话搭好 / 例：豆油与棕榈油价差、60 日均值与偏离 | 小应用「品种价差监控」 |

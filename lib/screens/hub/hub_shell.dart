@@ -9,12 +9,19 @@ import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
+import '../../social/screens/mail_tab.dart';
+import '../../social/screens/today_tab.dart';
 import 'hub_screen.dart';
 
-/// 兴趣圈外壳：App 的首屏。三个页签 —— 首页（今日指数台）/ 圈子 / 我的。
+/// App 首屏外壳：四个页签 —— 今天 / 圈 / 信箱 / 我。
 ///
-/// 进圈是**整屏**（[HubState.insideCircle] 为 true 时换成那个圈的页签外壳），
-/// 所以这里不需要二级路由：首页与圈是一层状态切换。
+/// 这一层是新社交的骨架（见 `design/xiai-social/design-plan.md`）：
+///   * **今天**：今天发生过的几件事，话挂在事上（不是信息流，也不生成内容）；
+///   * **圈**：你的兴趣圈与每个圈今天的判断，点一行进圈；
+///   * **信箱**：话按东西分组、不按人分组 —— 所以这里没有 1:1 会话列表；
+///   * **我**：账号、喜点、隐私与「说话的方式」。
+///
+/// 进圈仍然是**整屏**（[HubState.insideCircle] 为 true 时换成那个圈的页签外壳）。
 class HubShell extends StatefulWidget {
   const HubShell({super.key});
 
@@ -25,11 +32,11 @@ class HubShell extends StatefulWidget {
 class _HubShellState extends State<HubShell> {
   int _index = 0;
 
-  static const _keys = ['hub', 'circles', 'me'];
+  static const _keys = ['today', 'circles', 'mail', 'me'];
 
   Future<void> _select(int i) async {
     // 「我的」要登录：与圈内「我的」同一条规矩。
-    if (i == 2 && !context.read<AuthState>().isAuthenticated) {
+    if (i == 3 && !context.read<AuthState>().isAuthenticated) {
       final ok = await requireLogin(context);
       if (!ok || !mounted) return;
     }
@@ -40,8 +47,9 @@ class _HubShellState extends State<HubShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
+      const TodayTab(),
       const HubHomeTab(),
-      const HubCirclesTab(),
+      const MailTab(),
       const SettingsScreen(),
     ];
     return Scaffold(
@@ -59,9 +67,9 @@ class _HubShellState extends State<HubShell> {
             child: Row(
               children: [
                 _HubNavItem(
-                  icon: Icons.wb_twilight_outlined,
-                  activeIcon: Icons.wb_twilight_rounded,
-                  label: '首页',
+                  icon: Icons.today_outlined,
+                  activeIcon: Icons.today_rounded,
+                  label: '今天',
                   active: _index == 0,
                   onTap: () => _select(0),
                 ),
@@ -73,11 +81,18 @@ class _HubShellState extends State<HubShell> {
                   onTap: () => _select(1),
                 ),
                 _HubNavItem(
+                  icon: Icons.mail_outline_rounded,
+                  activeIcon: Icons.mail_rounded,
+                  label: '信箱',
+                  active: _index == 2,
+                  onTap: () => _select(2),
+                ),
+                _HubNavItem(
                   icon: Icons.person_outline_rounded,
                   activeIcon: Icons.person_rounded,
                   label: '我的',
-                  active: _index == 2,
-                  onTap: () => _select(2),
+                  active: _index == 3,
+                  onTap: () => _select(3),
                 ),
               ],
             ),

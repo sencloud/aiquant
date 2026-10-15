@@ -222,7 +222,7 @@ class _DingTaskEditorState extends State<DingTaskEditor> {
                 children: [
                   Switch(
                     value: _enabled,
-                    activeColor: AppColors.amber,
+                    activeThumbColor: AppColors.amber,
                     onChanged: (v) => setState(() => _enabled = v),
                   ),
                   const SizedBox(width: 6),

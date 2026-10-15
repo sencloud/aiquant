@@ -125,7 +125,7 @@ void main() {
       expect(first.lines, 0);
       expect(first.ambient, 0);
       expect(opacityOf(tester, find.text('喜爱')), lessThan(0.01));
-      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), lessThan(0.01));
+      expect(opacityOf(tester, find.text('喜爱，并不是一定要得到')), lessThan(0.01));
       // 加载文字已换成发丝线。
       expect(find.textContaining('正在'), findsNothing);
       expect(find.byKey(const Key('splash-progress')), findsOneWidget);
@@ -137,7 +137,7 @@ void main() {
       expect(end.stars, 1);
       expect(end.lines, 1);
       expect(opacityOf(tester, find.text('喜爱')), closeTo(1, 0.001));
-      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), closeTo(1, 0.001));
+      expect(opacityOf(tester, find.text('喜爱，并不是一定要得到')), closeTo(1, 0.001));
       // 题字落在屏高 43% 附近（略高于正中）。
       expect(tester.getCenter(find.text('喜爱')).dy, closeTo(844 * 0.43, 24));
       // 星光在闪：时钟还在走。
@@ -173,7 +173,7 @@ void main() {
       final topics = TopicState(packs: builtInTopicPacks(fishing: true));
       await tester.pumpWidget(_host(topics, splash(minMs: 100, maxMs: 500)));
       await tester.pump(const Duration(milliseconds: 90));
-      expect(opacityOf(tester, find.text('喜爱什么，就有什么')), closeTo(1, 0.001));
+      expect(opacityOf(tester, find.text('喜爱，并不是一定要得到')), closeTo(1, 0.001));
       expect(painter(tester).lines, 1);
       await tester.pump(const Duration(seconds: 1));
     });
@@ -220,7 +220,7 @@ void main() {
           tester.widget<TopicPickerScreen>(find.byType(TopicPickerScreen));
       expect(picker.switching, isTrue);
       // 与首启同一套版式：喜爱 + 口号 + 两张主题卡。
-      expect(find.text('喜爱什么，就有什么'), findsOneWidget);
+      expect(find.text('喜爱，并不是一定要得到'), findsOneWidget);
       expect(find.byKey(const ValueKey('topic-card-money')), findsOneWidget);
       expect(find.byKey(const ValueKey('topic-card-fishing')), findsOneWidget);
       final money = tester.widget<TopicCard>(find.ancestor(
@@ -285,7 +285,7 @@ void main() {
       expect(find.text('喜点明细'), findsOneWidget);
       await tester.scrollUntilVisible(find.textContaining('喜爱 · '), 200,
           scrollable: find.byType(Scrollable).first);
-      expect(find.text('喜爱 · 喜爱什么，就有什么'), findsOneWidget);
+      expect(find.text('喜爱 · 喜爱，并不是一定要得到'), findsOneWidget);
       expect(find.textContaining('证伪'), findsNothing);
     });
   });

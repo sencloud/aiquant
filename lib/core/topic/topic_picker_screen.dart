@@ -60,7 +60,7 @@ class TopicPickerScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpace.sm),
               Text(
-                '喜爱什么，就有什么',
+                '喜爱，并不是一定要得到',
                 textAlign: TextAlign.center,
                 style: AppType.body.copyWith(color: AppColors.textSecondary),
               ),

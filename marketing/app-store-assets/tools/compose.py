@@ -33,7 +33,7 @@ PALETTES = {  # 与 lib/screens/splash/splash_backdrop.dart 一致
 
 # (编号, 文件名, 主题, 原始截图, 标题, 副标题)
 SHOTS = [
-    ('01', 'theme', 'neutral', '01_picker', '喜爱什么，就有什么', '一个 App，两种喜爱：喜爱钱 · 喜爱钓鱼'),
+    ('01', 'theme', 'neutral', '01_picker', '喜爱，并不是一定要得到', '一个 App，两种喜爱：喜爱钱 · 喜爱钓鱼'),
     ('02', 'money_chat', 'money', '02_money_chat', '行情数据，开口就问', '期货、A 股、财报、资金流，AI 帮你查数、算指标'),
     ('03', 'money_discover', 'money', '03_money_discover', '常看的，放到发现页', '一句话做个小应用，数据自动更新'),
     ('04', 'money_miniapp', 'money', '04b_miniapp_spread', '想看什么，一句话搭好', '例：豆油与棕榈油价差、60 日均值与偏离'),

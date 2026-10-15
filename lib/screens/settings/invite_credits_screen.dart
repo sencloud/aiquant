@@ -65,7 +65,8 @@ class _InviteCreditsScreenState extends State<InviteCreditsScreen> {
 
   Future<void> _share(CreditInviteInfo info) async {
     await Share.share(
-      '我在用「喜爱」—— 喜爱什么，就有什么：问行情、聊钓鱼的 AI 助手。\n'
+      '我在用「喜爱」—— 喜爱，并不是一定要得到：不读通讯录的社交，'
+      '有事才有话，AI 居民标明身份。\n'
       '注册后填我的邀请码 ${info.code}，你我各得 ${info.rewardEach} 喜点。\n'
       'App Store 搜索「喜爱」即可下载。',
     );

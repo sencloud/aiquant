@@ -183,7 +183,7 @@ class _GroupTileState extends State<_GroupTile>
             SizeTransition(
               sizeFactor:
                   CurvedAnimation(parent: _ctl, curve: Curves.easeOutCubic),
-              axisAlignment: -1,
+              alignment: Alignment.topCenter,
               child: FadeTransition(
                 opacity: _ctl,
                 child: _body(m),

@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>喜爱 · 交友版 — 高保真原型</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-mark="all">
+
+<!-- 图标：一笔一画，同一粗细（不用 emoji） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="i-back" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></g>
+    <g id="i-chev" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></g>
+    <g id="i-info" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="10" cy="10" r="6.6"/><path d="M10 9.2v4.4M10 6.6v.2"/></g>
+    <g id="i-home" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M3.6 8.6L10 3.4l6.4 5.2v7.4a1 1 0 01-1 1H4.6a1 1 0 01-1-1z"/></g>
+    <g id="i-chat" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M3.4 9.6c0-3 2.9-5.2 6.6-5.2s6.6 2.2 6.6 5.2-2.9 5.2-6.6 5.2c-.7 0-1.4-.1-2-.24
+               L4.6 16.4l.5-2.6c-1.1-.93-1.7-2.2-1.7-4.2z"/></g>
+    <g id="i-user" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+      <circle cx="10" cy="7.4" r="3.1"/><path d="M4.2 16.6c.6-3 3-4.4 5.8-4.4s5.2 1.4 5.8 4.4"/></g>
+    <g id="i-send" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M10 16V4.6M5.4 9L10 4.2 14.6 9"/></g>
+    <g id="i-spark" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9z"/></g>
+    <g id="i-ticket" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+      <path d="M3.4 5.6h13.2v3a1.6 1.6 0 000 3.2v3H3.4v-3a1.6 1.6 0 000-3.2z"/>
+      <path d="M10 6.4v1.8M10 9.6v1.6M10 12.6v1.6" stroke-dasharray="1 1.6"/></g>
+    <g id="i-check" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+       stroke-linejoin="round"><path d="M4.8 10.4l3.4 3.4 7-7.6"/></g>
+    <g id="i-lock" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="4.4" y="8.8" width="11.2" height="7.4" rx="2"/>
+      <path d="M7 8.8V7a3 3 0 016 0v1.8"/></g>
+    <g id="i-bell" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M5.2 8.6a4.8 4.8 0 019.6 0c0 4 1.4 5 1.4 5H3.8s1.4-1 1.4-5z"/>
+      <path d="M8.4 16.2a1.8 1.8 0 003.2 0" stroke-linecap="round"/></g>
+    <g id="i-coin" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <circle cx="10" cy="10" r="6.4"/><path d="M10 6.4v7.2M8.2 8.4h3.6M8.2 11.6h3.6"/></g>
+    <!-- 品牌记号：四角星（沿用「喜宽」时期，见 DESIGN.md 开屏装饰） -->
+    <path id="i-brand" d="M10 1.6l1.85 6.55L18.4 10l-6.55 1.85L10 18.4l-1.85-6.55L1.6 10l6.55-1.85z"/>
+  </defs>
+</svg>
+
+<div class="stage">
+<div class="device" id="device">
+
+  <div class="statusbar">
+    <span class="num">09:12</span>
+    <span class="sig">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true">
+        <rect x="0" y="7" width="3" height="4" rx="1"/>
+        <rect x="4.5" y="5" width="3" height="6" rx="1"/>
+        <rect x="9" y="2.5" width="3" height="8.5" rx="1"/>
+        <rect x="13.5" y="0" width="3" height="11" rx="1" opacity=".35"/>
+      </svg>
+      <svg width="24" height="12" viewBox="0 0 24 12" aria-hidden="true">
+        <rect x=".5" y=".5" width="20" height="11" rx="3" fill="none" stroke="currentColor" opacity=".5"/>
+        <rect x="2" y="2" width="13" height="8" rx="1.6" fill="currentColor"/>
+        <path d="M22 4v4a2.4 2.4 0 000-4z" fill="currentColor" opacity=".5"/>
+      </svg>
+    </span>
+  </div>
+
+  <div class="view">
+
+    <!-- ═══ 开屏 ═══════════════════════════════════════════════ -->
+    <section class="screen splash" id="s-splash" data-go="onboard">
+      <div class="stars" id="stars"></div>
+      <div class="splashwrap">
+        <h1>喜爱</h1>
+        <div class="rule"><i></i><b></b><i></i></div>
+        <p class="slogan">喜爱，并不是一定要得到</p>
+      </div>
+      <div class="splashfoot">轻触继续</div>
+    </section>
+
+    <!-- ═══ 先说喜爱什么 ═══════════════════════════════════════ -->
+    <section class="screen" id="s-onboard" hidden>
+      <div class="pad" style="padding-top:10px">
+        <h1 class="display">先说你喜爱什么</h1>
+        <p class="lede">喜爱什么，这里就有什么人。选两个以上，今天的推荐按它来。</p>
+      </div>
+      <div class="gap"></div>
+      <div class="pad"><div class="card rows" id="pick-rows"></div></div>
+      <div class="pad">
+        <div class="sect"><h2>你想遇到什么样的人</h2><span>可多选</span></div>
+        <div class="chips" id="want-chips">
+          <span class="chip on">一起聊兴趣</span>
+          <span class="chip">认真谈恋爱</span>
+          <span class="chip">只是想有个说话的人</span>
+        </div>
+      </div>
+      <div class="pad" style="margin-top:8px">
+        <button class="primary" data-go="home">进来看今天的三位</button>
+        <p class="footnote">真人资料上标「已实名」，AI 伙伴标「AI 伙伴」。<br>这里不必猜。</p>
+      </div>
+      <div class="gap"></div>
+    </section>
+
+    <!-- ═══ 今天 ═══════════════════════════════════════════════ -->
+    <section class="screen" id="s-home" hidden>
+      <div class="topbar">
+        <div class="stack">
+          <div class="title"><svg class="brandmark"><use href="#i-brand"/></svg>喜爱</div>
+          <div class="sub">今天 · 三位</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="iconbtn" data-sheet="who" title="这里有什么人"><svg><use href="#i-info"/></svg></div>
+      </div>
+      <div class="pad">
+        <h1 class="display">今天，有三位和你聊得来</h1>
+        <p class="lede">每天三位，早上 9:00 换。聊不完的，明天还在。</p>
+      </div>
+      <div class="gap"></div>
+      <div class="pad" id="home-cards"></div>
+      <div class="pad"><div class="rule"><i></i><b></b><i></i></div></div>
+      <div class="pad" style="text-align:center">
+        <button class="thinbtn" data-go="done">今天看完了</button>
+      </div>
+      <div class="gap"></div>
+    </section>
+
+    <!-- ═══ 资料 ═══════════════════════════════════════════════ -->
+    <section class="screen" id="s-profile" hidden>
+      <div class="topbar">
+        <div class="back" data-back="1"><svg><use href="#i-back"/></svg></div>
+        <div class="title">资料</div>
+        <div class="spacer"></div>
+        <div class="iconbtn" data-sheet="who" title="这里有什么人"><svg><use href="#i-info"/></svg></div>
+      </div>
+      <div id="profile-body"></div>
+      <div class="gap"></div>
+    </section>
+
+    <!-- ═══ 会话 ═══════════════════════════════════════════════ -->
+    <section class="screen col" id="s-chat" hidden>
+      <div class="topbar">
+        <div class="back" data-back="1"><svg><use href="#i-back"/></svg></div>
+        <div class="title" id="chat-name">阿澈</div>
+        <span id="chat-pill"></span>
+        <div class="spacer"></div>
+        <div class="iconbtn" data-sheet="who" title="他是谁"><svg><use href="#i-info"/></svg></div>
+      </div>
+      <div class="chat-log" id="chat-log"></div>
+      <div class="composer">
+        <div class="row">
+          <input class="field" id="chat-field" placeholder="说点什么" autocomplete="off">
+          <div class="tool" id="ice-btn" title="让喜爱替你想一句"><svg><use href="#i-spark"/></svg></div>
+          <div class="send" id="send-btn" title="发出去"><svg><use href="#i-send"/></svg></div>
+        </div>
+        <div class="ctx"><span class="dot"></span><span id="chat-ctx"></span></div>
+      </div>
+    </section>
+
+    <!-- ═══ 今天到此为止 ═══════════════════════════════════════ -->
+    <section class="screen" id="s-done" hidden>
+      <div class="topbar center"><div class="title">今天</div></div>
+      <div class="pad creed" style="padding-top:18px">
+        <h1 class="display">今天的三位，你都见过了。</h1>
+        <p class="lede">明天早上 9:00 换新的三位。想接着聊，他们都在消息里。</p>
+      </div>
+      <div class="gap"></div>
+      <div class="pad">
+        <div class="card pad">
+          <p class="creedline">喜爱，并不是一定要得到 ——<br>所以这里没有「下一位」。</p>
+          <p class="creedbody">没有那个一直亮着的按钮，是因为想让你把注意力留给已经见过的人。
+            想再聊一句就聊，不想说话也不用解释。</p>
+        </div>
+      </div>
+      <div class="pad" style="margin-top:16px">
+        <div class="btnrow">
+          <button class="primary ghost" data-go="home">重看今天的三位</button>
+          <button class="primary" data-go="inbox">去消息</button>
+        </div>
+        <p class="footnote">今天 0 点上床的人，明天 9:00 会收到三条新的。</p>
+      </div>
+    </section>
+
+    <!-- ═══ 消息 ═══════════════════════════════════════════════ -->
+    <section class="screen" id="s-inbox" hidden>
+      <div class="topbar">
+        <div class="stack"><div class="title">消息</div></div>
+        <div class="spacer"></div>
+        <div class="iconbtn" data-sheet="who" title="这里有什么人"><svg><use href="#i-info"/></svg></div>
+      </div>
+      <p class="note" id="inbox-note">真人和 AI 伙伴在同一个列表里。打开会话会写明身份，
+        资料页也写着 —— 标识是我们自己定的规矩，也是法规要求。</p>
+      <div class="pad"><div class="card" id="inbox-rows"></div></div>
+      <div class="gap"></div>
+      <div class="pad"><p class="mono">这里不显示在线状态，也没有「已读不回」的提醒。</p></div>
+    </section>
+
+    <!-- ═══ 我的 ═══════════════════════════════════════════════ -->
+    <section class="screen" id="s-me" hidden>
+      <div class="topbar"><div class="stack"><div class="title">我的</div></div></div>
+      <div class="pad">
+        <div class="card pad">
+          <div class="personhd">
+            <span class="av" data-c="fishing">我</span>
+            <div class="stack">
+              <div class="nm">你 <span class="pill real">已实名</span></div>
+              <div class="meta">喜爱钓鱼 · 喜爱咖啡 — 2 个喜爱</div>
+            </div>
+            <div class="iconbtn" data-go="onboard"><svg><use href="#i-chev"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="pad">
+        <div class="sect"><h2>我在这里的样子</h2></div>
+        <div class="card rows">
+          <div class="line">
+            <svg class="glyph"><use href="#i-user"/></svg>
+            <div class="stack"><div class="lead">我的资料</div>
+              <div class="sub">一句话、头像、所在城市（只显示到市）</div></div>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </div>
+          <div class="line">
+            <svg class="glyph"><use href="#i-bell"/></svg>
+            <div class="stack"><div class="lead">谁看过我 · 我看过谁</div>
+              <div class="sub">只有自己看得到，别人看不到</div></div>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </div>
+          <div class="line">
+            <svg class="glyph"><use href="#i-lock"/></svg>
+            <div class="stack"><div class="lead">不显示在线状态</div>
+              <div class="sub">对方看不到你什么时候在线、有没有已读</div></div>
+            <div class="sw on" data-sw="1"><i></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="pad">
+        <div class="sect"><h2>人</h2><span>可以随时改</span></div>
+        <div class="card rows">
+          <div class="line" data-sheet="who">
+            <svg class="glyph"><use href="#i-info"/></svg>
+            <div class="stack"><div class="lead">AI 伙伴</div>
+              <div class="sub">24 位 · 谁是谁，怎么区分，都在这一页</div></div>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </div>
+          <div class="line">
+            <svg class="glyph"><use href="#i-check"/></svg>
+            <div class="stack"><div class="lead">只和真人聊天</div>
+              <div class="sub">打开后今天可能没有人 —— 真人还没有那么多</div></div>
+            <div class="sw" data-sw="1"><i></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="pad">
+        <div class="sect"><h2>账与规则</h2></div>
+        <div class="card rows">
+          <div class="line">
+            <svg class="glyph"><use href="#i-coin"/></svg>
+            <div class="stack"><div class="lead">喜点</div><div class="sub">用完了再充，不自动续</div></div>
+            <div class="val num">42</div>
+          </div>
+          <div class="line">
+            <svg class="glyph"><use href="#i-lock"/></svg>
+            <div class="stack"><div class="lead">隐私与安全</div>
+              <div class="sub">防诈骗提醒 · 举报与拉黑 · 数据与注销</div></div>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="pad"><div class="rule"><i></i><b></b><i></i></div>
+        <p class="footnote">喜爱，并不是一定要得到</p></div>
+      <div class="gap"></div>
+    </section>
+  </div><!-- /.view -->
+
+    <!-- ═══ 底页：让喜爱替你想一句 ═════════════════════════════ -->
+    <div class="sheet" id="sh-ice">
+      <div class="grip"></div>
+      <h3>让喜爱替你想一句</h3>
+      <p class="sub" id="ice-sub">按你们的共同兴趣和最近动态写的。挑一句，或者改两个字再发。</p>
+      <div id="ice-list"></div>
+      <div class="btnrow" style="margin-top:4px">
+        <button class="primary ghost" id="ice-again">换一批</button>
+        <button class="primary" id="ice-send">直接发出去</button>
+      </div>
+    </div>
+
+    <!-- ═══ 底页：这里有什么人 ═════════════════════════════════ -->
+    <div class="sheet" id="sh-who">
+      <div class="grip"></div>
+      <h3>这里有什么人</h3>
+      <p class="sub">喜爱里有两类人，资料上都会写明白。</p>
+      <div class="card rows" style="margin-bottom:14px">
+        <div class="line" style="cursor:default">
+          <span class="pill real">已实名</span>
+          <div class="stack"><div class="lead">真人</div>
+            <div class="sub">手机号注册，可以自愿实名。认证过的名字后面挂这个标。</div></div>
+        </div>
+        <div class="line" style="cursor:default">
+          <span class="pill ai">AI 伙伴</span>
+          <div class="stack"><div class="lead">AI 伙伴</div>
+            <div class="sub">由喜爱生成的角色，资料页写明谁在维护他。目前 24 位。</div></div>
+        </div>
+      </div>
+      <div class="card pad" style="margin-bottom:12px">
+        <p class="creedline" style="font-size:16px">AI 伙伴会做什么</p>
+        <p class="creedbody">按自己的兴趣和作息聊，会记住你说过的话，也会主动分享自己今天的渔获、豆单、
+          猫的照片 —— 这些内容来自喜爱的兴趣档案。回复有自己的节奏，不会秒回。</p>
+        <p class="creedbody"><b>不会做</b>：索要转账或收款码、约你线下见面、推你去别的平台、
+          在资料里冒充真人。发现一条，这个角色就下线。</p>
+      </div>
+      <div class="card rows" style="margin-bottom:12px">
+        <div class="line">
+          <div class="stack"><div class="lead">只和真人聊天</div>
+            <div class="sub">关掉 AI 伙伴，今天可能没有人 —— 真人还不多，我们宁可空着。</div></div>
+          <div class="sw" data-sw="1"><i></i></div>
+        </div>
+        <div class="line">
+          <div class="stack"><div class="lead">AI 伙伴主动开口</div>
+            <div class="sub">他们可能先给你发消息，一天最多一次。</div></div>
+          <div class="sw on" data-sw="1"><i></i></div>
+        </div>
+      </div>
+      <p class="mono">标识写在资料页、会话顶部和每天的推荐卡上：向用户提供对话式 AI 服务，
+        界面上要写明。这条既是法规要求，也是我们把「不必猜」当成产品的一部分。</p>
+    </div>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="toast" id="toast"></div>
+
+  <div class="bottom" id="tabsbar">
+    <div class="ask" id="ask-break">
+      <svg><use href="#i-spark"/></svg>
+      <span class="t">不知道怎么开口？让喜爱替你想一句</span>
+      <span class="kbd">试试</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <a data-go="home" class="on"><svg><use href="#i-home"/></svg>今天</a>
+      <a data-go="inbox"><svg><use href="#i-chat"/></svg>消息</a>
+      <a data-go="me"><svg><use href="#i-user"/></svg>我的</a>
+    </nav>
+  </div>
+</div>
+
+<!-- ═══ 走查台（仅桌面显示，不属于产品界面） ═══════════════════ -->
+<aside class="review">
+  <p class="rtitle">喜爱 · 交友版</p>
+  <p class="tagline">口号「喜爱，并不是一定要得到」。真人 + AI 伙伴同一个池子，
+    身份写在资料、会话顶部与推荐卡上。</p>
+
+  <h3>屏幕</h3>
+  <div class="btns">
+    <button class="rbtn" data-act="go:splash">开屏</button>
+    <button class="rbtn" data-act="go:onboard">先说喜爱</button>
+    <button class="rbtn on" data-act="go:home">今天</button>
+    <button class="rbtn" data-act="go:profile">资料</button>
+    <button class="rbtn" data-act="go:chat">会话</button>
+    <button class="rbtn" data-act="go:done">今天到此为止</button>
+    <button class="rbtn" data-act="go:inbox">消息</button>
+    <button class="rbtn" data-act="go:me">我的</button>
+  </div>
+
+  <h3>看谁</h3>
+  <div class="btns">
+    <button class="rbtn on" data-act="person:che">阿澈（真人）</button>
+    <button class="rbtn" data-act="person:man">小满（AI 伙伴）</button>
+  </div>
+
+  <h3>身份标识强度</h3>
+  <div class="btns">
+    <button class="rbtn on" data-act="mark:all">卡 + 资料 + 会话（默认）</button>
+    <button class="rbtn" data-act="mark:detail">资料 + 会话</button>
+    <button class="rbtn" data-act="mark:profile">只在资料页（不建议）</button>
+  </div>
+
+  <h3>底页</h3>
+  <div class="btns">
+    <button class="rbtn" data-act="sheet:ice">让喜爱替你想一句</button>
+    <button class="rbtn" data-act="sheet:who">这里有什么人</button>
+  </div>
+
+  <h3>六个喜爱</h3>
+  <div class="swatch">
+    <b data-c="money"    style="background:#9E6322"></b>
+    <b data-c="fishing"  style="background:#1F6A7A"></b>
+    <b data-c="coffee"   style="background:#6F4A2A"></b>
+    <b data-c="cat"      style="background:#6E5A8C"></b>
+    <b data-c="camping"  style="background:#33587A"></b>
+    <b data-c="hanfu"    style="background:#8C3A4A"></b>
+  </div>
+
+  <p class="hint">切换「身份标识强度」可以直接看到三种做法的差别：
+    默认档把 AI 伙伴标在推荐卡、资料页和会话顶部，但不占任何位置、不做颜色强调。
+    只在资料页那一档是留给你对比的，不建议上线 —— 它会把「发现对面是 AI」变成一次失望。</p>
+</aside>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

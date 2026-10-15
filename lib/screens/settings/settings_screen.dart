@@ -105,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onLedger: user == null ? null : () => _showLedger(context),
             ),
             const SizedBox(height: 30),
-            // 「喜爱什么，就有什么」：只有一个主题时整组不出现。
+            // 多主题切换：只有一个主题时整组不出现。
             if (topics != null && topics.canSwitch) ...[
               if (topics.showNewTopicBanner)
                 _NewTopicBanner(
@@ -610,7 +610,7 @@ class _NewTopicBanner extends StatelessWidget {
           const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text(
-              '新：${others.join('、')} 上线了。喜爱什么，就有什么 —— 在下面「切换主题」里看看。',
+              '新：${others.join('、')} 上线了。喜爱什么，这里就有什么人 —— 在下面「切换主题」里看看。',
               style: AppType.caption
                   .copyWith(color: AppColors.textPrimary, height: 1.5),
             ),
@@ -729,7 +729,7 @@ class ProfileColophon extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('喜爱 · 喜爱什么，就有什么',
+        Text('喜爱 · 喜爱，并不是一定要得到',
             style: AppType.micro.copyWith(color: AppColors.textTertiary)),
         const SizedBox(width: AppSpace.sm),
         Text(version.isEmpty ? '—' : version,

@@ -27,7 +27,7 @@ import 'splash_backdrop.dart';
 /// （随主题：喜爱钱暖墨 → 金 → 桃色天光；喜爱钓鱼深湖青 → 黎明；还没选主题用
 /// 中性夜色），地平线辉光、围着题字的三道轨道细线、下方几道起伏细线、错落闪烁
 /// 的星光，全部由 [SplashBackdropPainter] 一支画笔画。中间是衬线大字「喜爱」
-/// 和口号「喜爱什么，就有什么」；底部一根发丝线代替加载文字。
+/// 和口号「喜爱，并不是一定要得到」；底部一根发丝线代替加载文字。
 ///
 /// 第一帧只有中性渐变，与原生启动屏（iOS LaunchImage / Android
 /// splash_gradient，同一套色值）一致，所以冷启动不跳；随后 0.7s 内渐变过渡到
@@ -66,7 +66,12 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   /// 品牌口号。全 App 统一一句，不随主题变。
-  static const slogan = '喜爱什么，就有什么';
+  ///
+  /// 1.3.0 换成「喜爱，并不是一定要得到」：产品从「效率承诺」改成
+  /// 「关系承诺」——不承诺你能得到什么，只承诺不假装。12 个字，字距从
+  /// 4（约 .27em）收到 3（约 .2em），一行放得下（390pt 宽）。
+  static const slogan = '喜爱，并不是一定要得到';
+  static const _sloganLetterSpacing = 3.0;
 
   /// 题字中心在屏高的位置（略高于正中，接近黄金分割）。
   static const focusY = 0.43;
@@ -243,7 +248,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: AppType.read.copyWith(
                                   fontSize: 15,
                                   height: 1.4,
-                                  letterSpacing: 4,
+                                  letterSpacing: _sloganLetterSpacing,
                                   fontWeight: FontWeight.w400,
                                   color: palette.slogan.withValues(alpha: 0.86),
                                 ),

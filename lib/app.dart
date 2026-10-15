@@ -15,7 +15,7 @@ import 'screens/splash/splash_screen.dart';
 import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
 
-/// 喜爱 · 喜爱什么，就有什么。
+/// 喜爱 · 喜爱，并不是一定要得到。
 ///
 /// 启动顺序：开屏页（至少 1 秒，用于收尾初始化）→（全新安装且有多个主题时）
 /// 选主题 → AuthGate（校验登录态）→ 当前主题的主界面。

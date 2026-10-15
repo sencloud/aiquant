@@ -5,11 +5,13 @@ import 'package:provider/single_child_widget.dart';
 import '../../core/config/features.dart';
 import '../../core/topic/topic_pack.dart';
 import '../../models/persona.dart';
+import '../../social/social_models.dart';
 import '../../screens/assistant/assistant_screen.dart';
 import '../../screens/discover/discover_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
 import 'fishing_discover.dart';
+import 'fishing_models.dart';
 import 'fishing_state.dart';
 import 'forecast_screen.dart';
 import 'identify_screen.dart';
@@ -121,4 +123,77 @@ class FishingPack extends TopicPack {
   Future<List<String>> loadHomeSuggestions() async =>
       Personas.byId(Personas.fishingDefaultId, topic: 'fishing')
           .welcomeSuggestions;
+
+  // ── 新社交：把渔获日志上报成「今天的事」，把常去水域上报成水位线 ──
+
+  @override
+  List<SocialEvent> socialEvents(BuildContext context) {
+    final s = context.watch<FishingState>();
+    final now = DateTime.now();
+    final today = s.catches
+        .where((c) => c.caughtAt.year == now.year &&
+            c.caughtAt.month == now.month &&
+            c.caughtAt.day == now.day)
+        .toList()
+      ..sort((a, b) => b.caughtAt.compareTo(a.caughtAt));
+    return today.take(3).map(_asEvent).toList(growable: false);
+  }
+
+  @override
+  List<SocialTarget> socialTargets(BuildContext context) {
+    final s = context.watch<FishingState>();
+    final spots = <String>{};
+    for (final c in s.catches) {
+      if (c.spotName.trim().isNotEmpty) spots.add(c.spotName.trim());
+    }
+    return spots
+        .take(3)
+        .map((name) => SocialTarget(
+              id: 'place:$name',
+              kind: SocialTargetKind.place,
+              title: name,
+              subtitle: '你去过的水域',
+              circleId: id,
+              circleName: name,
+              circleMark: mark,
+            ))
+        .toList(growable: false);
+  }
+
+  @override
+  List<int> socialWaterline(BuildContext context) {
+    final s = context.watch<FishingState>();
+    final now = DateTime.now();
+    return List<int>.generate(14, (i) {
+      final day = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: 13 - i));
+      return s.catches
+          .where((c) =>
+              c.caughtAt.year == day.year &&
+              c.caughtAt.month == day.month &&
+              c.caughtAt.day == day.day)
+          .length;
+    });
+  }
+
+  SocialEvent _asEvent(FishCatch c) {
+    final size = c.lengthCm == null
+        ? ''
+        : ' ${c.lengthCm! % 1 == 0 ? c.lengthCm!.toInt() : c.lengthCm}cm';
+    return SocialEvent(
+      id: c.uuid,
+      circleId: id,
+      circleName: name,
+      circleMark: mark,
+      title: '登记了一条渔获：${c.species}$size',
+      detail: c.note,
+      facts: [
+        if (c.spotName.isNotEmpty) '水域 ${c.spotName}',
+        if (c.method.isNotEmpty) '钓法 ${c.method}',
+        if (c.weather.isNotEmpty) '天气 ${c.weather}',
+        if (c.released) '已放流',
+      ],
+      at: c.caughtAt,
+    );
+  }
 }
