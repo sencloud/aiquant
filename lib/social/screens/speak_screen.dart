@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/topic/topic_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
 import '../social_feed.dart';
 import '../social_models.dart';
 import '../social_state.dart';
 import '../social_widgets.dart';
+import 'record_event_sheet.dart';
 
 /// 「说一句」：本产品的签名交互。
 ///
 /// 一条话从「发送」变成「**挂靠 + 定时**」：
-///   * 必须先选由头（规矩 02）；没有由头就没有入口，页面会解释为什么；
+///   * 必须先选由头；没有由头就没有入口，页面会解释为什么；
 ///   * 可以选择「什么时候递给他」—— 选了就是一条回声。
 class SpeakScreen extends StatefulWidget {
   const SpeakScreen({super.key, this.initial, this.echoFirst = false});
@@ -45,7 +45,8 @@ class _SpeakScreenState extends State<SpeakScreen> {
     final now = DateTime.now();
     final deliverAt = _when == 0
         ? null
-        : DateTime(now.year, now.month, now.day, 9).add(const Duration(days: 1));
+        : DateTime(now.year, now.month, now.day, 9)
+            .add(const Duration(days: 1));
     final post = state.speak(
       target: _target,
       text: _text.text,
@@ -53,8 +54,8 @@ class _SpeakScreenState extends State<SpeakScreen> {
       deliveryNote: deliverAt == null ? '' : '明天早上 9:00 递出去',
     );
     if (post == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('先选一个由头 —— 这里没有「在吗」。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('先选一个由头 —— 这里没有「在吗」。')));
       return;
     }
     Navigator.of(context).pop();
@@ -66,26 +67,24 @@ class _SpeakScreenState extends State<SpeakScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pack = context.watch<TopicState>().current;
     final state = context.watch<SocialState>();
-    final feed = buildToday(context, pack, state);
+    final feed = buildToday(state);
     final targets = <SocialTarget>[
       if (widget.initial != null) widget.initial!,
       for (final e in feed.events) e.target,
-      ...pack.socialTargets(context),
     ];
 
     return WkPage(
       title: '说一句',
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
-            AppSpace.gutter, AppSpace.sm, AppSpace.gutter, AppSpace.xxl),
+            AppSpace.md, AppSpace.md, AppSpace.md, AppSpace.xxl),
         children: [
-          const Text('这句话挂在什么上？', style: AppType.display),
+          const Text('这句话挂在什么上？', style: AppType.title),
           const SizedBox(height: AppSpace.sm),
-          Text('每句话都得有个由头。选了由头，这句话就会跟着那件事走 —— '
-              '谁在看那件事，谁就能看见你。',
-              style: AppType.read.copyWith(color: AppColors.textSecondary)),
+          Text('每句话都得有个由头。选了由头，这句话就会跟着那件事走。',
+              style: AppType.caption
+                  .copyWith(color: AppColors.textSecondary, height: 1.6)),
           const SizedBox(height: AppSpace.lg),
           for (final t in targets)
             SocialTargetTile(
@@ -94,6 +93,8 @@ class _SpeakScreenState extends State<SpeakScreen> {
               selected: _target?.id == t.id,
               onTap: () => setState(() => _target = t),
             ),
+          if (targets.isEmpty)
+            const WkNote(text: '今天还没有可以挂的事。先记一件事，再回来说这句。'),
           const SocialTargetTile(
             key: ValueKey('target-none'),
             target: null,
@@ -116,14 +117,14 @@ class _SpeakScreenState extends State<SpeakScreen> {
               style: AppType.read,
               decoration: const InputDecoration(
                 border: InputBorder.none,
-                hintText: '水稳的时候你一般用多重的铅？',
+                hintText: '今天这波放量，你是怎么看出来的？',
               ),
             ),
           ),
           const SizedBox(height: AppSpace.lg),
           Row(
             children: [
-              const Text('什么时候递给他', style: AppType.section),
+              const Text('什么时候递出去', style: AppType.section),
               const Spacer(),
               Text('不选就是现在',
                   style: AppType.micro.copyWith(color: AppColors.textTertiary)),
@@ -143,10 +144,17 @@ class _SpeakScreenState extends State<SpeakScreen> {
             ],
           ),
           const SizedBox(height: AppSpace.sm),
-          Text('他看不到你什么时候发的，也不会出现「已读」。到点之前你都能收回。',
+          Text('没有已读，也没有「正在输入」。到点之前你都能收回。',
               style: AppType.micro.copyWith(color: AppColors.textTertiary)),
           const SizedBox(height: AppSpace.xl),
           WkPrimaryButton(label: '投出去', onPressed: _send),
+          const SizedBox(height: AppSpace.sm),
+          Center(
+            child: WkTagButton(
+              label: '先记一件事',
+              onTap: () => showRecordEventSheet(context),
+            ),
+          ),
         ],
       ),
     );

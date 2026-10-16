@@ -6,6 +6,7 @@ import 'package:fincept_app/services/market_briefing.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/chat_state.dart';
 import 'package:fincept_app/theme/app_theme.dart';
+import 'package:fincept_app/wx/wx_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -165,11 +166,15 @@ void main() {
     expect(find.text('定时任务'), findsNothing);
     expect(find.text('带上我的组合'), findsNothing);
     expect(find.byTooltip('加入定时任务'), findsNothing);
-    expect(find.byTooltip('新建对话'), findsOneWidget);
+    // 聊天页的入口收在右上角「…」里（微信那条）。
+    expect(find.byKey(const ValueKey('chat-menu')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-send')), findsOneWidget);
 
     for (final t in ['重新生成', '复制', '有帮助', '没帮助', '分享']) {
       expect(find.byTooltip(t), findsOneWidget, reason: t);
     }
+    // 气泡旁边要有头像（微信的样子）。
+    expect(find.byType(WxAvatar), findsNWidgets(2));
     expect(find.text('3 个来源'), findsOneWidget);
     expect(find.text('马来西亚棕榈油库存什么时候可能见顶？'), findsOneWidget);
 
@@ -182,7 +187,7 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('左上角「对话记录」能打开抽屉并切换会话', (tester) async {
+  testWidgets('右上角「…」能换助手、发起新的对话', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -191,14 +196,15 @@ void main() {
     await tester.pumpWidget(_app(chat));
     await _settle(tester);
 
-    await tester.tap(find.byTooltip('对话记录'));
+    await tester.tap(find.byKey(const ValueKey('chat-menu')));
     await tester.pumpAndSettle();
-    expect(find.text('对话记录'), findsOneWidget);
-    expect(find.text('沪深300 下周走势'), findsOneWidget);
+    expect(find.text('发起新的对话'), findsOneWidget);
+    expect(find.text('换个助手'), findsOneWidget);
 
-    await tester.tap(find.text('沪深300 下周走势'));
+    await tester.tap(find.text('发起新的对话'));
     await tester.pumpAndSettle();
-    expect(chat.activeId, 'older');
+    expect(chat.activeId, isNot('fixture'));
+    expect(chat.active!.messages, isEmpty);
   });
 
   testWidgets('推荐追问只跟着最新一条回答', (tester) async {

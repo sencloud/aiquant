@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/analytics.dart';
 import '../../theme/app_theme.dart';
-import '../settings/settings_screen.dart'
+import '../settings/account_kit.dart'
     show rechargeAvailable, showRechargeSheet;
 
 /// 余额不足：说清楚差多少，iOS 直接拉起现有的内购充值面板；

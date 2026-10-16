@@ -1,15 +1,30 @@
 # 喜爱（喜 AI）
 
-一款面向中国个人投资者的 AI 投研助理。**它的主入口之一不是找策略，而是证伪策略。**
+一款面向中国个人投资者的 AI 投研助理。界面与交互按**微信**那一套重做（1.4.0），
+App 的名字不变，承诺不变：**喜爱，并不是一定要得到**。
 
-App 有四个页签：
+App 有四个页签，照微信：
 
 | 页签 | 做什么 |
 |---|---|
-| 对话 | 用自然语言问具体问题（某只股票、某个板块、某条信号），助理调用真实行情 / 财报 / 新闻 / 量化工具回答 |
-| 策略 | **证伪台**：先过尺度闸门（往返成本 ÷ 平均振幅），再让策略过样本 / 分年 / 回撤 / 参数稳健性四道闸门；结论允许是「零条可以实盘」 |
-| 发现 | 第二梯队功能的归档页（照微信）：定时提醒、组合管理、AI 直播、鹦鹉螺预测 |
-| 我的 | 喜点余额与流水、自选、账号与条款 |
+| 消息 | 会话列表（首屏）。点一行进聊天页：助理调用真实行情 / 财报 / 新闻 / 量化工具回答 |
+| 圈子 | 六个兴趣圈（喜爱钱 / 钓鱼 / 咖啡 / 猫 / 露营 / 汉服）：点一圈进去是一屋子 AI 助手，点谁就用谁开一段对话 |
+| 发现 | 第二梯队：今天的事、信箱、见面礼 · 定时提醒、我的小应用 |
+| 我 | 喜点余额与流水、邀请好友、账号与条款 |
+
+聊天是**二级页**（左上角返回、标题是助手名 + AI 标、右上角「…」），
+气泡左右分色，输入栏左边「＋」右边「发送」—— 与微信逐处对齐。
+
+**主题与圈子已经整块拿掉** `[决定]`：不再有选主题页、切换主题、整屏换色，
+也没有兴趣圈首页。钓鱼主题的功能代码留在 `lib/topics/fishing/`（连同测试），
+只是没有任何入口。
+
+## 设计语言
+
+「微信的骨架 + 墨金的肤色」：灰底 `#EDEDED`、白面列表、居中标题、一条发丝线收边；
+主色仍是喜爱的墨金 `#9E6322`，只用在选中态 / 主动作 / 自己的气泡上。涨跌语义色独立
+（涨红 `#FA5151`、跌绿 `#17864E`）。完整规则见 [DESIGN.md](DESIGN.md)，
+产品事实见 [PRODUCT.md](PRODUCT.md)。
 
 ## 证伪台
 
@@ -44,9 +59,8 @@ App 优先读内置资产（离线可用、首屏不等网络）；如果后端�
 
 ## 品牌
 
-名称「喜爱」谐音「喜 AI」。视觉世界是**纸上墨金**：纸底 + 墨字 + 墨金主色，
-结构学微信、材质学微信读书。完整规则见 [DESIGN.md](DESIGN.md)，
-产品事实见 [PRODUCT.md](PRODUCT.md)。
+名称「喜爱」谐音「喜 AI」。视觉世界就是**微信**那一套（见上「设计语言」）；
+图标不在本次重做范围内，仍是纸底 + 墨字「喜」+ 墨金四角星。
 
 图标不走设计工具，走矢量流水线，可复现：
 
@@ -60,7 +74,7 @@ flutter pub run flutter_launcher_icons                # 生成 iOS / Android / W
 
 接 [Umami](https://umami.is)（开源，可自托管，也有免费云额度）。纯 HTTP 上报，
 不引入任何原生依赖，因此不影响 iOS / Android 打包。`lib/services/analytics.dart`
-里列了关键路径的事件名：开屏 → 页签 → 证伪台 → 成本尺 → 档案 → 登录 → 充值成功。
+里列了关键路径的事件名：开屏 → 页签 → 对话 → 发现入口 → 登录 → 充值成功。
 
 未配置就是 no-op：
 
@@ -83,13 +97,19 @@ flutter run -d chrome       # 网页预览（按手机尺寸看得更准）
 设计走查用真实渲染截图核对，不靠猜：
 
 ```bash
-flutter build web --release --dart-define=INITIAL_TAB=1 --dart-define=SPLASH_MS=4200
+flutter build web --release --dart-define=SPLASH_MS=100
 python -m http.server 8777 --directory build/web
-python tools/design-qa/shoot_web.py --out .impeccable/shots
+python tools/design-qa/shoot_wx.py --out .impeccable/shots/wx   # 消息 / 聊天 / 圈子 / 发现 / 我
 ```
 
-`--dart-define=INITIAL_TAB=1` 让 App 直接落在证伪页签（默认 0 = 对话），
-`SPLASH_MS` 拉长开屏以便截图。两者都只影响本地走查。
+`--dart-define=INITIAL_TAB=0..3` 让 App 直接落在某个页签（0 消息 / 1 圈子 /
+2 发现 / 3 我），`SPLASH_MS` 拉长开屏以便截图。两者都只影响本地走查。
+金图（`test/goldens/`）生成时给 `STRATEGY_FONT_DIR` 指一个装了中文字体的目录，
+否则中文会渲染成方框：
+
+```bash
+STRATEGY_FONT_DIR=/path/to/fonts flutter test --update-goldens
+```
 
 发版：push 到 `main` 会自动打包并在 iOS 上传 TestFlight。动手前先看
 [`.agents/skills/app-release-build/SKILL.md`](.agents/skills/app-release-build/SKILL.md)

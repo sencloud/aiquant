@@ -134,7 +134,6 @@ void _phone(WidgetTester tester) {
 }
 
 Widget _host(Widget child, FishingState s) {
-  AppColors.applyTopic(TopicPalette.fishing);
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<AuthState>(create: (_) => _Authed()),
@@ -142,8 +141,7 @@ Widget _host(Widget child, FishingState s) {
       ChangeNotifierProvider<FishingState>.value(value: s),
     ],
     child: MaterialApp(
-        theme: AppTheme.build(ThemeMode.light, palette: TopicPalette.fishing),
-        home: child),
+        theme: AppTheme.build(ThemeMode.light), home: child),
   );
 }
 
@@ -154,8 +152,6 @@ void main() {
     FishingMap.debugUseNative = false;
     FishingMap.debugTileProvider = _BlankTiles();
   });
-  tearDown(() => AppColors.applyTopic(TopicPalette.money));
-
   group('坐标换算', () {
     test('WGS-84 → GCJ-02 偏移在几百米量级，反算误差 < 0.5 米', () {
       const w = LatLon(39.9087, 116.3975); // 天安门

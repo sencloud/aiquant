@@ -1,4 +1,3 @@
-import 'package:fincept_app/core/topic/topic_registry.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
 import 'package:fincept_app/theme/app_theme.dart';
@@ -183,7 +182,6 @@ void _phone(WidgetTester tester) {
 }
 
 Widget _host(Widget child, FishingState s, {bool authed = true}) {
-  AppColors.applyTopic(TopicPalette.fishing);
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<AuthState>(create: (_) => _AuthedState(authed)),
@@ -191,8 +189,7 @@ Widget _host(Widget child, FishingState s, {bool authed = true}) {
       ChangeNotifierProvider<FishingState>.value(value: s),
     ],
     child: MaterialApp(
-        theme: AppTheme.build(ThemeMode.light, palette: TopicPalette.fishing),
-        home: child),
+        theme: AppTheme.build(ThemeMode.light), home: child),
   );
 }
 
@@ -201,11 +198,8 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     dotenv.testLoad(fileInput: 'API_BASE_URL=http://127.0.0.1:9');
   });
-  tearDown(() => AppColors.applyTopic(TopicPalette.money));
-
-  test('钓鱼主题默认开放', () {
-    expect(builtInTopicPacks().map((p) => p.id), contains('fishing'));
-  });
+  // 多主题下线后，钓鱼的入口全部撤掉；功能代码保留，测试继续钉住它本身的
+  // 行为（出钓指数、渔获、识鱼），随时可以重新接上入口。
 
   testWidgets('出钓页：恢复上次地点，展示总分、分项、时段、禁渔提示', (tester) async {
     _phone(tester);
@@ -221,12 +215,16 @@ void main() {
       expect(find.text(n), findsOneWidget);
     }
     expect(find.text('30/30'), findsOneWidget);
-    expect(find.textContaining('清晨  05:30'), findsOneWidget);
-
     await tester.tap(find.byKey(const Key('forecast-day-1')));
     await tester.pumpAndSettle();
     expect(s.selectedDay, 1);
     expect(find.textContaining('阵风 15m/s'), findsOneWidget);
+
+    // 正文字号抬到 16 之后，时段那一组落到首屏之外（列表不建不可见的行）——
+    // 滚到它再断言。
+    await tester.scrollUntilVisible(find.textContaining('清晨  05:30'), 120,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('清晨  05:30'), findsOneWidget);
 
     await tester.scrollUntilVisible(
         find.byKey(const Key('forecast-all-regs')), 300,

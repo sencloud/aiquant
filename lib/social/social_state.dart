@@ -143,10 +143,10 @@ class SocialState extends ChangeNotifier {
   }
 
   /// 记一件事。事是话的由头，所以这一步必须能在三秒内做完。
+  ///
+  /// 圈下线之后，记录不再挂在某个圈上；[SocialEvent.circleId] 这几个字段
+  /// 退化成「来源标签」，这里统一写成「我的记录」。
   SocialEvent recordEvent({
-    required String circleId,
-    required String circleName,
-    required String circleMark,
     required String title,
     String detail = '',
     List<String> facts = const [],
@@ -154,9 +154,9 @@ class SocialState extends ChangeNotifier {
     final now = _now();
     final event = SocialEvent(
       id: 'e${now.microsecondsSinceEpoch}',
-      circleId: circleId,
-      circleName: circleName,
-      circleMark: circleMark,
+      circleId: 'me',
+      circleName: '我的记录',
+      circleMark: '记',
       title: title.trim(),
       detail: detail.trim(),
       facts: facts,

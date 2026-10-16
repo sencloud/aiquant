@@ -7,11 +7,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../core/topic/topic_state.dart';
 import '../../../theme/app_theme.dart';
 
 /// 下载落地页前缀（带邀请码可做拉新归因）。
@@ -716,7 +714,7 @@ class _XhsCard extends StatelessWidget {
   }
 }
 
-/// 分享卡片上的品牌文案随当前主题走（钓鱼主题不出现「投资 / 组合」）。
+/// 分享卡片上的品牌文案。
 class _ShareBrand {
   const _ShareBrand(this.title, this.download, this.slogan);
   final String title;
@@ -725,19 +723,9 @@ class _ShareBrand {
 
   static const _money = _ShareBrand(
       '喜爱钱 · AI 投资助理', '扫码下载「喜爱」AI 投研助理', '聊行情、看财报、做日报 · 仅供参考');
-  static const _fishing = _ShareBrand('喜爱钓鱼 · AI 钓友',
-      '扫码下载「喜爱」· 给你钓鱼的一切', '出钓指数、钓点地图、渔获日记 · 仅供参考');
 
-  static _ShareBrand of(BuildContext context) =>
-      isFishingTopic(context) ? _fishing : _money;
+  static _ShareBrand of(BuildContext context) => _money;
 }
 
-/// 当前是否在喜爱钓鱼主题（没有 TopicState 时按喜爱钱处理，方便单测）。
-bool isFishingTopic(BuildContext context) {
-  try {
-    return Provider.of<TopicState>(context, listen: false).currentId ==
-        'fishing';
-  } catch (_) {
-    return false;
-  }
-}
+/// 多主题下线后只剩一个身份，这里恒为 false（调用点保留，便于以后分支）。
+bool isFishingTopic(BuildContext context) => false;

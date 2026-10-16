@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 
 /// 开屏的「夜空」色组：一条竖向多段渐变 + 地平线辉光 + 线条 / 星光的底色。
 ///
-/// 三套：
-/// - [neutral]：还没选主题（首启）时用；也是原生启动屏那张渐变图
-///   （iOS LaunchImage / Android splash_gradient），所以冷启动第一帧不跳。
-/// - [money]：喜爱钱 —— 暖墨 → 古铜 → 金 → 桃色天光。
-/// - [fishing]：喜爱钓鱼 —— 深湖青 → 湖面 → 黎明。
+/// 两套：
+/// - [neutral]：中性夜色。它同时是原生启动屏那张渐变图（iOS LaunchImage /
+///   Android splash_gradient），所以冷启动第一帧不跳。
+/// - [brand]：品牌夜色 —— 暖墨 → 古铜 → 金 → 桃色天光。多主题下线后它成了唯一的
+///   一套（原先按主题切色的 forTopic 一起去掉了）。
 ///
 /// 改 [neutral.stops] 必须同时重新生成原生启动屏图片（tools/gen_splash_gradient.py）。
 @immutable
@@ -60,7 +60,7 @@ class SplashPalette {
     slogan: Color(0xFFE2DCE2),
   );
 
-  static const money = SplashPalette(
+  static const brand = SplashPalette(
     stops: [
       Color(0xFF120B06),
       Color(0xFF24160C),
@@ -75,29 +75,6 @@ class SplashPalette {
     titleBottom: Color(0xFFE6C48A),
     slogan: Color(0xFFEBDCC2),
   );
-
-  static const fishing = SplashPalette(
-    stops: [
-      Color(0xFF03141A),
-      Color(0xFF07262E),
-      Color(0xFF104550),
-      Color(0xFF3C7880),
-      Color(0xFFC7A895),
-    ],
-    glow: Color(0xFFFFCFA8),
-    line: Color(0xFFCDEBEA),
-    star: Color(0xFFF0FAFF),
-    titleTop: Color(0xFFF6FBFA),
-    titleBottom: Color(0xFFC9E3DF),
-    slogan: Color(0xFFD8EAE7),
-  );
-
-  /// 按主题 id 取色组；`null`（还没选）或未知主题 = [neutral]。
-  static SplashPalette forTopic(String? id) => switch (id) {
-        'money' => money,
-        'fishing' => fishing,
-        _ => neutral,
-      };
 
   static SplashPalette lerp(SplashPalette a, SplashPalette b, double t) {
     if (t <= 0) return a;

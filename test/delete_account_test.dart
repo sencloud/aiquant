@@ -1,4 +1,4 @@
-import 'package:fincept_app/screens/settings/settings_screen.dart';
+import 'package:fincept_app/screens/settings/account_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,7 +16,7 @@ void main() {
     ));
     await tester.tap(find.text('open'));
     await tester.pump();
-    expect(find.textContaining('私人钓点'), findsOneWidget);
+    expect(find.textContaining('本机记下的事'), findsOneWidget);
     final confirm = find.byKey(const Key('delete-account-confirm'));
     expect(tester.widget<TextButton>(confirm).onPressed, isNull);
     await tester.pump(const Duration(seconds: 3));

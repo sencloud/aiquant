@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../screens/discover/discover_screen.dart';
+import '../../wx/discover_tab.dart' show openFromDiscover;
 import '../../widgets/wk_kit.dart';
 import 'catches_screen.dart';
 

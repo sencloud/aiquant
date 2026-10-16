@@ -4,25 +4,21 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'core/topic/topic_pack.dart';
-import 'core/topic/topic_picker_screen.dart';
-import 'core/topic/topic_state.dart';
+import 'core/app_profile.dart';
 import 'desktop/desktop_shell.dart';
 import 'screens/auth/auth_gate.dart';
-import 'screens/hub/hub_shell.dart';
-import 'screens/hub/hub_state.dart';
 import 'screens/splash/splash_screen.dart';
-import 'state/settings_state.dart';
 import 'theme/app_theme.dart';
+import 'wx/wx_shell.dart';
 
 /// 喜爱 · 喜爱，并不是一定要得到。
 ///
-/// 启动顺序：开屏页（至少 1 秒，用于收尾初始化）→（全新安装且有多个主题时）
-/// 选主题 → AuthGate（校验登录态）→ 当前主题的主界面。
+/// 启动顺序：开屏页（至少 1 秒，用于收尾初始化 + 等登录态）→ AuthGate →
+/// 主界面（移动端 [WxShell]，桌面端 [DesktopShell]）。
 ///
-/// 整个 App 随主题切换：以当前主题包的 id 作 key，在 `MaterialApp` 之上挂
-/// 主题私有 Provider —— 切换主题时旧主题的状态整体销毁、新主题的状态重新
-/// 创建，从页签 push 出去的页面也都在这层 Provider 之下。
+/// 2026-10 这次重构拿掉了「多主题」：不再有选主题页、不再有整屏换色、也不再
+/// 有圈子首页。[AppProfile] 是唯一的一份档案（见 `core/app_profile.dart`），
+/// 它只负责装配状态，不参与外观切换。
 class XiaiApp extends StatefulWidget {
   const XiaiApp({super.key});
 
@@ -35,52 +31,26 @@ class _XiaiAppState extends State<XiaiApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer3<SettingsState, TopicState, HubState>(
-      builder: (context, settings, topics, hub, _) {
-        final mode = settings.themeMode;
-        final pack = topics.current;
-        // 首页是「喜爱」自己的首页，不属于任何单个圈 —— 它用品牌墨金渲染；
-        // 进圈之后整屏才换成那个圈的颜色。（桌面端没有兴趣圈外壳。）
-        final showHub = !_isDesktop && !hub.insideCircle;
-        final palette = showHub ? TopicPalette.money : pack.palette;
-        // Build a single ThemeData for the active mode + topic palette — also
-        // pushes the matching palette into `AppColors` so widgets that
-        // reference it pick up the new colours on this rebuild.
-        final theme = AppTheme.build(mode, palette: palette);
-        return AnimatedSwitcher(
-          // 切换主题：整屏淡出、换色、淡入。
-          duration: const Duration(milliseconds: 300),
-          child: MultiProvider(
-            key: ValueKey('topic:${pack.id}:${hub.insideCircle}'),
-            providers: [
-              Provider<TopicPack>.value(value: pack),
-              ...pack.providers(),
-            ],
-            child: MaterialApp(
-              title: '喜爱',
-              debugShowCheckedModeBanner: false,
-              theme: theme,
-              // 桌面平台（Windows/macOS/Linux）进 DesktopShell：助理对话 + 策略回测
-              // 两个页签；移动端 / Web 保持 HomeScreen。
-              home: !_splashDone
-                  ? SplashScreen(
-                      onDone: () {
-                        if (mounted) setState(() => _splashDone = true);
-                      },
-                    )
-                  : topics.needsPick
-                      ? const TopicPickerScreen()
-                      : showHub
-                          // 首屏 = 兴趣圈首页（首页 / 圈子 / 我的）。
-                          ? const HubShell()
-                          : (_isDesktop
-                              ? AuthGate(
-                                  homeBuilder: (_) => const DesktopShell())
-                              : const AuthGate()),
-            ),
-          ),
-        );
-      },
+    return MultiProvider(
+      providers: [
+        Provider<AppProfile>.value(value: appProfile),
+        ...appProfile.providers(),
+      ],
+      child: MaterialApp(
+        title: '喜爱',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.build(),
+        home: !_splashDone
+            ? SplashScreen(
+                onDone: () {
+                  if (mounted) setState(() => _splashDone = true);
+                },
+              )
+            : AuthGate(
+                homeBuilder: (_) =>
+                    _isDesktop ? const DesktopShell() : const WxShell(),
+              ),
+      ),
     );
   }
 }
@@ -97,5 +67,5 @@ bool get _isDesktop {
   return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 }
 
-/// 桌面端只保留喜爱钱（主题化不在桌面范围内）。
+/// 桌面端与移动端共用同一份应用档案；这个 getter 留给桌面 shell 的调用点。
 bool get isDesktopPlatform => _isDesktop;

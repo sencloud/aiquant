@@ -6,7 +6,7 @@ import '../widgets/wk_kit.dart';
 import 'social_models.dart';
 import 'social_state.dart';
 
-/// 身份标。AI 居民在**每一处露出**都带这个标 —— 这是规矩 06，
+/// 身份标。AI 在**每一处露出**都带这个标 —— 这是规矩 05，
 /// 也是「不必猜」的落点。
 class SocialIdentityTag extends StatelessWidget {
   const SocialIdentityTag({super.key, required this.kind});
@@ -27,7 +27,6 @@ class SocialEventCard extends StatelessWidget {
     required this.event,
     this.posts = const [],
     this.onSpeak,
-    this.onOpenCircle,
     this.onWithdraw,
   });
 
@@ -36,7 +35,6 @@ class SocialEventCard extends StatelessWidget {
   /// 已经挂在这条事上的话。
   final List<SocialPost> posts;
   final VoidCallback? onSpeak;
-  final VoidCallback? onOpenCircle;
   final void Function(SocialPost post)? onWithdraw;
 
   String get _time {
@@ -59,27 +57,15 @@ class SocialEventCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                event.circleMark,
-                style: AppType.caption.copyWith(
-                  color: AppColors.amber,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              Text(event.circleName,
-                  style: AppType.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  )),
-              const SizedBox(width: AppSpace.sm),
+              const Text('我的记录',
+                  style: AppType.caption),
               SocialIdentityTag(kind: event.authorKind),
               const Spacer(),
               Text(_time, style: AppType.micro.copyWith(color: AppColors.textTertiary)),
             ],
           ),
-          const SizedBox(height: AppSpace.md),
-          Text(event.title, style: AppType.display.copyWith(fontSize: 20)),
+          const SizedBox(height: AppSpace.sm),
+          Text(event.title, style: AppType.title.copyWith(fontSize: 18)),
           if (event.detail.isNotEmpty) ...[
             const SizedBox(height: AppSpace.sm),
             Text(event.detail,
@@ -108,9 +94,6 @@ class SocialEventCard extends StatelessWidget {
           Row(
             children: [
               WkTagButton(label: '说一句', primary: true, onTap: onSpeak),
-              const SizedBox(width: AppSpace.sm),
-              if (onOpenCircle != null)
-                WkTagButton(label: '看看这个圈', onTap: onOpenCircle),
             ],
           ),
         ],

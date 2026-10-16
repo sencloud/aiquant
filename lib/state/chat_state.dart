@@ -21,10 +21,12 @@ import '../services/ai_chat_service.dart';
 /// - 后续发送沿用 server id 让服务端拼齐历史；丢失映射只会让"上下文记忆"重置，
 ///   不影响本地展示的旧消息。
 class ChatState extends ChangeNotifier {
-  ChatState({AiChatService? service})
-      : _svc = service ?? AiChatService();
+  ChatState({AiChatService? service, ChatSessionStore? store})
+      : _svc = service ?? AiChatService(),
+        _store = store ?? HiveChatSessionStore();
 
   final AiChatService _svc;
+  final ChatSessionStore _store;
 
   StreamSubscription<AiChatEvent>? _activeStream;
 
@@ -42,14 +44,11 @@ class ChatState extends ChangeNotifier {
     if (c != null && !c.isCompleted) c.complete();
   }
 
-  /// 全部主题的会话（Hive 里一个盒子）；UI 只看当前主题的那部分。
+  /// 全部会话（Hive 里一个盒子）。多主题下线后不再按主题过滤：老版本留下的
+  /// 会话（钓鱼、咖啡那些）也照常显示在列表里，不会被悄悄藏起来。
   List<ChatSession> _sessions = const [];
   String? _activeId;
 
-  /// 当前主题。由 main.dart 跟随 TopicState 设置。
-  String _topic = 'money';
-  bool _booted = false;
-  String get topic => _topic;
   bool _streaming = false;
   int _totalToolCalls = 0;
   int? _lastBalance;
@@ -58,9 +57,8 @@ class ChatState extends ChangeNotifier {
 
   static const _kServerIdPrefix = 'ai_chat_server_id:';
 
-  /// 当前主题的会话（按最近更新排序）。
-  List<ChatSession> get sessions =>
-      _sessions.where((s) => s.topic == _topic).toList(growable: false);
+  /// 会话（按最近更新排序）。
+  List<ChatSession> get sessions => List.unmodifiable(_sessions);
   String? get activeId => _activeId;
   bool get streaming => _streaming;
 
@@ -82,38 +80,14 @@ class ChatState extends ChangeNotifier {
       _activeId == null ? null : _byId(_activeId!);
   List<ChatMessage> get messages => active?.messages ?? const [];
   Persona get currentPersona =>
-      Personas.byId(active?.personaId, topic: _topic);
+      Personas.byId(active?.personaId, topic: active?.topic ?? 'money');
 
-  ChatSession? _firstOfTopic() {
-    for (final s in _sessions) {
-      if (s.topic == _topic) return s;
-    }
-    return null;
-  }
-
-  /// 切换主题：会话列表、默认人设、请求里的 topic 都跟着换。
-  /// 已加载过会话时，落到该主题最近一个会话（没有就新建）。
-  Future<void> setTopic(String topic) async {
-    if (topic == _topic) return;
-    _topic = topic;
-    if (!_booted) {
-      notifyListeners();
-      return;
-    }
-    final first = _firstOfTopic();
-    if (first == null) {
-      await newSession();
-    } else {
-      _activeId = first.id;
-      notifyListeners();
-    }
-  }
+  ChatSession? _mostRecent() => _sessions.isEmpty ? null : _sessions.first;
 
   Future<void> bootstrap() async {
-    _sessions = chatSessionsBox.values.toList()
+    _sessions = _store.load()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    _booted = true;
-    final first = _firstOfTopic();
+    final first = _mostRecent();
     if (first == null) {
       await newSession();
     } else {
@@ -129,29 +103,33 @@ class ChatState extends ChangeNotifier {
   Future<ChatSession> newSession({
     String title = '新对话',
     String? personaId,
+    String? topic,
   }) async {
-    final cur = active?.topic == _topic ? active : null;
+    final t = topic ?? active?.topic ?? 'money';
     final s = ChatSession(
       title: title,
       personaId:
-          personaId ?? cur?.personaId ?? Personas.defaultIdFor(_topic),
-      toolsEnabled: cur?.toolsEnabled ?? true,
-      topic: _topic,
+          personaId ?? (topic == null ? active?.personaId : null) ??
+              Personas.defaultIdFor(t),
+      toolsEnabled: active?.toolsEnabled ?? true,
+      topic: t,
     );
-    await chatSessionsBox.put(s.id, s);
     _sessions = [s, ..._sessions];
     _activeId = s.id;
     notifyListeners();
+    // 落盘不挡调用方：内存里的会话列表就是界面的真相，写盘排队进行。
+    // （UI 上新开一段对话要立刻换页，不能等文件写完。）
+    _store.save(s);
     return s;
   }
 
   Future<void> deleteSession(String id) async {
-    await chatSessionsBox.delete(id);
+    _store.remove(id);
     await prefsBox.delete('$_kServerIdPrefix$id');
     _serverIdMap.remove(id);
     _sessions = _sessions.where((s) => s.id != id).toList();
     if (_activeId == id) {
-      _activeId = _firstOfTopic()?.id;
+      _activeId = _mostRecent()?.id;
       if (_activeId == null) await newSession();
     }
     notifyListeners();
@@ -210,7 +188,7 @@ class ChatState extends ChangeNotifier {
     _activeStream = null;
     _streaming = false;
 
-    await chatSessionsBox.clear();
+    _store.clear();
 
     final keys = prefsBox.keys
         .whereType<String>()
@@ -223,7 +201,6 @@ class ChatState extends ChangeNotifier {
     _sessions = const [];
     _serverIdMap.clear();
     _activeId = null;
-    _booted = false;
     _totalToolCalls = 0;
     _lastBalance = null;
     notifyListeners();
@@ -290,8 +267,8 @@ class ChatState extends ChangeNotifier {
       message: text.trim(),
       persona: session.personaId,
       topic: session.topic,
-      // 产品策略：喜爱钱深度推理始终开启，不暴露给用户切换；
-      // 其它主题按 1 喜点 / 轮的普通对话计费（服务端也会强制）。
+      // 产品策略：喜爱钱深度推理始终开启（+5 喜点），不暴露给用户切换；
+      // 其它圈按 1 喜点 / 轮的普通对话（服务端也会强制）。
       deepMode: session.topic == 'money',
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
@@ -496,6 +473,79 @@ class ChatState extends ChangeNotifier {
     _activeStream?.cancel();
     super.dispose();
   }
+}
+
+/// 会话落盘的落点。
+///
+/// 抽出来是为了测试能注入内存实现：Hive 的写在 widget 测试的假时钟下不会
+/// 完成，会把写锁一直握着，后面的 setUp 就永远等下去。
+/// 生产实现见 [HiveChatSessionStore]。
+abstract class ChatSessionStore {
+  /// 读出全部会话。
+  List<ChatSession> load();
+
+  /// 写一条。**不返回 Future**：界面不等落盘。
+  void save(ChatSession session);
+
+  void remove(String id);
+
+  void clear();
+}
+
+/// Hive 实现：一个盒子装全部主题的会话。
+class HiveChatSessionStore implements ChatSessionStore {
+  @override
+  List<ChatSession> load() {
+    try {
+      return chatSessionsBox.values.toList();
+    } catch (_) {
+      // 盒子没打开（单元测试）时当作空，不抛。
+      return const [];
+    }
+  }
+
+  @override
+  void save(ChatSession session) {
+    try {
+      // ignore: unawaited_futures
+      chatSessionsBox.put(session.id, session);
+    } catch (_) {
+      // 存不进去也不能让会话从眼前消失：内存里还有一份。
+    }
+  }
+
+  @override
+  void remove(String id) {
+    try {
+      // ignore: unawaited_futures
+      chatSessionsBox.delete(id);
+    } catch (_) {}
+  }
+
+  @override
+  void clear() {
+    try {
+      // ignore: unawaited_futures
+      chatSessionsBox.clear();
+    } catch (_) {}
+  }
+}
+
+/// 测试用。
+class MemoryChatSessionStore implements ChatSessionStore {
+  final Map<String, ChatSession> _data = {};
+
+  @override
+  List<ChatSession> load() => _data.values.toList();
+
+  @override
+  void save(ChatSession session) => _data[session.id] = session;
+
+  @override
+  void remove(String id) => _data.remove(id);
+
+  @override
+  void clear() => _data.clear();
 }
 
 /// ChatState 暴露给 UI 的「需要充值」事件载荷。

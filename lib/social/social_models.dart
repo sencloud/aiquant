@@ -1,13 +1,16 @@
 /// 新社交的领域模型。
 ///
 /// 一句话的规矩：**事是真的，话是有由头的，居民是标明的。**
-///   * [SocialEvent]（事）只来自真实记录 —— 你的渔获、你记下的豆单、你回复的
-///     回声。App 不生成「别人钓到了一条鱼」这种内容（方案里第七条之外的硬线：
-///     冷启动不做假帖子）。
+///   * [SocialEvent]（事）只来自真实记录 —— 你自己记下的那几件事，以及你回复的
+///     回声。App 不生成「别人做了什么」这种内容（硬线：冷启动不做假帖子）。
 ///   * [SocialPost]（话）必须挂在一样东西上（[SocialTarget]），并且可以投给
 ///     「以后」（[deliverAt] 不为空 <-> 回声）。没有由头的话，产品里没有入口。
-///   * [SocialResident]（AI 居民）是标明身份的参与者，[SocialAuthorKind.resident]
-///     会在每一处露出的地方显示「AI 居民」标。
+///   * [SocialAuthorKind.resident] 是「AI 居民」这个身份：只要一处内容出自 AI，
+///     那一处就带标，不冒充真人。
+///
+/// 2026-10 的微信式重构把「圈子」拿掉了：事件与由头上的 `circle*` 字段保留为
+/// **来源标签**（老数据的 JSON key 不动，免得历史记录读不出来），但界面里不再
+/// 出现「圈」这个说法。
 library;
 
 /// 由头：一条话挂在什么上。
@@ -79,10 +82,10 @@ enum SocialAuthorKind {
   /// 你自己。
   me('你'),
 
-  /// 真人（同一个圈里的人）。
+  /// 真人（真人池还没开，暂时不会出现）。
   human(''),
 
-  /// AI 居民：每一处露出都必须带「AI 居民」标。
+  /// AI：每一处露出都必须带「AI 居民」标。
   resident('AI 居民');
 
   const SocialAuthorKind(this.label);
@@ -268,31 +271,16 @@ class SocialGift {
       );
 }
 
-/// 一个 AI 居民。人设 prompt 在服务端（`backend/internal/topic`），
-/// 客户端只保留 id、名字、一句话与所属圈。
-class SocialResident {
-  const SocialResident({
-    required this.id,
-    required this.name,
-    required this.blurb,
-    required this.circleId,
-    required this.circleMark,
-  });
-
-  final String id;
-  final String name;
-  final String blurb;
-  final String circleId;
-  final String circleMark;
-}
-
-/// 通信宪法：七条。任何新功能跟它们冲突，改功能。
+/// 通信宪法：六条。任何新功能跟它们冲突，改功能。
+///
+/// 圈子与多主题下线后改写过两条：原来讲「关系会慢慢回到圈里」和「AI 居民跟
+/// 真人守同一套规矩、也得先送东西」—— 现在写的是这个 App 真实的样子：没有圈子，
+/// 真人的池子还没开，所以东西先放在你这一侧。
 const List<String> kSocialRules = [
   '不读你的通讯录，也不推「你可能认识的人」。这里的人，是你和他们一起做过事之后才认识的。',
   '每句话都要有个由头：挂在今天的事、一件东西、一个地方，或者一个时间上。这里没有「在吗」。',
   '想跟一个人开始，先送一样东西。收到了才算认识 —— 对方可以只收下、不回复。',
   '没有在线状态、没有已读、没有「正在输入」。今晚不想被打扰，就说一声「今晚不在」。',
-  '不互动的关系会慢慢回到圈里：不删除、不通知。想再聊，一句话就能回去。',
-  'AI 居民和真人守同一套规矩，资料上写明他是 AI —— 他也得先送东西，才能跟你说话。',
+  'AI 一律带标：会话、头像、资料上都写明它是 AI，由喜爱维护，不冒充真人。',
   '投出去的回声、送出去的东西，在对方看到之前都能收回。',
 ];

@@ -190,7 +190,7 @@ void main() {
       final env = rt.env(inputs: inputs, data: data, now: () => _now);
       await tester.pumpWidget(MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.build(ThemeMode.light, palette: TopicPalette.money),
+        theme: AppTheme.build(ThemeMode.light),
         home: Scaffold(
           backgroundColor: AppColors.bgBase,
           body: Padding(

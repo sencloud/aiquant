@@ -110,9 +110,6 @@ void main() {
     test('记一件事：事是话的由头', () {
       final s = build(now: DateTime(2026, 10, 16, 9, 12));
       final e = s.recordEvent(
-        circleId: 'fishing',
-        circleName: '喜爱钓鱼',
-        circleMark: '钓',
         title: '登记了一条渔获：翘嘴 42cm',
         facts: ['水温 24℃', '水域 北岸支流'],
       );
@@ -137,9 +134,6 @@ void main() {
       final first = SocialState(store: store, clock: () => DateTime(2026, 10, 16, 9));
       first.speak(target: target, text: '水稳的时候你用多重的铅？');
       first.recordEvent(
-        circleId: 'fishing',
-        circleName: '喜爱钓鱼',
-        circleMark: '钓',
         title: '登记了一条渔获',
       );
       first.sendGift(title: '一支豆子', toName: '小满');
@@ -163,8 +157,8 @@ void main() {
     });
   });
 
-  test('通信宪法是七条', () {
-    expect(kSocialRules.length, 7);
+  test('通信宪法是六条', () {
+    expect(kSocialRules.length, 6);
     expect(kSocialRules[1], contains('没有「在吗」'));
   });
 }

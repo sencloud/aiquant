@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/topic/topic_registry.dart';
-import '../../core/topic/topic_state.dart';
+import '../../core/app_profile.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_theme.dart';
-import '../home/home_screen.dart';
+import '../../wx/wx_shell.dart';
 
 /// AuthGate 是 App 的根 widget。
 /// - bootstrap 中：显示启动 splash；
-/// - 否则：始终进入主程序（homeBuilder 决定移动端 HomeScreen 还是桌面 DesktopShell）。
+/// - 否则：始终进入主程序（homeBuilder 决定移动端 WxShell 还是桌面 DesktopShell）。
 ///
 /// 产品策略：启动默认进主程序，未登录也能浏览；只有在进入「我的」/ DING 等
 /// 需账号的 tab，或触发发送消息等需鉴权功能时，才由 requireLogin 弹登录页。
@@ -19,16 +18,12 @@ import '../home/home_screen.dart';
 /// 在登录态切换时，统一驱动其它状态：
 /// - 共享状态：登录后 ChatState.bootstrap() + BillingState.refreshAll()；
 ///   登出后 ChatState.reset() + BillingState.reset()；
-/// - 主题私有状态交给当前主题包的 [TopicPack.onAuthChanged]（喜爱钱：DING / 螺壳）；
-/// - 主题偏好与服务端对齐（[TopicState.reconcileWithServer]）。
+/// - 档案私有状态交给 [AppProfile.onAuthChanged]（DING / 螺壳）。
 /// 这样切换账号时不会把上一个用户的 chat / inbox 留给下一个用户。
-///
-/// AuthGate 位于主题子树内：切换主题后会以「冷启动」身份重建一次，新主题
-/// 的私有状态由此完成首次 bootstrap。
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, this.homeBuilder});
 
-  /// 登录态就绪后渲染的主界面。默认移动端 HomeScreen；
+  /// 登录态就绪后渲染的主界面。默认移动端 WxShell；
   /// 桌面平台（Windows/macOS/Linux）由 app.dart 传入 DesktopShell。
   final WidgetBuilder? homeBuilder;
 
@@ -61,7 +56,6 @@ class _AuthGateState extends State<AuthGate> {
       _wasAuthed = isAuthed;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final pack = topicOf(context);
         if (isAuthed) {
           // 切换账号：登录前若之前已登录过，先清掉旧用户的本地缓存。
           // wasAuthed == null 表示这是冷启动后第一次确认登录态，不要 reset。
@@ -69,25 +63,20 @@ class _AuthGateState extends State<AuthGate> {
           if (switched) context.read<ChatState>().reset();
           context.read<ChatState>().bootstrap();
           context.read<BillingState>().refreshAll();
-          pack.onAuthChanged(context,
+          appProfile.onAuthChanged(context,
               authed: true, switchedAccount: switched, loggedOut: false);
-          // ignore: unawaited_futures
-          context.read<TopicState>().reconcileWithServer(
-                serverTopic: auth.currentUser?.preferredTopic,
-                freshLogin: wasAuthed == false,
-              );
         } else if (wasAuthed == true) {
           // 仅在从已登录显式跳到未登录（登出 / 强制下线）时才清空本地缓存，
           // 避免冷启动 splash 阶段误把 Hive 清掉。
           context.read<ChatState>().reset();
           context.read<BillingState>().reset();
-          pack.onAuthChanged(context,
+          appProfile.onAuthChanged(context,
               authed: false, switchedAccount: false, loggedOut: true);
         }
       });
     }
 
-    // homeBuilder 为空时回落到移动端 HomeScreen（默认行为，保持向后兼容）。
-    return widget.homeBuilder?.call(context) ?? const HomeScreen();
+    // homeBuilder 为空时回落到移动端外壳（默认行为，保持向后兼容）。
+    return widget.homeBuilder?.call(context) ?? const WxShell();
   }
 }

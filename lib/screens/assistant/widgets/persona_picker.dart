@@ -1,50 +1,27 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/topic/topic_registry.dart';
 import '../../../models/persona.dart';
 import '../../../theme/app_theme.dart';
-import 'top_tag_chip.dart';
+import '../../../wx/wx_kit.dart';
 
-/// 顶部「角色」入口：紧凑下拉 tag，显示当前选中的 persona。
+/// 「换个助手」：底部弹层，列出全部 AI 助手（人设）。
 ///
-/// 点击后弹底部表，列出全部 persona 卡片，用户选中后回调切换。
-class PersonaPicker extends StatelessWidget {
-  const PersonaPicker({
-    super.key,
-    required this.activeId,
-    required this.onPick,
-    this.disabled = false,
-  });
-
-  final String activeId;
-  final ValueChanged<String> onPick;
-  final bool disabled;
-
-  Future<void> _openSheet(BuildContext context) async {
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: AppColors.bgSurface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => _PersonaSheet(activeId: activeId),
-    );
-    if (picked != null && picked != activeId) onPick(picked);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final active = Personas.byId(activeId, topic: topicOf(context).id);
-    return TopTagChip(
-      icon: active.icon,
-      label: active.displayName,
-      accent: active.color,
-      active: true,
-      disabled: disabled,
-      onTap: () => _openSheet(context),
-    );
-  }
+/// 微信的聊天页没有「换个人聊」这回事 —— 一个会话就是一个人。我们这边一个
+/// 助手是一个人设，所以换人设等于换一位助手：调用方会在会话已经有内容时
+/// 新开一段对话，避免人设中途跳变。
+Future<String?> showPersonaSheet(
+  BuildContext context, {
+  required String activeId,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: AppColors.bgSurface,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    ),
+    builder: (ctx) => _PersonaSheet(activeId: activeId),
+  );
 }
 
 class _PersonaSheet extends StatelessWidget {
@@ -55,35 +32,51 @@ class _PersonaSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
-    final personas = Personas.forTopic(topicOf(context).id);
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: h * 0.78),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _SheetHeader(
-            icon: Icons.person_outline,
-            title: '选择 AI 角色',
-            subtitle: '切换会基于当前会话状态自动新建对话，避免人设跳变。',
-          ),
-          Divider(height: 1, color: AppColors.borderDim),
-          Flexible(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-              itemCount: personas.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, i) {
-                final p = personas[i];
-                final selected = p.id == activeId;
-                return _PersonaTile(
-                  persona: p,
-                  selected: selected,
-                  onTap: () => Navigator.of(context).pop(p.id),
-                );
-              },
+    final personas = Personas.all;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: h * 0.78),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('换个助手', style: AppType.title)),
+                  IconButton(
+                    tooltip: '关闭',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: Icon(Icons.close_rounded,
+                        size: 20, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Divider(height: 0.5, color: AppColors.borderDim),
+            Flexible(
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: personas.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 0.5,
+                  thickness: 0.5,
+                  indent: 68,
+                  color: AppColors.borderDim,
+                ),
+                itemBuilder: (context, i) {
+                  final p = personas[i];
+                  return _PersonaTile(
+                    persona: p,
+                    selected: p.id == activeId,
+                    onTap: () => Navigator.of(context).pop(p.id),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -103,118 +96,39 @@ class _PersonaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? persona.color.withValues(alpha: 0.12)
-          : AppColors.bgRaised,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(
-          color: selected ? persona.color : AppColors.borderDim,
-          width: selected ? 1.2 : 1,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      color: AppColors.bgSurface,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.lg, vertical: AppSpace.md),
           child: Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: persona.color,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(persona.icon, color: Colors.white, size: 20),
+              WxAvatar(
+                text: persona.displayName,
+                icon: persona.icon,
+                background: persona.color,
+                size: 40,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      persona.displayName,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                    Text(persona.displayName, style: AppType.body),
                     const SizedBox(height: 2),
-                    Text(
-                      persona.title,
-                      style: TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
+                    Text(persona.title,
+                        style: AppType.caption
+                            .copyWith(color: AppColors.textTertiary)),
                   ],
                 ),
               ),
               if (selected)
-                Icon(Icons.check_circle, size: 18, color: persona.color),
+                Icon(Icons.check_rounded,
+                    size: 20, color: AppColors.amber),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// BottomSheet 通用头部（图标 + 标题 + 一行小字）。
-class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: AppColors.amber),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: AppColors.amber,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 11,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: '关闭',
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
-          ),
-        ],
       ),
     );
   }

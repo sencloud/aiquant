@@ -231,18 +231,24 @@ class _DesktopChatScreenState extends State<DesktopChatScreen> {
               ),
             ),
           const Spacer(),
-          PersonaPicker(
-            activeId: persona.id,
-            disabled: chat.streaming,
-            onPick: (id) async {
-              final isNewSessionEmpty =
-                  (session?.messages.isEmpty ?? true);
-              if (isNewSessionEmpty) {
-                await chat.setPersona(id);
-              } else {
-                await chat.newSession(personaId: id);
-              }
-            },
+          TextButton.icon(
+            onPressed: chat.streaming
+                ? null
+                : () async {
+                    final id = await showPersonaSheet(context,
+                        activeId: persona.id);
+                    if (id == null || !context.mounted) return;
+                    final isNewSessionEmpty =
+                        (session?.messages.isEmpty ?? true);
+                    if (isNewSessionEmpty) {
+                      await chat.setPersona(id);
+                    } else {
+                      await chat.newSession(personaId: id);
+                    }
+                  },
+            icon: Icon(persona.icon, size: 16),
+            label: Text(persona.displayName,
+                style: const TextStyle(fontSize: 13)),
           ),
           const SizedBox(width: 8),
           _newSessionButton(chat),

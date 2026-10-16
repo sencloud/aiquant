@@ -1,222 +1,98 @@
 import 'package:flutter/material.dart';
 
-/// 喜爱 · 设计系统「纸上墨金」。
+/// 喜爱 · 设计系统「微信式 + 墨金」。
 ///
-/// 结构取自微信（分组列表、行式导航、居中标题、克制的层次），材质取自
-/// 微信读书（暖纸底、墨色文字、大留白、高行距）。两者合成一套语言：
+/// 2026-10 这次重构把视觉世界整体换成微信那一套：灰底白列表、行式导航、
+/// 居中标题、一条发丝线收边；**主色仍是喜爱自己的墨金**，只出现在
+/// 「选中 / 主动作 / 自己说的话」上。
 ///
-/// - 纸：#F3F0E8 页面底，白面卡片浮在上面，不靠描边靠面/底对比分层。
-/// - 墨：正文用近黑暖墨，不用纯黑；次级文字按 4.5:1 门槛定档，不再拿浅灰充数。
-/// - 墨金：品牌主色，是旧金黄在纸上的沉色版。刻意不取绿——A 股里绿 = 跌，
-///   主色若为绿会和涨跌语义打架。
+/// - 页底：#EDEDED 微信灰。列表是白面浮在灰底上，靠面/底对比分层，不投影。
+/// - 墨：#191919 正文、#7F7F7F 次级、#B2B2B2 弱字。
+/// - 墨金：#9E6322 品牌主色（旧「纸上墨金」那一支），选中态、主按钮、
+///   发送按钮、自己的气泡。
 ///
-/// AppColors 的字段名与旧版保持一致（amber 就是品牌主色），这样全 App
-/// 一千多处引用会跟着一起换世界，不需要逐个改调用点。
+/// 主色刻意不取绿：微信绿很好看，但在 A 股产品里绿 = 跌，主色和涨跌语义
+/// 打架的代价远大于审美收益（这条和「纸上墨金」时期一致）。
+/// 涨跌语义色独立：positive 永远是红（涨），negative 永远是深绿（跌），
+/// 数字场景只在 positive / negative 里取色，不要用 amber 表示涨跌。
+///
+/// 只有浅色一套。深色模式在 App 里没有入口（AppConfig.themeMode 恒为
+/// light），就不再维护第二套取值，免得半残。
 class AppColors {
-  // ---- runtime fields (do NOT mark const at call sites) ----
-  static Color bgBase = TopicPalette.money.bgBase;
-  static Color bgSurface = _lightBgSurface;
-  static Color bgRaised = _lightBgRaised;
-  static Color bgHover = _lightBgHover;
-  static Color borderDim = _lightBorderDim;
-  static Color borderMed = _lightBorderMed;
+  // ---- 底与面 ----
 
-  static Color textPrimary = _lightTextPrimary;
-  static Color textSecondary = _lightTextSecondary;
-  static Color textTertiary = TopicPalette.money.textTertiary;
+  /// 页底：微信灰。
+  static Color bgBase = const Color(0xFFEDEDED);
 
-  /// 主色浅底：选中态、标签底、引用块。
-  static Color accentSoft = TopicPalette.money.accentSoft;
+  /// 面：列表行、分组卡。
+  static Color bgSurface = const Color(0xFFFFFFFF);
 
-  /// 主色上的前景色（按钮文字、选中图标）。
-  static Color onAccent = _lightOnAccent;
+  /// 内嵌块：输入框、引用块、代码块。
+  static Color bgRaised = const Color(0xFFF7F7F7);
 
-  /// 唯一的投影色：暖墨的低透明度，别处不要再 hand-roll 阴影。
-  static const Color shadow = Color(0x1A2A2118);
+  /// 按压 / 选中反馈。
+  static Color bgHover = const Color(0xFFE3E3E3);
 
-  /// 品牌主色。喜爱钱是「墨金」：旧的亮金黄 (#D97706) 是为深色底准备的，落在
-  /// 暖纸上会发飘；这里压深一档，白字压在上面 5.4:1，够正文门槛。
-  /// 主题化之后它是**运行时字段**（喜爱钓鱼 = 湖青），由 [applyTopic] 换色；
-  /// **全 App 的品牌色一律引用这个字段**，不要写死色值，也不要放进 const 表达式。
-  static Color amber = TopicPalette.money.brand;
-  static Color amberDim = TopicPalette.money.brandDim;
+  /// 发丝线：分组内分隔、导航栏收边。
+  static Color borderDim = const Color(0xFFE5E5E5);
 
-  /// 当前主题色组（见 [TopicPalette]）。
-  static TopicPalette _topic = TopicPalette.money;
-  static TopicPalette get topic => _topic;
-  static ThemeMode _mode = ThemeMode.light;
+  /// 描边：次级按钮、需要看得见的边框。
+  static Color borderMed = const Color(0xFFDCDCDC);
 
+  // ---- 字 ----
+  static Color textPrimary = const Color(0xFF191919);
+  static Color textSecondary = const Color(0xFF7F7F7F);
+  static Color textTertiary = const Color(0xFFB2B2B2);
+
+  // ---- 品牌 ----
+
+  /// 品牌主色：墨金。选中态、主动作、发送按钮、自己的气泡。
+  static Color amber = const Color(0xFF9E6322);
+
+  /// 主色深一档：浅金底上的金字、按下态。
+  static Color amberDim = const Color(0xFF7A4A16);
+
+  /// 主色浅底：选中 chip、标签底、浅金背景。
+  static Color accentSoft = const Color(0xFFF1E6D3);
+
+  /// 主色上的前景色。
+  static Color onAccent = const Color(0xFFFFFFFF);
+
+  /// 自己发出去的气泡：主色实心（白字压在上面 5.4:1）。
+  static Color bubbleSelf = const Color(0xFF9E6322);
+
+  /// 别人发来的气泡：白面。
+  static Color bubbleOther = const Color(0xFFFFFFFF);
+
+  /// 唯一的投影色（浮层、弹层用），别处不要再 hand-roll 阴影。
+  static const Color shadow = Color(0x14000000);
+
+  // ---- 语义色 ----
+  //
   // 中国市场惯例：涨 = 红、跌 = 绿。positive 永远代表「正向 = 上涨 / 盈利 /
   // 买入」→ 红；negative 永远代表「负向 = 下跌 / 亏损 / 卖出」→ 绿。
   // 调用方按语义使用，不要根据数值正负硬编码颜色。
-  static const Color positive = Color(0xFFCC3A2E); // 红 = 涨/盈利/买入
+  static const Color positive = Color(0xFFFA5151); // 红 = 涨/盈利/买入
   static const Color negative = Color(0xFF17864E); // 绿 = 跌/亏损/卖出
-  static const Color warning = Color(0xFFB4780F);
-  static const Color info = Color(0xFF2F5EA8);
+  static const Color warning = Color(0xFFFA9D3B);
+  static const Color info = Color(0xFF576B95); // 微信蓝：链接、可点文字
 
-  /// 破坏性 / 错误 UI（删除按钮、错误图标等），与「涨跌色」语义解耦。
-  static const Color danger = Color(0xFFCC3A2E);
+  /// 破坏性 / 错误 UI（删除按钮、退出登录等），与涨跌色语义解耦。
+  static const Color danger = Color(0xFFFA5151);
 
-  /// 分组标签的轮转配色：在纸上压过一档饱和度，避免互相打架。
+  /// 分组标签的轮转配色。
   static const sectorPalette = [
     Color(0xFF9E6322),
-    Color(0xFF2F5EA8),
-    Color(0xFF17864E),
-    Color(0xFF6D4AA8),
-    Color(0xFFB03A34),
-    Color(0xFF1F7A8C),
-    Color(0xFF8A6A14),
+    Color(0xFF576B95),
+    Color(0xFFFA9D3B),
+    Color(0xFF8A6DE9),
+    Color(0xFFFA5151),
+    Color(0xFF10AEFF),
+    Color(0xFF9E6322),
     Color(0xFFA63A5E),
-    Color(0xFF12766B),
+    Color(0xFF17864E),
     Color(0xFF5A4E9C),
   ];
-
-  // ---- light palette：纸 / 墨 / 墨金 ----
-  // 纸 / 主色浅底 / 弱文字随主题变化，取自 [TopicPalette]；其余共享。
-  static const _lightBgSurface = Color(0xFFFFFFFF); // 面
-  static const _lightBgRaised = Color(0xFFF8F5EE); // 内嵌块
-  static const _lightBgHover = Color(0xFFEDE8DC);
-  static const _lightBorderDim = Color(0xFFE7E2D6); // 发丝线
-  static const _lightBorderMed = Color(0xFFD5CDBD);
-  static const _lightTextPrimary = Color(0xFF1F1C17); // 墨
-  static const _lightTextSecondary = Color(0xFF5F5850);
-  static const _lightOnAccent = Color(0xFFFFFFFF);
-
-  // ---- dark palette：墨夜（当前入口已隐藏，保留完整一套以免半残）----
-  static const _darkBgBase = Color(0xFF121110);
-  static const _darkBgSurface = Color(0xFF1C1A18);
-  static const _darkBgRaised = Color(0xFF232120);
-  static const _darkBgHover = Color(0xFF2B2826);
-  static const _darkBorderDim = Color(0xFF302D2A);
-  static const _darkBorderMed = Color(0xFF443F3A);
-  static const _darkTextPrimary = Color(0xFFEDE9E1);
-  static const _darkTextSecondary = Color(0xFFAFA79C);
-  static const _darkTextTertiary = Color(0xFF8B8378);
-  static const _darkAccentSoft = Color(0xFF3A2B18);
-  static const _darkOnAccent = Color(0xFF121110);
-
-  /// Push a palette into the static fields. The next `build` on the
-  /// `MaterialApp` will pick it up.
-  static void applyMode(ThemeMode mode) {
-    _mode = mode;
-    final dark = mode == ThemeMode.dark;
-    final t = _topic;
-    amber = t.brand;
-    amberDim = t.brandDim;
-    bgBase = dark ? _darkBgBase : t.bgBase;
-    bgSurface = dark ? _darkBgSurface : _lightBgSurface;
-    bgRaised = dark ? _darkBgRaised : _lightBgRaised;
-    bgHover = dark ? _darkBgHover : _lightBgHover;
-    borderDim = dark ? _darkBorderDim : _lightBorderDim;
-    borderMed = dark ? _darkBorderMed : _lightBorderMed;
-    textPrimary = dark ? _darkTextPrimary : _lightTextPrimary;
-    textSecondary = dark ? _darkTextSecondary : _lightTextSecondary;
-    textTertiary = dark ? _darkTextTertiary : t.textTertiary;
-    accentSoft = dark ? _darkAccentSoft : t.accentSoft;
-    onAccent = dark ? _darkOnAccent : _lightOnAccent;
-  }
-
-  /// 切换主题色组（喜爱钱 ↔ 喜爱钓鱼）。下一次 `MaterialApp` build 生效。
-  static void applyTopic(TopicPalette palette) {
-    _topic = palette;
-    applyMode(_mode);
-  }
-}
-
-/// 主题色组：每个主题只换这几种颜色，面、墨、语义色全主题共享。
-///
-/// | 角色 | 喜爱钱 | 喜爱钓鱼 |
-/// |---|---|---|
-/// | 主色 brand（= AppColors.amber） | 墨金 #9E6322 | 湖青 #1F6A7A |
-/// | 主色深 brandDim | #7A4A16 | #154C58 |
-/// | 主色浅底 accentSoft | #F1E6D3 | #DCEBEE |
-/// | 纸 bgBase | 暖纸 #F3F0E8 | 冷纸 #EEF2F0 |
-/// | 弱文字 textTertiary | #7C746A | #646A67 |
-///
-/// 钓鱼避开纯绿：语义色里「负向 / 跌」仍是 #17864E，计费等共享页面还会用到。
-@immutable
-class TopicPalette {
-  const TopicPalette({
-    required this.brand,
-    required this.brandDim,
-    required this.accentSoft,
-    required this.bgBase,
-    required this.textTertiary,
-    required this.chatGradient,
-  });
-
-  final Color brand;
-  final Color brandDim;
-  final Color accentSoft;
-  final Color bgBase;
-  final Color textTertiary;
-
-  /// 对话页柔光纸面的三段竖向渐变（上 → 中 → 下）。
-  final List<Color> chatGradient;
-
-  /// 喜爱钱：纸上墨金（主题化之前的唯一配色，逐值不变）。
-  static const money = TopicPalette(
-    brand: Color(0xFF9E6322),
-    brandDim: Color(0xFF7A4A16),
-    accentSoft: Color(0xFFF1E6D3),
-    bgBase: Color(0xFFF3F0E8),
-    textTertiary: Color(0xFF7C746A),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF9F5EC), Color(0xFFF1E9D9)],
-  );
-
-  /// 喜爱钓鱼：冷纸湖青（像晨雾里的水面）。
-  static const fishing = TopicPalette(
-    brand: Color(0xFF1F6A7A),
-    brandDim: Color(0xFF154C58),
-    accentSoft: Color(0xFFDCEBEE),
-    bgBase: Color(0xFFEEF2F0),
-    textTertiary: Color(0xFF646A67),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF3F7F6), Color(0xFFE2EDEC)],
-  );
-
-  // ---- 兴趣圈（方案五）：新开的四个圈 ----
-  // 取值都过对比度门槛（白字压主色 ≥ 4.5:1，弱字压纸 ≥ 4.5:1，实测见
-  // design/xiai/contrast.py）。主色一律不取绿：语义色里「跌」是 #17864E。
-
-  /// 喜爱咖啡：深焙褐。
-  static const coffee = TopicPalette(
-    brand: Color(0xFF6F4A2A),
-    brandDim: Color(0xFF553616),
-    accentSoft: Color(0xFFEDE3D6),
-    bgBase: Color(0xFFF2EFE9),
-    textTertiary: Color(0xFF6E665D),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF7F1E9), Color(0xFFEADFD1)],
-  );
-
-  /// 喜爱养猫：绒紫。
-  static const cat = TopicPalette(
-    brand: Color(0xFF6E5A8C),
-    brandDim: Color(0xFF554470),
-    accentSoft: Color(0xFFE7E3EE),
-    bgBase: Color(0xFFEFEBF2),
-    textTertiary: Color(0xFF6C6770),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF5F2F8), Color(0xFFE8E3EF)],
-  );
-
-  /// 喜爱露营：夜营蓝（帐篷外那片天，刻意避开湖青与信息蓝）。
-  static const camping = TopicPalette(
-    brand: Color(0xFF33587A),
-    brandDim: Color(0xFF26425C),
-    accentSoft: Color(0xFFDDE6EE),
-    bgBase: Color(0xFFEFF2F6),
-    textTertiary: Color(0xFF626C78),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF2F5F9), Color(0xFFE3EAF2)],
-  );
-
-  /// 喜爱汉服：绛红（传统色里的深绛，比「涨」的 #CC3A2E 暗得多）。
-  static const hanfu = TopicPalette(
-    brand: Color(0xFF8C3A4A),
-    brandDim: Color(0xFF6D2B39),
-    accentSoft: Color(0xFFF0DFE2),
-    bgBase: Color(0xFFF4EFF0),
-    textTertiary: Color(0xFF756469),
-    chatGradient: [Color(0xFFFFFFFF), Color(0xFFF8F2F3), Color(0xFFEFE2E4)],
-  );
 }
 
 /// 间距刻度。全 App 只用这几个值，禁止再写 7 / 11 / 13 这类散数。
@@ -228,24 +104,25 @@ class AppSpace {
   static const double xl = 24;
   static const double xxl = 32;
 
-  /// 页面左右安全边距。
+  /// 页面左右安全边距（微信列表行的左右留白）。
   static const double gutter = 16;
 }
 
-/// 圆角刻度。卡片 12–14，小控件用 pill。
+/// 圆角刻度。微信的克制：卡片 8，行内小控件 4 到 6，胶囊用 pill。
 class AppRadius {
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 14;
+  static const double sm = 4;
+  static const double md = 6;
+  static const double lg = 8;
   static const double pill = 999;
 }
 
 /// 字体刻度。
 ///
-/// 旧版正文 12–13px，手机竖屏单手阅读偏小；微信正文 17、微信读书正文 17–18
-/// 且行高 1.7。这里把基准抬到 15，正文行高 1.45，阅读段落 1.75。
+/// 微信的正文是 17，行高松；界面全部无衬线（PingFang SC / 微软雅黑 /
+/// Noto Sans SC）。开屏题字是唯一还用衬线的地方，见
+/// lib/screens/splash/splash_screen.dart。
 class AppType {
-  /// 正文 / 界面用无衬线，跟随系统（PingFang SC / 微软雅黑 / Noto Sans SC）。
+  /// 界面用无衬线，跟随系统。
   static const sansFallback = <String>[
     'PingFang SC',
     'Microsoft YaHei',
@@ -254,8 +131,7 @@ class AppType {
     'sans-serif',
   ];
 
-  /// 阅读体：只在开屏题字、结论句、数字大字这些「值得停一下」的地方用。
-  /// 平台自带衬线，不额外打包字体（CJK 字体动辄几十 MB，首版不值得）。
+  /// 衬线：只在开屏题字这一处用。
   static const readFallback = <String>[
     'Songti SC',
     'Noto Serif CJK SC',
@@ -264,16 +140,16 @@ class AppType {
     'serif',
   ];
 
-  /// 大数 / 结论字。衬线 + 收紧字距。
+  /// 大数 / 结论字。
   static const TextStyle display = TextStyle(
     fontSize: 28,
-    height: 1.15,
+    height: 1.2,
     fontWeight: FontWeight.w600,
-    letterSpacing: -0.4,
-    fontFamilyFallback: readFallback,
+    letterSpacing: -0.3,
+    fontFamilyFallback: sansFallback,
   );
 
-  /// 页面标题（导航栏）与卡片大标题。
+  /// 导航标题、页面大标题、聊天标题。
   static const TextStyle title = TextStyle(
     fontSize: 17,
     height: 1.3,
@@ -283,42 +159,42 @@ class AppType {
 
   /// 小节名字（分组头）。
   static const TextStyle section = TextStyle(
-    fontSize: 13,
+    fontSize: 14,
     height: 1.3,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.3,
+    fontWeight: FontWeight.w400,
     fontFamilyFallback: sansFallback,
   );
 
-  /// 列表主行文字。微信列表行就是这么重。
+  /// 列表主行 / 正文。微信正文 17，这里取 16：一行放得下的字更多，
+  /// 表格类页面（组合、证伪档案）也不会被撑破。
   static const TextStyle body = TextStyle(
-    fontSize: 15,
+    fontSize: 16,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    fontFamilyFallback: sansFallback,
+  );
+
+  /// 可读段落（结论、说明、聊天正文）。
+  static const TextStyle read = TextStyle(
+    fontSize: 16,
+    height: 1.6,
+    fontWeight: FontWeight.w400,
+    fontFamilyFallback: sansFallback,
+  );
+
+  /// 次级文字、聊天气泡正文。
+  static const TextStyle caption = TextStyle(
+    fontSize: 13,
     height: 1.45,
     fontWeight: FontWeight.w400,
     fontFamilyFallback: sansFallback,
   );
 
-  /// 可读段落（结论、说明、聊天正文）：行高给到 1.75。
-  static const TextStyle read = TextStyle(
-    fontSize: 15,
-    height: 1.75,
-    fontWeight: FontWeight.w400,
-    fontFamilyFallback: sansFallback,
-  );
-
-  /// 次级文字。
-  static const TextStyle caption = TextStyle(
-    fontSize: 12.5,
-    height: 1.5,
-    fontWeight: FontWeight.w400,
-    fontFamilyFallback: sansFallback,
-  );
-
-  /// 最小号：单位、脚注、标签。
+  /// 最小号：时间戳、单位、角标。
   static const TextStyle micro = TextStyle(
-    fontSize: 11,
+    fontSize: 11.5,
     height: 1.4,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w400,
     fontFamilyFallback: sansFallback,
   );
 
@@ -333,46 +209,20 @@ class AppType {
 }
 
 class AppTheme {
-  /// [palette] 为空时沿用当前主题色组（见 [AppColors.applyTopic]）。
-  static ThemeData build(ThemeMode mode, {TopicPalette? palette}) {
-    if (palette != null) AppColors._topic = palette;
-    AppColors.applyMode(mode);
-    return mode == ThemeMode.dark ? _dark() : _light();
-  }
+  /// 只有浅色一套：微信式界面在浅色下才是「那个样子」。
+  static ThemeData build([ThemeMode mode = ThemeMode.light]) => _light();
 
   static ThemeData _light() {
     final base = ThemeData.light(useMaterial3: true);
-    return _common(
-      base,
-      ColorScheme.light(
-        primary: AppColors.amber,
-        secondary: AppColors.amberDim,
-        surface: AppColors.bgSurface,
-        error: AppColors.danger,
-        onPrimary: AppColors.onAccent,
-        onSecondary: AppColors.onAccent,
-        onSurface: AppColors.textPrimary,
-      ),
+    final scheme = ColorScheme.light(
+      primary: AppColors.amber,
+      secondary: AppColors.amberDim,
+      surface: AppColors.bgSurface,
+      error: AppColors.danger,
+      onPrimary: AppColors.onAccent,
+      onSecondary: AppColors.onAccent,
+      onSurface: AppColors.textPrimary,
     );
-  }
-
-  static ThemeData _dark() {
-    final base = ThemeData.dark(useMaterial3: true);
-    return _common(
-      base,
-      ColorScheme.dark(
-        primary: AppColors.amber,
-        secondary: AppColors.amberDim,
-        surface: AppColors.bgSurface,
-        error: AppColors.danger,
-        onPrimary: AppColors.onAccent,
-        onSecondary: AppColors.onAccent,
-        onSurface: AppColors.textPrimary,
-      ),
-    );
-  }
-
-  static ThemeData _common(ThemeData base, ColorScheme scheme) {
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.bgBase,
       colorScheme: scheme,
@@ -383,7 +233,6 @@ class AppTheme {
             fontFamilyFallback: AppType.sansFallback,
           )
           .copyWith(
-            // 只覆盖「不指定字体时」的默认档，显式写了 fontSize 的调用点不受影响。
             bodyLarge: AppType.body.copyWith(color: AppColors.textPrimary),
             bodyMedium: AppType.body.copyWith(color: AppColors.textPrimary),
             bodySmall: AppType.caption.copyWith(color: AppColors.textSecondary),
@@ -395,7 +244,7 @@ class AppTheme {
             ),
           ),
       appBarTheme: AppBarTheme(
-        // 微信式导航栏：和页面同底色，（原文无 elevation）靠发丝线收边。
+        // 微信的导航栏和页面同色（灰），不浮起来、不投影，只有一条发丝线收边。
         backgroundColor: AppColors.bgBase,
         surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary,
@@ -403,17 +252,18 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         iconTheme: IconThemeData(color: AppColors.textPrimary, size: 22),
-        titleTextStyle: AppType.title.copyWith(color: AppColors.textPrimary),
-        shape: Border(bottom: BorderSide(color: AppColors.borderDim)),
+        titleTextStyle: AppType.title,
+        shape:
+            Border(bottom: BorderSide(color: AppColors.borderDim, width: 0.5)),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.bgSurface,
         selectedItemColor: AppColors.amber,
-        unselectedItemColor: AppColors.textTertiary,
+        unselectedItemColor: AppColors.textSecondary,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
         selectedLabelStyle:
-            const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
         unselectedLabelStyle: const TextStyle(fontSize: 11),
       ),
       dividerTheme: DividerThemeData(
@@ -423,7 +273,6 @@ class AppTheme {
       ),
       dividerColor: AppColors.borderDim,
       cardColor: AppColors.bgSurface,
-      // 卡片只声明一层深度：白面 + 大圆角，不用描边，也不用宽阴影。
       cardTheme: CardThemeData(
         color: AppColors.bgSurface,
         surfaceTintColor: Colors.transparent,
@@ -435,20 +284,20 @@ class AppTheme {
       ),
       listTileTheme: ListTileThemeData(
         minVerticalPadding: AppSpace.md,
-        titleTextStyle: AppType.body.copyWith(color: AppColors.textPrimary),
-        subtitleTextStyle:
-            AppType.caption.copyWith(color: AppColors.textSecondary),
-        iconColor: AppColors.textSecondary,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(AppRadius.md)),
+        titleTextStyle: AppType.body,
+        subtitleTextStyle: TextStyle(
+          fontSize: 13,
+          color: AppColors.textSecondary,
+          fontFamilyFallback: AppType.sansFallback,
         ),
+        iconColor: AppColors.textSecondary,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.bgSurface,
         hintStyle: AppType.body.copyWith(color: AppColors.textTertiary),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide(color: AppColors.borderDim),
@@ -459,7 +308,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide(color: AppColors.amber, width: 1.4),
+          borderSide: BorderSide(color: AppColors.amber, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -474,8 +323,8 @@ class AppTheme {
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md)),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.xl, vertical: 14),
+          padding:
+              const EdgeInsets.symmetric(horizontal: AppSpace.xl, vertical: 12),
           textStyle: const TextStyle(
               fontWeight: FontWeight.w600, fontSize: 15, height: 1.2),
         ),
@@ -486,24 +335,24 @@ class AppTheme {
           side: BorderSide(color: AppColors.borderMed),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md)),
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.xl, vertical: 14),
+          padding:
+              const EdgeInsets.symmetric(horizontal: AppSpace.xl, vertical: 12),
           textStyle: const TextStyle(
-              fontWeight: FontWeight.w600, fontSize: 15, height: 1.2),
+              fontWeight: FontWeight.w500, fontSize: 15, height: 1.2),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.amber,
           textStyle: const TextStyle(
-              fontWeight: FontWeight.w600, fontSize: 15, height: 1.2),
+              fontWeight: FontWeight.w500, fontSize: 15, height: 1.2),
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.bgRaised,
         selectedColor: AppColors.accentSoft,
         side: BorderSide(color: AppColors.borderDim),
-        labelStyle: AppType.micro.copyWith(color: AppColors.textSecondary),
+        labelStyle: AppType.micro,
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
       ),
@@ -511,18 +360,23 @@ class AppTheme {
         backgroundColor: AppColors.bgSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg)),
-        titleTextStyle: AppType.title.copyWith(color: AppColors.textPrimary),
-        contentTextStyle:
-            AppType.body.copyWith(color: AppColors.textSecondary),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(10)),
+        ),
+        titleTextStyle: AppType.title,
+        contentTextStyle: TextStyle(
+          fontSize: 15,
+          height: 1.5,
+          color: AppColors.textSecondary,
+          fontFamilyFallback: AppType.sansFallback,
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: AppColors.bgSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
         ),
       ),
       snackBarTheme: SnackBarThemeData(

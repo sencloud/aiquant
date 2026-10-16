@@ -1,15 +1,17 @@
-/// 「纸上墨金」的基础构件。
+/// 基础构件：微信式的分组列表。
 ///
-/// 微信的结构语法：页面是纸，内容是白面分组卡，卡内是行；行与行之间一条
-/// 发丝线，靠右是值或箭头。所有页面都从这几个构件拼，不要各写各的 Card
-/// 圆角和阴影。
+/// 页面是灰底，内容是白面分组，组内是行；行与行之间一条发丝线，靠右是值或
+/// 箭头。所有页面都从这几个构件拼，不要各写各的 Card 圆角和阴影。
+///
+/// 微信独有的零件（方头像、未读角标、搜索框、聊天气泡、彩色方块图标）在
+/// `lib/wx/wx_kit.dart` 里。
 library;
 
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// 页面骨架：纸底 + 居中标题导航栏。
+/// 页面骨架：灰底 + 居中标题导航栏。
 ///
 /// 微信的导航栏和页面同色，不浮起来、不投影，只有一条发丝线收边。标题居中。
 class WkPage extends StatelessWidget {
@@ -51,7 +53,7 @@ class WkPage extends StatelessWidget {
   }
 }
 
-/// 白面分组卡。圆角 + 白面，不用描边、不用宽阴影。
+/// 白面分组。圆角 8 + 白面，不用描边、不用宽阴影。
 class WkGroup extends StatelessWidget {
   const WkGroup({
     super.key,
@@ -116,7 +118,13 @@ class WkGroup extends StatelessWidget {
     for (var i = 0; i < items.length; i++) {
       out.add(items[i]);
       if (i != items.length - 1) {
-        out.add(Divider(height: 0.5, thickness: 0.5, color: AppColors.borderDim));
+        // 微信的分隔线左边空出一个行内边距，右头顶到边。
+        out.add(Divider(
+          height: 0.5,
+          thickness: 0.5,
+          indent: AppSpace.lg,
+          color: AppColors.borderDim,
+        ));
       }
     }
     return out;
@@ -125,24 +133,32 @@ class WkGroup extends StatelessWidget {
 
 /// 分组内的一行：左图标 / 主文 + 副文 / 右值或箭头。
 ///
-/// 微信列表行高：单行 52，双行自适应。箭头一定是最右那个，值在箭头左边。
+/// 微信列表行高：单行 56，双行自适应。箭头一定是最右那个，值在箭头左边。
+/// [leading] 用来放微信那种彩色方块图标（[WxIconTile]）；给了它就不再画
+/// [icon]。
 class WkRow extends StatelessWidget {
   const WkRow({
     super.key,
     this.icon,
+    this.iconColor,
+    this.leading,
     required this.title,
     this.subtitle,
     this.value,
     this.trailing,
     this.onTap,
     this.destructive = false,
-    this.minHeight = 52,
+    this.minHeight = 56,
     this.titleColor,
     this.padding =
         const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: 12),
   });
 
   final IconData? icon;
+  final Color? iconColor;
+
+  /// 自定义左侧（彩色方块图标、头像）。给了它就忽略 [icon]。
+  final Widget? leading;
   final String title;
   final String? subtitle;
   final String? value;
@@ -162,10 +178,15 @@ class WkRow extends StatelessWidget {
         padding: padding,
         child: Row(
           children: [
-            if (icon != null) ...[
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: AppSpace.md),
+            ] else if (icon != null) ...[
               Icon(icon,
-                  size: 20,
-                  color: destructive ? AppColors.danger : AppColors.amber),
+                  size: 22,
+                  color: destructive
+                      ? AppColors.danger
+                      : (iconColor ?? AppColors.amber)),
               const SizedBox(width: AppSpace.md),
             ],
             Expanded(
@@ -195,9 +216,8 @@ class WkRow extends StatelessWidget {
             ],
             if (onTap != null) ...[
               const SizedBox(width: AppSpace.xs),
-              // textTertiary 是运行时字段，不能进 const 构造。
               Icon(Icons.chevron_right_rounded,
-                  size: 20, color: AppColors.textTertiary),
+                  size: 22, color: AppColors.textTertiary),
             ],
           ],
         ),
@@ -211,7 +231,8 @@ class WkRow extends StatelessWidget {
   }
 }
 
-/// 大按钮：主色实心，圆角 12，高度 48。全 App 的主行动都用它。
+/// 大按钮：绿色实心，圆角 6，高度 46。全 App 的主行动都用它（微信的按钮
+/// 就是这个形状：扁、圆角小、字重 500）。
 class WkPrimaryButton extends StatelessWidget {
   const WkPrimaryButton({
     super.key,
@@ -230,18 +251,18 @@ class WkPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null && !busy;
     return SizedBox(
-      height: 48,
+      height: 46,
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.amber,
           foregroundColor: AppColors.onAccent,
-          disabledBackgroundColor: AppColors.borderMed,
-          disabledForegroundColor: AppColors.bgSurface,
+          disabledBackgroundColor: AppColors.accentSoft,
+          disabledForegroundColor: AppColors.amberDim,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md)),
-          textStyle:
-              const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w500, height: 1.2),
         ),
         child: busy
             ? const SizedBox(

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/topic/topic_state.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
@@ -24,10 +23,10 @@ import 'splash_backdrop.dart';
 /// 网络差到超过 [maxWait] 就直接进 App，不拿开屏锁人。
 ///
 /// 版式（见 DESIGN.md「Motion」）：没有图标。整屏是一片夜空 —— 竖向多段渐变
-/// （随主题：喜爱钱暖墨 → 金 → 桃色天光；喜爱钓鱼深湖青 → 黎明；还没选主题用
-/// 中性夜色），地平线辉光、围着题字的三道轨道细线、下方几道起伏细线、错落闪烁
-/// 的星光，全部由 [SplashBackdropPainter] 一支画笔画。中间是衬线大字「喜爱」
-/// 和口号「喜爱，并不是一定要得到」；底部一根发丝线代替加载文字。
+/// （品牌夜色：深墨绿 → 林间 → 晨绿），地平线辉光、围着题字的三道轨道细线、
+/// 下方几道起伏细线、错落闪烁的星光，全部由 [SplashBackdropPainter] 一支画笔画。
+/// 中间是衬线大字「喜爱」和口号「喜爱，并不是一定要得到」；底部一根发丝线代替
+/// 加载文字。
 ///
 /// 第一帧只有中性渐变，与原生启动屏（iOS LaunchImage / Android
 /// splash_gradient，同一套色值）一致，所以冷启动不跳；随后 0.7s 内渐变过渡到
@@ -102,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
   AuthState? _auth;
   late final DateTime _started = DateTime.now();
 
-  /// 目标色组：已选主题用它的，首启（还没选）用中性夜色。
+  /// 目标色组：品牌夜色（多主题下线后只有这一套）。
   late SplashPalette _target = SplashPalette.neutral;
 
   @override
@@ -129,21 +128,12 @@ class _SplashScreenState extends State<SplashScreen>
       _auth?.removeListener(_maybeFinish);
       _auth = auth..addListener(_maybeFinish);
     }
-    _target = SplashPalette.forTopic(_topicId());
+    _target = SplashPalette.brand;
     _still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     if (_still) {
       _clock.stop();
     } else if (!_clock.isAnimating && _clock.value < 1) {
       _clock.forward();
-    }
-  }
-
-  String? _topicId() {
-    try {
-      final topics = Provider.of<TopicState>(context, listen: false);
-      return topics.needsPick ? null : topics.currentId;
-    } on ProviderNotFoundException {
-      return identical(AppColors.topic, TopicPalette.fishing) ? 'fishing' : 'money';
     }
   }
 

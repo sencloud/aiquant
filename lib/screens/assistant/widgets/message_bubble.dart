@@ -13,6 +13,7 @@ import '../../../services/invite_service.dart';
 import '../../../services/share_service.dart';
 import '../../../state/chat_state.dart';
 import '../../../theme/app_theme.dart';
+import '../../../wx/wx_kit.dart';
 import 'reasoning_block.dart';
 import 'share_card_screen.dart';
 import 'tool_call_card.dart';
@@ -49,6 +50,10 @@ class MessageBubble extends StatelessWidget {
     this.onSuggestion,
     this.onRegenerate,
     this.onFeedback,
+    this.selfName = '',
+    this.assistantName = '',
+    this.assistantIcon,
+    this.assistantColor,
   });
 
   final ChatMessage message;
@@ -66,6 +71,14 @@ class MessageBubble extends StatelessWidget {
 
   /// 点赞（1）/ 点踩（-1）。为 null 时不展示反馈按钮。
   final ValueChanged<int>? onFeedback;
+
+  /// 自己的昵称（头像上取首字）。
+  final String selfName;
+
+  /// 对面这位助手的名字与头像（微信里气泡旁边就是头像）。
+  final String assistantName;
+  final IconData? assistantIcon;
+  final Color? assistantColor;
 
   /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
   /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
@@ -86,112 +99,136 @@ class MessageBubble extends StatelessWidget {
     final imageUrls = message.imageDataUrls ?? const <String>[];
     final hasImages = imageUrls.isNotEmpty;
 
-    // AI 气泡用白面：对话区背后是奶油色渐变的背景，米色气泡会糊在底上。
-    // 用户气泡保持主色实心，前景色用主题里的 onAccent（白字压墨金 5.4:1）。
-    final bg = isUser ? AppColors.amber : AppColors.bgSurface;
+    // 微信的气泡形状 + 喜爱自己的配色：自己说的是墨金实心（白字），
+    // 对方说的是白面（墨字）。
     final fg = isUser ? AppColors.onAccent : AppColors.textPrimary;
+    final maxWidth = MediaQuery.of(context).size.width * 0.74;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        // 时间顺序：推理 → 工具调用 → 正文。AI 通常先「调用工具拿数据」，再
-        // 「基于数据写正文」，UI 顺序按真实时序展示更直观。
-        children: [
-          if (hasReasoning)
-            ReasoningBlock(
+    // 时间顺序：推理 → 工具调用 → 正文。AI 通常先「调用工具拿数据」，再
+    // 「基于数据写正文」，UI 顺序按真实时序展示更直观。
+    final body = Column(
+      crossAxisAlignment:
+          isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        if (hasReasoning)
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: ReasoningBlock(
               text: message.reasoning!,
               streaming: message.streaming && !hasContent,
             ),
-          if (hasToolCalls)
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.92,
-              ),
-              child: ToolCallList(
-                calls: message.toolCalls!,
-                findResult: _findToolResult,
-              ),
+          ),
+        if (hasToolCalls)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.92,
             ),
-          if (hasImages)
-            Padding(
-              padding: EdgeInsets.only(top: hasToolCalls ? 6 : 0),
-              child: _UserImageStrip(urls: imageUrls),
+            child: ToolCallList(
+              calls: message.toolCalls!,
+              findResult: _findToolResult,
             ),
-          if (hasContent)
-            Padding(
-              padding:
-                  EdgeInsets.only(top: (hasToolCalls || hasImages) ? 6 : 0),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.86,
-                ),
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: const BorderRadius.all(Radius.circular(8)),
-                  // AI 气泡是白面，压在奶油色背景上要靠一条发丝线收边，
-                  // 不然边缘会化开。用户气泡是实心主色，不需要线。
-                  border: isUser
-                      ? null
-                      : Border.all(color: AppColors.borderDim, width: 0.5),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isUser && message.portfolioAttached)
-                      _PortfolioBadge(name: message.portfolioName),
-                    _content(context, fg),
-                  ],
-                ),
+          ),
+        if (hasImages)
+          Padding(
+            padding: EdgeInsets.only(top: hasToolCalls ? 6 : 0),
+            child: _UserImageStrip(urls: imageUrls),
+          ),
+        if (hasContent)
+          Padding(
+            padding: EdgeInsets.only(top: (hasToolCalls || hasImages) ? 6 : 0),
+            child: WxBubble(
+              isSelf: isUser,
+              maxWidth: maxWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isUser && message.portfolioAttached)
+                    _PortfolioBadge(name: message.portfolioName),
+                  _content(context, fg),
+                ],
               ),
             ),
-          if (!isUser && hasContent && !message.streaming)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 2),
-              child: _MessageActionsBar(
-                text: message.content,
-                question: _previousUserText(),
-                timestamp: message.timestamp,
-                showShareActions: showShareActions,
-                feedback: message.feedback,
-                onRegenerate: isLatest ? onRegenerate : null,
-                onFeedback: onFeedback,
-                sources: hasToolCalls ? _collectSources() : const [],
-                tools: hasToolCalls
-                    ? message.toolCalls!.map((c) => c.name).toSet().toList()
-                    : const [],
-              ),
+          ),
+        if (!isUser && hasContent && !message.streaming)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: _MessageActionsBar(
+              text: message.content,
+              question: _previousUserText(),
+              timestamp: message.timestamp,
+              showShareActions: showShareActions,
+              feedback: message.feedback,
+              onRegenerate: isLatest ? onRegenerate : null,
+              onFeedback: onFeedback,
+              sources: hasToolCalls ? _collectSources() : const [],
+              tools: hasToolCalls
+                  ? message.toolCalls!.map((c) => c.name).toSet().toList()
+                  : const [],
             ),
-          if (!isUser &&
-              isLatest &&
-              !message.streaming &&
-              onSuggestion != null &&
-              (message.suggestions?.isNotEmpty ?? false))
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 2),
-              child: _FollowUpList(
-                questions: message.suggestions!,
-                onTap: onSuggestion!,
-              ),
+          ),
+        if (!isUser &&
+            isLatest &&
+            !message.streaming &&
+            onSuggestion != null &&
+            (message.suggestions?.isNotEmpty ?? false))
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 8),
+            child: _FollowUpList(
+              questions: message.suggestions!,
+              onTap: onSuggestion!,
             ),
-          if (isUser && hasContent)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, right: 2),
-              child: _UserActionsBar(text: message.content),
-            ),
-          if (message.streaming &&
-              !hasReasoning &&
-              !hasContent &&
-              !hasToolCalls)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: _TypingDots(),
-            ),
-        ],
+          ),
+        if (isUser && hasContent)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, right: 8),
+            child: _UserActionsBar(text: message.content),
+          ),
+        if (message.streaming &&
+            !hasReasoning &&
+            !hasContent &&
+            !hasToolCalls)
+          const Padding(
+            padding: EdgeInsets.only(top: 4, left: 8),
+            child: _TypingDots(),
+          ),
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: isUser
+            ? [
+                Flexible(child: body),
+                const SizedBox(width: AppSpace.sm),
+                _avatar(isUser: true),
+              ]
+            : [
+                _avatar(isUser: false),
+                const SizedBox(width: AppSpace.sm),
+                Flexible(child: body),
+              ],
       ),
+    );
+  }
+
+  /// 气泡旁边的头像：自己用昵称首字，对面用这位助手的图标（微信同款位置）。
+  Widget _avatar({required bool isUser}) {
+    if (isUser) {
+      return WxAvatar(
+        text: selfName.trim().isEmpty ? '我' : selfName.trim(),
+        size: 40,
+        background: AppColors.amber,
+      );
+    }
+    return WxAvatar(
+      text: assistantName.trim().isEmpty ? '喜' : assistantName.trim(),
+      icon: assistantIcon,
+      size: 40,
+      background: assistantColor ?? AppColors.amber,
     );
   }
 
@@ -267,7 +304,7 @@ class MessageBubble extends StatelessWidget {
         onLongPress: () => _copyText(context, message.content),
         child: Text(
           message.content,
-          style: TextStyle(color: fg, fontSize: 13, height: 1.4),
+          style: TextStyle(color: fg, fontSize: 16, height: 1.45),
         ),
       );
     }
@@ -277,32 +314,54 @@ class MessageBubble extends StatelessWidget {
       data: message.content.isEmpty ? '…' : message.content,
       selectable: true,
       styleSheet: MarkdownStyleSheet(
-        p: TextStyle(color: fg, fontSize: 13, height: 1.5),
-        strong: TextStyle(color: fg, fontWeight: FontWeight.w800),
-        listBullet: TextStyle(color: fg, fontSize: 13),
+        // 显式带上无衬线字族：Markdown 的默认样式不继承主题的 fallback，
+        // 不写这一行，桌面 / 部分安卓机上中文会掉成方框。
+        p: TextStyle(
+            color: fg,
+            fontSize: 16,
+            height: 1.5,
+            fontFamilyFallback: AppType.sansFallback),
+        strong: TextStyle(
+            color: fg,
+            fontWeight: FontWeight.w800,
+            fontFamilyFallback: AppType.sansFallback),
+        listBullet: TextStyle(
+            color: fg, fontSize: 16, fontFamilyFallback: AppType.sansFallback),
         h1: TextStyle(
-            color: fg, fontWeight: FontWeight.w800, fontSize: 18),
+            color: fg,
+            fontWeight: FontWeight.w800,
+            fontSize: 21,
+            fontFamilyFallback: AppType.sansFallback),
         h2: TextStyle(
-            color: fg, fontWeight: FontWeight.w800, fontSize: 16),
+            color: fg,
+            fontWeight: FontWeight.w800,
+            fontSize: 19,
+            fontFamilyFallback: AppType.sansFallback),
         h3: TextStyle(
-            color: fg, fontWeight: FontWeight.w800, fontSize: 14),
+            color: fg,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+            fontFamilyFallback: AppType.sansFallback),
         code: TextStyle(
-            backgroundColor: AppColors.bgBase,
-            color: AppColors.amber,
+            backgroundColor: AppColors.bgRaised,
+            color: AppColors.textPrimary,
             fontFamily: 'monospace',
-            fontSize: 12),
+            fontSize: 14),
         codeblockDecoration: BoxDecoration(
-          color: AppColors.bgBase,
+          color: AppColors.bgRaised,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: AppColors.borderDim),
         ),
         blockquoteDecoration: BoxDecoration(
-          color: AppColors.bgSurface,
+          color: AppColors.bgRaised,
           border: Border(
             left: BorderSide(color: AppColors.amber, width: 3),
           ),
         ),
-        tableHead: TextStyle(color: fg, fontWeight: FontWeight.w800),
+        tableHead: TextStyle(
+            color: fg,
+            fontWeight: FontWeight.w800,
+            fontFamilyFallback: AppType.sansFallback),
       ),
     );
 

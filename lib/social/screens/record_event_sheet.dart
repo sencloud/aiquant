@@ -1,31 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/topic/topic_pack.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
 import '../social_state.dart';
 
 /// 「记一件事」。三秒能做完是它的硬指标：一句话 + 最多三个数。
-/// 这一步做完，「说一句」才有地方落。
-Future<void> showRecordEventSheet(BuildContext context, TopicPack pack) {
+///
+/// 这一步做完，「说一句」才有地方落 —— 由头制是这套东西的地基，不因为圈子
+/// 下线而变。
+Future<void> showRecordEventSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: AppColors.bgBase,
+    backgroundColor: AppColors.bgSurface,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => Padding(
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + AppSpace.xl),
-      child: _RecordEventSheet(pack: pack),
+      child: const _RecordEventSheet(),
     ),
   );
 }
 
 class _RecordEventSheet extends StatefulWidget {
-  const _RecordEventSheet({required this.pack});
-
-  final TopicPack pack;
+  const _RecordEventSheet();
 
   @override
   State<_RecordEventSheet> createState() => _RecordEventSheetState();
@@ -50,13 +49,7 @@ class _RecordEventSheetState extends State<_RecordEventSheet> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
-    context.read<SocialState>().recordEvent(
-          circleId: widget.pack.id,
-          circleName: widget.pack.name,
-          circleMark: widget.pack.mark,
-          title: title,
-          facts: facts,
-        );
+    context.read<SocialState>().recordEvent(title: title, facts: facts);
     Navigator.of(context).pop();
   }
 
@@ -69,9 +62,9 @@ class _RecordEventSheetState extends State<_RecordEventSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('记一件事', style: AppType.display.copyWith(fontSize: 22)),
+          const Text('记一件事', style: AppType.title),
           const SizedBox(height: AppSpace.sm),
-          Text('记在「${widget.pack.name}」里。事是话的由头 —— 先有事，才有话。',
+          Text('事是话的由头 —— 先有事，才有话。',
               style: AppType.caption.copyWith(color: AppColors.textTertiary)),
           const SizedBox(height: AppSpace.lg),
           TextField(
@@ -81,7 +74,7 @@ class _RecordEventSheetState extends State<_RecordEventSheet> {
             style: AppType.body,
             decoration: const InputDecoration(
               labelText: '发生了什么',
-              hintText: '登记了一条渔获：翘嘴 42cm',
+              hintText: '今天盘后看了 300 的成交结构',
             ),
           ),
           const SizedBox(height: AppSpace.md),
@@ -91,7 +84,7 @@ class _RecordEventSheetState extends State<_RecordEventSheet> {
             style: AppType.body,
             decoration: const InputDecoration(
               labelText: '几个数（可选，用逗号分开）',
-              hintText: '水温 24℃, 水域 北岸支流',
+              hintText: '成交额 3200 亿, 北向 +18 亿',
             ),
           ),
           const SizedBox(height: AppSpace.lg),
