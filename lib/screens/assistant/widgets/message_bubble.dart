@@ -54,6 +54,7 @@ class MessageBubble extends StatelessWidget {
     this.assistantName = '',
     this.assistantIcon,
     this.assistantColor,
+    this.assistantAvatar,
   });
 
   final ChatMessage message;
@@ -79,6 +80,9 @@ class MessageBubble extends StatelessWidget {
   final String assistantName;
   final IconData? assistantIcon;
   final Color? assistantColor;
+
+  /// 对面这位的自定义头像（广场居民用插画头像，钱主题用图标方块）。
+  final Widget? assistantAvatar;
 
   /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
   /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
@@ -223,6 +227,9 @@ class MessageBubble extends StatelessWidget {
         size: 40,
         background: AppColors.amber,
       );
+    }
+    if (assistantAvatar != null) {
+      return SizedBox(width: 40, height: 40, child: assistantAvatar);
     }
     return WxAvatar(
       text: assistantName.trim().isEmpty ? '喜' : assistantName.trim(),

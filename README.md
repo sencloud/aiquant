@@ -8,7 +8,7 @@ App 有四个页签，照微信：
 | 页签 | 做什么 |
 |---|---|
 | 消息 | 会话列表（首屏）。点一行进聊天页：助理调用真实行情 / 财报 / 新闻 / 量化工具回答 |
-| 圈子 | 六个兴趣圈（喜爱钱 / 钓鱼 / 咖啡 / 猫 / 露营 / 汉服）：点一圈进去是一屋子 AI 助手，点谁就用谁开一段对话 |
+| 广场 | 交友那半边：六位标明的 AI 居民（林夏 / 苏予 / 安可 / 周牧 / 陈野 / 路遥）、在线状态、摇一摇；点一个人进资料页，打个招呼就开聊 |
 | 发现 | 第二梯队：今天的事、信箱、见面礼 · 定时提醒、我的小应用 |
 | 我 | 喜点余额与流水、邀请好友、账号与条款 |
 
@@ -16,8 +16,8 @@ App 有四个页签，照微信：
 气泡左右分色，输入栏左边「＋」右边「发送」—— 与微信逐处对齐。
 
 **主题与圈子已经整块拿掉** `[决定]`：不再有选主题页、切换主题、整屏换色，
-也没有兴趣圈首页。钓鱼主题的功能代码留在 `lib/topics/fishing/`（连同测试），
-只是没有任何入口。
+也没有兴趣圈。现在只有「今晚在这儿的人」—— 广场 + 朋友圈。真人的池子还没开，
+广场上全是标明的 AI 居民，真人区照实写「内测中」。
 
 ## 设计语言
 
@@ -99,10 +99,10 @@ flutter run -d chrome       # 网页预览（按手机尺寸看得更准）
 ```bash
 flutter build web --release --dart-define=SPLASH_MS=100
 python -m http.server 8777 --directory build/web
-python tools/design-qa/shoot_wx.py --out .impeccable/shots/wx   # 消息 / 聊天 / 圈子 / 发现 / 我
+python tools/design-qa/shoot_wx.py --out .impeccable/shots/wx   # 消息 / 聊天 / 广场 / 朋友圈 / 发现 / 我
 ```
 
-`--dart-define=INITIAL_TAB=0..3` 让 App 直接落在某个页签（0 消息 / 1 圈子 /
+`--dart-define=INITIAL_TAB=0..3` 让 App 直接落在某个页签（0 消息 / 1 广场 /
 2 发现 / 3 我），`SPLASH_MS` 拉长开屏以便截图。两者都只影响本地走查。
 金图（`test/goldens/`）生成时给 `STRATEGY_FONT_DIR` 指一个装了中文字体的目录，
 否则中文会渲染成方框：
@@ -110,6 +110,16 @@ python tools/design-qa/shoot_wx.py --out .impeccable/shots/wx   # 消息 / 聊�
 ```bash
 STRATEGY_FONT_DIR=/path/to/fonts flutter test --update-goldens
 ```
+
+广场的六张写真头像与朋友圈配图由阿里云百炼生成（虚构人物 / 场景，不是真人照片）：
+
+```bash
+python .tools/gen_portraits.py            # 头像 → assets/portraits/
+python .tools/gen_portraits.py --scenes   # 朋友圈配图 → assets/moments/
+```
+
+脚本从 `DASHSCOPE_API_KEY` 或 `%TEMP%\dashscope.key` 读 key，产物入库；
+key 本身不进仓库、也不打进 App 包。
 
 发版：push 到 `main` 会自动打包并在 iOS 上传 TestFlight。动手前先看
 [`.agents/skills/app-release-build/SKILL.md`](.agents/skills/app-release-build/SKILL.md)

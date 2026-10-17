@@ -12,7 +12,9 @@ import '../../../wx/wx_kit.dart';
 Future<String?> showPersonaSheet(
   BuildContext context, {
   required String activeId,
+  String topic = 'money',
 }) {
+  final social = topic == 'social';
   return showModalBottomSheet<String>(
     context: context,
     backgroundColor: AppColors.bgSurface,
@@ -20,19 +22,29 @@ Future<String?> showPersonaSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
     ),
-    builder: (ctx) => _PersonaSheet(activeId: activeId),
+    builder: (ctx) => _PersonaSheet(
+      activeId: activeId,
+      topic: topic,
+      title: social ? '换一个人' : '换个助手',
+    ),
   );
 }
 
 class _PersonaSheet extends StatelessWidget {
-  const _PersonaSheet({required this.activeId});
+  const _PersonaSheet({
+    required this.activeId,
+    required this.topic,
+    required this.title,
+  });
 
   final String activeId;
+  final String topic;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
-    final personas = Personas.all;
+    final personas = Personas.forTopic(topic);
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: h * 0.78),
@@ -44,7 +56,7 @@ class _PersonaSheet extends StatelessWidget {
                   AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
               child: Row(
                 children: [
-                  const Expanded(child: Text('换个助手', style: AppType.title)),
+                  Expanded(child: Text(title, style: AppType.title)),
                   IconButton(
                     tooltip: '关闭',
                     onPressed: () => Navigator.of(context).maybePop(),

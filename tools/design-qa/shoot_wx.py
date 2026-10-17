@@ -1,4 +1,4 @@
-"""设计走查：把 Flutter Web 构建跑起来，拍微信式外壳（消息 / 圈子 / 发现 / 我）。
+"""设计走查：把 Flutter Web 构建跑起来，拍微信式外壳（消息 / 广场 / 发现 / 我）。
 
 用法：
     flutter build web --release --dart-define=SPLASH_MS=100
@@ -13,8 +13,8 @@ import pathlib
 
 from playwright.sync_api import sync_playwright
 
-# 底部页签的中心点（414 宽四等分）：消息 / 圈子 / 发现 / 我。
-TABS = {"chats": 52, "circles": 155, "discover": 259, "me": 362}
+# 底部页签的中心点（414 宽四等分）：消息 / 广场 / 发现 / 我。
+TABS = {"chats": 52, "plaza": 155, "discover": 259, "me": 362}
 
 
 def shoot(page, out: pathlib.Path, name: str, *, wait: int = 1400) -> None:
@@ -71,17 +71,23 @@ def main() -> int:
         page.mouse.click(28, 22)
         page.wait_for_timeout(800)
 
-        # 圈子：六个兴趣圈。
-        tap_tab(page, "circles", tab_y)
-        shoot(page, out, "04-circles", wait=1200)
-        page.mouse.click(args.width / 2, 214)
-        shoot(page, out, "04b-circle", wait=1200)
+        # 广场：六位居民 + 资料页。
+        tap_tab(page, "plaza", tab_y)
+        shoot(page, out, "04-plaza", wait=1400)
+        page.mouse.click(args.width * 0.27, 360)
+        shoot(page, out, "04b-profile", wait=1200)
         page.mouse.click(28, 22)
         page.wait_for_timeout(800)
 
         # 发现：记录 + 工具。
         tap_tab(page, "discover", tab_y)
-        shoot(page, out, "05-discover")
+        shoot(page, out, "05-discover", wait=1200)
+
+        # 发现第一行：朋友圈。
+        page.mouse.click(args.width / 2, 124)
+        shoot(page, out, "05b-moments", wait=1400)
+        page.mouse.click(28, 22)
+        page.wait_for_timeout(800)
 
         # 我：微信式个人页。未登录会先弹登录，关掉它才看得到底下的「我」。
         tap_tab(page, "me", tab_y)

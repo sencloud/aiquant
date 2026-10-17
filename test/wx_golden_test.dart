@@ -12,6 +12,8 @@ import 'package:fincept_app/state/settings_state.dart';
 import 'package:fincept_app/theme/app_theme.dart';
 import 'package:fincept_app/wx/chat_list_tab.dart';
 import 'package:fincept_app/wx/me_tab.dart';
+import 'package:fincept_app/wx/moments_screen.dart';
+import 'package:fincept_app/wx/plaza_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -140,5 +142,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await expectLater(find.byType(MaterialApp),
         matchesGoldenFile('goldens/wx_chats.png'));
+  }, skip: !Platform.environment.containsKey('STRATEGY_FONT_DIR'));
+
+  testWidgets('金图：广场', (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_host(
+      const WxPlazaTab(clockLabel: '今晚 21:40'),
+      seeded(),
+      SocialState(store: MemorySocialStore()),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    await expectLater(find.byType(MaterialApp),
+        matchesGoldenFile('goldens/wx_plaza.png'));
+  }, skip: !Platform.environment.containsKey('STRATEGY_FONT_DIR'));
+
+  testWidgets('金图：朋友圈', (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_host(
+      MomentsScreen(now: DateTime(2026, 10, 17, 22, 30)),
+      seeded(),
+      SocialState(store: MemorySocialStore()),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    await expectLater(find.byType(MaterialApp),
+        matchesGoldenFile('goldens/wx_moments.png'));
   }, skip: !Platform.environment.containsKey('STRATEGY_FONT_DIR'));
 }

@@ -17,6 +17,8 @@ import '../../state/chat_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
+import '../../models/resident.dart';
+import '../../wx/character_portrait.dart';
 import '../../wx/wx_kit.dart';
 import '../settings/account_kit.dart';
 import 'widgets/message_bubble.dart';
@@ -325,6 +327,8 @@ class _AssistantScreenState extends State<AssistantScreen>
 
   /// 标题右边的「…」：换助手 / 新建对话 / 删除这个对话。
   Future<void> _openChatMenu(ChatState chat, Persona persona) async {
+    final topic = chat.active?.topic ?? 'money';
+    final social = topic == 'social';
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.bgSurface,
@@ -338,7 +342,8 @@ class _AssistantScreenState extends State<AssistantScreen>
             const SizedBox(height: AppSpace.sm),
             ListTile(
               leading: const Icon(Icons.swap_horiz_rounded),
-              title: const Text('换个助手', style: AppType.body),
+              title: Text(social ? '换一个人' : '换个助手',
+                  style: AppType.body),
               subtitle: Text('当前：${persona.displayName}',
                   style: AppType.caption),
               onTap: () => Navigator.pop(ctx, 'persona'),
@@ -364,7 +369,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     switch (action) {
       case 'persona':
         final picked = await showPersonaSheet(context,
-            activeId: persona.id);
+            activeId: persona.id, topic: topic);
         if (picked == null || !mounted) return;
         final empty = chat.active?.messages.isEmpty ?? true;
         if (empty) {
@@ -487,6 +492,10 @@ class _AssistantScreenState extends State<AssistantScreen>
                             isLatest: isLatest,
                             selfName: selfName,
                             assistantName: persona.displayName,
+                            assistantAvatar: session.topic == 'social'
+                                ? CharacterPortrait(
+                                    resident: residentOf(persona.id))
+                                : null,
                             onSuggestion: isLatest ? _sendSuggestion : null,
                             onRegenerate:
                                 isLatest ? () => _regenerate(chat, msg) : null,

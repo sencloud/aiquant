@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../models/chat.dart';
 import '../models/persona.dart';
+import '../models/resident.dart';
 import '../screens/assistant/assistant_screen.dart';
 import '../state/chat_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wk_kit.dart';
-import 'circles.dart';
+import 'character_portrait.dart';
 import 'wx_kit.dart';
 
 /// 「消息」页签：会话列表。
@@ -151,9 +152,8 @@ class _WxChatListTabState extends State<WxChatListTab> {
   /// 列表里那一行灰字：谁在说 + 说了什么。会话是按「话题」分开的，所以
   /// 标题是这次话题，副文写清是跟哪位助手说的。
   String _preview(ChatSession s, ChatState chat) {
-    final circle = circleOfTopic(s.topic);
     final persona = Personas.byId(s.personaId, topic: s.topic);
-    final who = circle.id == 'money' ? persona.displayName : '${circle.name} · ${persona.displayName}';
+    final who = persona.displayName;
     if (s.messages.isEmpty) return '$who：还没有说话';
     final last = s.messages.last;
     final text = last.role == 'assistant' && last.streaming
@@ -242,6 +242,8 @@ class _ChatRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final persona = Personas.byId(session.personaId, topic: session.topic);
     final title = session.title.trim().isEmpty ? '新的对话' : session.title;
+    final resident =
+        session.topic == 'social' ? residentOf(session.personaId) : null;
     return Material(
       color: AppColors.bgSurface,
       child: InkWell(
@@ -253,11 +255,18 @@ class _ChatRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              WxAvatar(
-                text: persona.displayName,
-                icon: persona.icon,
-                background: persona.color,
-              ),
+              if (resident != null)
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CharacterPortrait(resident: resident),
+                )
+              else
+                WxAvatar(
+                  text: persona.displayName,
+                  icon: persona.icon,
+                  background: persona.color,
+                ),
               const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(
@@ -294,11 +303,15 @@ class _ChatRow extends StatelessWidget {
 }
 
 /// 打开聊天页。会话列表、通讯录、发现都从这里进。
-Future<void> openChatScreen(BuildContext context, {String? sessionId}) async {
+Future<void> openChatScreen(
+  BuildContext context, {
+  String? sessionId,
+  AssistantLaunch? launch,
+}) async {
   final chat = context.read<ChatState>();
   if (sessionId != null) chat.selectSession(sessionId);
   await Navigator.of(context).push(MaterialPageRoute<void>(
-    builder: (_) => const AssistantScreen(),
+    builder: (_) => AssistantScreen(launch: launch),
   ));
 }
 

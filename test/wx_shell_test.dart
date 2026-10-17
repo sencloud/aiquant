@@ -111,7 +111,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('消息'), findsWidgets);
-    expect(find.text('圈子'), findsWidgets);
+    expect(find.text('广场'), findsWidgets);
     expect(find.text('发现'), findsWidgets);
     expect(find.text('我'), findsWidgets);
     // 会话在列表里，预览是最后一条消息。
@@ -136,31 +136,33 @@ void main() {
     expect(find.text('短期偏强震荡。'), findsOneWidget);
   });
 
-  testWidgets('圈子：六个圈一行一个，进了圈是一屋助手', (tester) async {
+  testWidgets('广场：六位居民在线，点一个进资料页再打招呼', (tester) async {
     phone(tester);
     await tester.pumpWidget(host());
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.text('圈子').last);
+    await tester.tap(find.text('广场').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('新的朋友'), findsOneWidget);
-    expect(find.text('喜爱钱'), findsOneWidget);
-    expect(find.text('喜爱钓鱼'), findsOneWidget);
+    expect(find.text('在广场上'), findsOneWidget);
+    expect(find.text('林夏，27'), findsOneWidget);
 
-    await tester.tap(find.text('喜爱钓鱼'));
+    await tester.tap(find.byKey(const ValueKey('resident-linxia')));
     await tester.pumpAndSettle();
-    expect(find.text('3 位 AI 助手'), findsOneWidget);
-    expect(find.text('综合钓友'), findsOneWidget);
+    expect(find.text('温柔直球'), findsOneWidget);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('character-greet')), 260,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.byKey(const ValueKey('character-greet')), findsOneWidget);
 
-    await tester.tap(find.text('综合钓友'));
+    await tester.tap(find.byKey(const ValueKey('character-greet')));
     await tester.pumpAndSettle();
     expect(find.byType(AssistantScreen), findsOneWidget);
-    expect(find.text('综合钓友'), findsWidgets);
+    expect(find.text('林夏'), findsWidgets);
     expect(
-      sessionStore.load().any((s) => s.topic == 'fishing'),
+      sessionStore.load().any((s) => s.topic == 'social'),
       isTrue,
-      reason: '圈里开的对话带着这个话题',
+      reason: '广场上开的对话走 social 话题',
     );
   });
 

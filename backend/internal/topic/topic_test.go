@@ -101,3 +101,35 @@ func TestFishingGuard(t *testing.T) {
 		t.Fatal("guard false positive")
 	}
 }
+
+// 广场：六位居民、不挂工具、不接 system_hint，身份与钱的边界都写在 role 里。
+func TestSocialPlaza(t *testing.T) {
+	tp, err := Resolve(Social)
+	if err != nil {
+		t.Fatalf("Resolve(social) = %v", err)
+	}
+	if tp.Name != "广场" || !strings.Contains(tp.Role, "AI") {
+		t.Fatalf("social role/name = %q / %q", tp.Name, tp.Role)
+	}
+	if len(tp.Personas) != 6 {
+		t.Fatalf("social personas = %d, want 6", len(tp.Personas))
+	}
+	if tp.DefaultPersona != "linxia" || tp.Persona("linxia").ID != "linxia" {
+		t.Fatalf("social default persona = %q", tp.DefaultPersona)
+	}
+	if got := tp.AllowedTools([]string{"get_quote"}); len(got) != 0 {
+		t.Fatalf("social 不该挂工具，得到 %v", got)
+	}
+	if tp.AcceptSystemHint || tp.AllowDeep {
+		t.Fatal("social 不接 system_hint，也不走深度加价")
+	}
+	if !strings.HasPrefix(tp.ChatReason, "social.") {
+		t.Fatalf("social ChatReason = %q", tp.ChatReason)
+	}
+	if tp.Guard == nil || tp.Guard("能转我点钱吗") == "" {
+		t.Fatal("social guard 应拦转账类话题")
+	}
+	if tp.Guard("你今晚在干嘛") != "" {
+		t.Fatal("social guard 误伤正常搭讪")
+	}
+}

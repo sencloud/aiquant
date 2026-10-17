@@ -15,12 +15,13 @@ import '../social/screens/today_tab.dart';
 import '../state/ding_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wk_kit.dart';
+import 'moments_screen.dart';
 import 'wx_kit.dart';
 
 /// 「发现」页签：第二梯队的东西都收在这里（照微信，一级入口只留少数几个）。
 ///
-/// 两组：**记录**（今天的事 / 信箱 / 见面礼 —— 都是本机的东西，不联真人池）
-/// 和**工具**（定时提醒 / 我的小应用）。下线的功能不出现在这里。
+/// 两组：**广场**（朋友圈）/ **记录**（今天的事 / 信箱 / 见面礼 —— 都是本机的
+/// 东西）和**工具**（定时提醒 / 我的小应用）。下线的功能不出现在这里。
 class WxDiscoverTab extends StatelessWidget {
   const WxDiscoverTab({super.key});
 
@@ -35,6 +36,22 @@ class WxDiscoverTab extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(
                 AppSpace.md, AppSpace.md, AppSpace.md, AppSpace.xxl),
             children: [
+              WkGroup(
+                children: [
+                  WkRow(
+                    key: const ValueKey('discover-moments'),
+                    leading: const WxIconTile(
+                      icon: Icons.camera_rounded,
+                      color: Color(0xFF9E6322),
+                    ),
+                    title: '朋友圈',
+                    subtitle: '广场上六位居民的近况 · 都是 AI',
+                    onTap: () => openFromDiscover(context,
+                        const MomentsScreen(),
+                        event: 'moments'),
+                  ),
+                ],
+              ),
               WkGroup(
                 children: [
                   WkRow(

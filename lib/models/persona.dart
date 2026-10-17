@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'resident.dart';
 
 /// 一个 Persona = 一个 AI 角色（投资大师 / 钓鱼老师……）。
 ///
@@ -57,6 +58,9 @@ class Personas {
   static const String campingDefaultId = 'camp_gear';
   static const String hanfuDefaultId = 'hanfu_history';
 
+  /// 广场的默认居民（林夏）。
+  static const String socialDefaultId = 'linxia';
+
   /// 某主题的人设列表。
   static List<Persona> forTopic(String topic) {
     switch (topic) {
@@ -70,6 +74,8 @@ class Personas {
         return camping;
       case 'hanfu':
         return hanfu;
+      case 'social':
+        return social;
       default:
         return all;
     }
@@ -88,6 +94,8 @@ class Personas {
         return campingDefaultId;
       case 'hanfu':
         return hanfuDefaultId;
+      case 'social':
+        return socialDefaultId;
       default:
         return defaultId;
     }
@@ -106,6 +114,27 @@ class Personas {
     _commodityFutures,
     _finFutures,
     _optionStrategist,
+  ];
+
+  /// 广场上的六位 AI 居民。
+  ///
+  /// 展示名、年龄城市职业、头像色都由 `lib/models/resident.dart` 提供；
+  /// 这里只是把它们包成聊天用的人设（prompt 在服务端 topic=social）。
+  static final List<Persona> social = [
+    for (final r in kResidents)
+      Persona(
+        id: r.id,
+        displayName: r.name,
+        title: r.title,
+        icon: r.icon,
+        color: r.colorA,
+        topic: 'social',
+        welcomeSuggestions: [
+          r.opener,
+          '你在${r.city}最喜欢哪个角落？',
+          '今天有什么小事让你开心？',
+        ],
+      ),
   ];
 
   /// 按 id 找人设；[topic] 给定时只在该主题里找，找不到回落到该主题默认人设。

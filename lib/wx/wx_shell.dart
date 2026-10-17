@@ -11,17 +11,17 @@ import '../state/auth_state.dart';
 import '../state/billing_state.dart';
 import '../theme/app_theme.dart';
 import 'chat_list_tab.dart';
-import 'circles_tab.dart';
 import 'discover_tab.dart';
 import 'me_tab.dart';
+import 'plaza_tab.dart';
 
 /// App 外壳：底部四个页签，照微信。
 ///
-///   消息 / 圈子 / 发现 / 我
+///   消息 / 广场 / 发现 / 我
 ///
 /// 消息是首屏：它是**会话列表**，点一行进聊天页（和微信一样，聊天是二级页，
-/// 不是页签）。圈子是六个兴趣圈（一个圈子进去是一屋子 AI 助手）。发现放第二
-/// 梯队的东西。我是账号、喜点与设置。
+/// 不是页签）。广场是今晚在这儿的人：六位 AI 居民，挑一个打招呼或者摇一摇。
+/// 发现放第二梯队的东西。我是账号、喜点与设置。
 ///
 /// 这一版把「主题 / 圈子」整个拿掉了：没有选主题页，没有切换主题，没有圈子
 /// 首页，也不会再整屏换色 —— App 只有一个身份（见 `core/app_profile.dart`）。
@@ -41,7 +41,7 @@ class _WxShellState extends State<WxShell> with WidgetsBindingObserver {
   int _reloadTick = 0;
   StreamSubscription<void>? _networkSub;
 
-  static const _keys = ['chats', 'circles', 'discover', 'me'];
+  static const _keys = ['chats', 'plaza', 'discover', 'me'];
 
   @override
   void initState() {
@@ -101,7 +101,7 @@ class _WxShellState extends State<WxShell> with WidgetsBindingObserver {
     final index = _index.clamp(0, 3);
     final pages = <Widget>[
       const WxChatListTab(),
-      const WxCirclesTab(),
+      const WxPlazaTab(),
       const WxDiscoverTab(),
       const WxMeTab(),
     ];
@@ -139,7 +139,7 @@ class WxTabBar extends StatelessWidget {
 
   static const _items = <(String, IconData, IconData)>[
     ('消息', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded),
-    ('圈子', Icons.groups_outlined, Icons.groups_rounded),
+    ('广场', Icons.people_alt_outlined, Icons.people_alt_rounded),
     ('发现', Icons.explore_outlined, Icons.explore_rounded),
     ('我', Icons.person_outline_rounded, Icons.person_rounded),
   ];
