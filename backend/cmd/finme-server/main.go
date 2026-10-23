@@ -1,9 +1,10 @@
 // finme-server 是后端三种角色（api / scheduler / pusher）共用的入口。
 //
 // 用法：
-//   finme-server api        --config ./config/config.toml
-//   finme-server scheduler  --config ./config/config.toml
-//   finme-server pusher     --config ./config/config.toml
+//
+//	finme-server api        --config ./config/config.toml
+//	finme-server scheduler  --config ./config/config.toml
+//	finme-server pusher     --config ./config/config.toml
 package main
 
 import (
@@ -18,29 +19,29 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/sencloud/finme-backend/internal/ai/chat"
-	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/ai/calendar"
+	"github.com/sencloud/finme-backend/internal/ai/chat"
 	"github.com/sencloud/finme-backend/internal/ai/cnnews"
 	"github.com/sencloud/finme-backend/internal/ai/news"
+	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/ai/realtime"
-	"github.com/sencloud/finme-backend/internal/ai/weather"
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	aitools "github.com/sencloud/finme-backend/internal/ai/tools"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
+	"github.com/sencloud/finme-backend/internal/ai/weather"
 	"github.com/sencloud/finme-backend/internal/api"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
 	"github.com/sencloud/finme-backend/internal/brief"
 	"github.com/sencloud/finme-backend/internal/devices"
 	"github.com/sencloud/finme-backend/internal/ding"
+	"github.com/sencloud/finme-backend/internal/falsification"
+	"github.com/sencloud/finme-backend/internal/fishing"
 	"github.com/sencloud/finme-backend/internal/ingest"
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/live"
 	"github.com/sencloud/finme-backend/internal/llm"
 	"github.com/sencloud/finme-backend/internal/miniapp"
-	"github.com/sencloud/finme-backend/internal/falsification"
-	"github.com/sencloud/finme-backend/internal/fishing"
 	"github.com/sencloud/finme-backend/internal/onboarding"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/predict"
@@ -49,6 +50,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
+	"github.com/sencloud/finme-backend/internal/story"
 	"github.com/sencloud/finme-backend/internal/strategy"
 	"github.com/sencloud/finme-backend/internal/users"
 
@@ -271,6 +273,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Falsification: buildFalsificationService(cfg, &l, st),
 		Fishing:       fishingSvc,
 		MiniApps:      buildMiniAppService(cfg, &l, st, fishingSvc),
+		Story:         buildStoryService(cfg, &l, st),
 	}
 	router := api.NewRouter(deps)
 
@@ -356,6 +359,26 @@ func buildBriefService(cfg *platform.Config, l *zerolog.Logger, st *store.Store)
 		return brief.NewService(st, l, nil, rt, "")
 	}
 	return brief.NewService(st, l, ds, rt, cfg.LLM.ChatModel)
+}
+
+// buildStoryService 构造《天亮以前》试用版服务。
+//
+// LLM 未配置时仍返回可用实例：进度 / 结局照常保存，聊天接口返回
+// STORY.AI_NOT_CONFIGURED，客户端自动回落到本地脚本。
+func buildStoryService(cfg *platform.Config, l *zerolog.Logger, st *store.Store) *story.Service {
+	if !cfg.LLM.Configured() {
+		l.Warn().Msg("story: llm not configured, chat falls back to client local script")
+		return story.New(st, nil, cfg.LLM.ChatModel)
+	}
+	ds, err := llm.NewDeepSeek(cfg.LLM.APIKey, cfg.LLM.BaseURL,
+		cfg.LLM.ChatModel, cfg.LLM.ReasonModel,
+		time.Duration(cfg.LLM.TimeoutSec)*time.Second)
+	if err != nil {
+		l.Error().Err(err).Msg("story: deepseek init failed, chat disabled")
+		return story.New(st, nil, cfg.LLM.ChatModel)
+	}
+	l.Info().Str("model", ds.Chat).Msg("story: AI chat enabled")
+	return story.New(st, ds, cfg.LLM.ChatModel)
 }
 
 // buildChatService 构造 /v1/ai/chat 服务，依赖 LLM + Tushare + News + tools 注册表。
@@ -446,10 +469,10 @@ func waitForSignal() {
 }
 
 // runScheduler 启动 finme-server scheduler 子进程：
-// - 余额对账（每 5 分钟）
-// - DING runner（每 30 秒抢占 due tasks → 扣费 → chat.Service 工具 loop → 写通知）
-// - Live runner（每 1 分钟：日历填充 + 抢占 due 直播场次 → 选股 → 多 persona × 多股
-//   逐个 tool loop → 落 live_reports）
+//   - 余额对账（每 5 分钟）
+//   - DING runner（每 30 秒抢占 due tasks → 扣费 → chat.Service 工具 loop → 写通知）
+//   - Live runner（每 1 分钟：日历填充 + 抢占 due 直播场次 → 选股 → 多 persona × 多股
+//     逐个 tool loop → 落 live_reports）
 func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 	sch := scheduler.New(&l)
 	sch.Register(scheduler.NewReconcileBalance(st, &l, 5*time.Minute))

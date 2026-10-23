@@ -25,7 +25,8 @@ const bool kEnableWatchlist =
     bool.fromEnvironment('ENABLE_WATCHLIST', defaultValue: false);
 
 /// 「发现」里的 AI 直播入口。
-const bool kEnableLive = bool.fromEnvironment('ENABLE_LIVE', defaultValue: false);
+const bool kEnableLive =
+    bool.fromEnvironment('ENABLE_LIVE', defaultValue: false);
 
 /// 「发现」里的鹦鹉螺预测入口（含螺壳钱包、螺壳邀请页）。
 /// 关闭时不再刷新螺壳钱包；邀请改走 /v1/invite（喜点）。
@@ -36,3 +37,16 @@ const bool kEnableNautilus =
 /// 服务端接口默认也关闭（FINME_FISHING_IDENTIFY=1 才放行）。识鱼页面代码保留。
 const bool kEnableFishIdentify =
     bool.fromEnvironment('ENABLE_FISH_IDENTIFY', defaultValue: false);
+
+/// 《喜爱 · 天亮以前》二次元试用版。默认关闭，不打扰主 App。
+///
+///   flutter run --dart-define=ENABLE_STORY_TRIAL=true
+///
+/// 置 true 后，「发现」多一行入口；主 App 的微信壳与投研主线不动。
+const bool kEnableStoryTrial =
+    bool.fromEnvironment('ENABLE_STORY_TRIAL', defaultValue: false);
+
+/// 走查用：跳过主 App，直接把 NightShell 作为首页。
+///   flutter run --dart-define=STORY_TRIAL_HOME=true
+const bool kStoryTrialHome =
+    bool.fromEnvironment('STORY_TRIAL_HOME', defaultValue: false);

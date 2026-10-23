@@ -13,6 +13,7 @@ import '../social/screens/gift_screen.dart';
 import '../social/screens/mail_tab.dart';
 import '../social/screens/today_tab.dart';
 import '../state/ding_state.dart';
+import '../story/night_shell.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wk_kit.dart';
 import 'moments_screen.dart';
@@ -46,12 +47,28 @@ class WxDiscoverTab extends StatelessWidget {
                     ),
                     title: '朋友圈',
                     subtitle: '广场上六位居民的近况 · 都是 AI',
-                    onTap: () => openFromDiscover(context,
-                        const MomentsScreen(),
+                    onTap: () => openFromDiscover(
+                        context, const MomentsScreen(),
                         event: 'moments'),
                   ),
                 ],
               ),
+              if (kEnableStoryTrial)
+                WkGroup(
+                  children: [
+                    WkRow(
+                      key: const ValueKey('discover-story-trial'),
+                      leading: const WxIconTile(
+                        icon: Icons.nightlight_round,
+                        color: Color(0xFF1B2130),
+                      ),
+                      title: '天亮以前 · 试用',
+                      subtitle: '七个夜晚，三个未接来电 · 二次元',
+                      onTap: () => openFromDiscover(context, const NightShell(),
+                          event: 'story_trial'),
+                    ),
+                  ],
+                ),
               WkGroup(
                 children: [
                   WkRow(

@@ -26,6 +26,10 @@ build/
 # Local deploy build artifacts (cross-compiled linux binary)
 .tools/_build/
 
+# 试用版字体子集的中间产物（由 tools/gen_story_font.py 生成）
+.tools/NightSans-400.ttf
+.tools/story_font_chars.txt
+
 # Environment / secrets
 .env
 .env.local

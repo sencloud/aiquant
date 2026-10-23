@@ -31,6 +31,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/share"
 	"github.com/sencloud/finme-backend/internal/shell"
 	"github.com/sencloud/finme-backend/internal/store"
+	"github.com/sencloud/finme-backend/internal/story"
 	"github.com/sencloud/finme-backend/internal/strategy"
 	"github.com/sencloud/finme-backend/internal/users"
 )
@@ -63,6 +64,8 @@ type Deps struct {
 	Fishing *fishing.Service
 	// MiniApps 对话生成的小应用（发现页）；nil 时接口返回 503。
 	MiniApps *miniapp.Service
+	// Story 《天亮以前》试用版：进度 / 结局 / AI 自由聊天。
+	Story *story.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
 }
@@ -101,6 +104,7 @@ func NewRouter(d *Deps) http.Handler {
 			r.Use(auditMiddleware(d.Store))
 			mountAIChat(r, d)
 			mountDingLong(r, d)
+			mountStory(r, d)
 		})
 
 		// 其余路由统一加全局 60s 超时
@@ -119,6 +123,7 @@ func NewRouter(d *Deps) http.Handler {
 			// 鹦鹉螺：市场浏览公开（未登录可看），管理端走 X-Admin-Key。
 			mountNautilusPublic(r, d)
 			mountNautilusAdmin(r, d)
+			mountStoryAdmin(r, d)
 			// 本机采集端推送入口：X-Ingest-Key 鉴权，不走用户 JWT。
 			mountIngest(r, d)
 			// 首页内容（今天想聊点什么）公开：无用户数据，未登录也能看。
@@ -129,6 +134,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountFishingPublic(r, d)
 			// 小应用官方模板：未登录可浏览 / 试运行。
 			mountMiniAppsPublic(r, d)
+			// 试用版开关：公开读取，客户端据此决定是否显示入口 / 分享。
+			mountStoryPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -156,8 +163,8 @@ func NewRouter(d *Deps) http.Handler {
 func handleHealthz(_ *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]any{
-			"status":     "ok",
-			"timestamp":  time.Now().UnixMilli(),
+			"status":    "ok",
+			"timestamp": time.Now().UnixMilli(),
 		})
 	}
 }

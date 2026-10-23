@@ -94,6 +94,42 @@ flutter run                 # 真机 / 模拟器
 flutter run -d chrome       # 网页预览（按手机尺寸看得更准）
 ```
 
+### 天亮以前（二次元试用，默认关闭）
+
+《喜爱 · 天亮以前》是「广场」那一半的二次元试用版：六位居民全部换成像素立绘，
+七夜、三条路线、十个结局；当前这一刀先把林夏线跑通，聊天回复是本地脚本，
+`/v1/story/chat` 的 AI 接口还没接。
+
+```bash
+# 直接把试用版当首页（走查 / 截图用）
+flutter run -d chrome --dart-define=STORY_TRIAL_HOME=true
+
+# 或在主 App「发现」里多一行入口，主 App 其它页面不动
+flutter run --dart-define=ENABLE_STORY_TRIAL=true
+```
+
+试用版文案的中文字体是 Noto Sans SC 子集（`assets/fonts/`）。改完 `lib/story/`
+文案后重跑一次，避免 Web 端漏字：
+
+```bash
+python tools/gen_story_font.py
+```
+
+设计稿与需求：[design/xiai-night/requirements.md](design/xiai-night/requirements.md)。
+
+后端已接：
+
+- `GET /v1/story/state`：当前故事线 + 消息 + 已解锁结局。
+- `PUT /v1/story/runs/{id}`：保存进度（夜 / beat / 心级 / flags / 结局）。
+- `POST /v1/story/runs/{id}/chat`：SSE 自由聊天，场景 prompt 在服务端拼。
+- `GET /v1/story/config`：试用版远程开关（总开关 / 开放角色 / 分享 / 聊天上限 / 公告），公开读。
+- `PUT /v1/admin/story/config`：用 `X-Admin-Key` 更新开关；不重启即生效（key 沿用 `[nautilus].admin_key`）。
+- `0027_story.sql`：`story_runs` / `story_messages` / `story_endings`，随 api 启动迁移。
+- `0028_story_config.sql`：`story_config` 单行配置；默认三条路线全开。
+
+立绘终稿：把 6 × 6 张 PNG 按 [`assets/night/portraits/README.md`](assets/night/portraits/README.md)
+的命名放进去，再给角色加 `artAsset` 前缀即可；缺图自动回落到代码绘制的试作。
+
 设计走查用真实渲染截图核对，不靠猜：
 
 ```bash

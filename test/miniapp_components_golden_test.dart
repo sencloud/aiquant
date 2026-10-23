@@ -1,4 +1,6 @@
 // 小应用渲染器：每种组件一张金图（含组件级兜底）。
+import 'dart:io';
+
 import 'package:fincept_app/miniapp/render/components.dart';
 import 'package:fincept_app/miniapp/render/spec_runtime.dart';
 import 'package:fincept_app/theme/app_theme.dart';
@@ -219,7 +221,7 @@ void main() {
       }
       await expectLater(find.byType(MaterialApp),
           matchesGoldenFile('goldens/miniapp_component_${e.key}.png'));
-    });
+    }, skip: !Platform.environment.containsKey('STRATEGY_FONT_DIR'));
   }
 
   testWidgets('卡片模式（compact）不画输入控件', (tester) async {

@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_profile.dart';
+import 'core/config/features.dart';
 import 'desktop/desktop_shell.dart';
 import 'screens/auth/auth_gate.dart';
 import 'screens/splash/splash_screen.dart';
+import 'story/night_shell.dart';
 import 'theme/app_theme.dart';
 import 'wx/wx_shell.dart';
 
@@ -46,10 +48,12 @@ class _XiaiAppState extends State<XiaiApp> {
                   if (mounted) setState(() => _splashDone = true);
                 },
               )
-            : AuthGate(
-                homeBuilder: (_) =>
-                    _isDesktop ? const DesktopShell() : const WxShell(),
-              ),
+            : kStoryTrialHome
+                ? const NightShell()
+                : AuthGate(
+                    homeBuilder: (_) =>
+                        _isDesktop ? const DesktopShell() : const WxShell(),
+                  ),
       ),
     );
   }
