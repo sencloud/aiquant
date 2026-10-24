@@ -13,6 +13,7 @@ import '../../services/analytics.dart';
 import '../../services/image_attach_service.dart';
 import '../../services/market_briefing.dart';
 import '../../services/companion_voice.dart';
+import '../../services/companion_stt.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
@@ -93,6 +94,7 @@ class _AssistantScreenState extends State<AssistantScreen>
   final List<String> _pendingImages = [];
   final Map<String, Uint8List> _pendingImageBytes = {};
   bool _pickingImage = false;
+  bool _listening = false;
 
   /// 已经为哪个会话做过「进入即定位到最新消息」的初始滚动。
   String? _scrolledSessionId;
@@ -252,6 +254,31 @@ class _AssistantScreenState extends State<AssistantScreen>
   }
 
   Future<void> _sendSuggestion(String q) => _send(q);
+
+  Future<void> _toggleVoiceInput() async {
+    if (_listening) {
+      await CompanionStt.instance.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+    await CompanionVoice.instance.stop();
+    final ok = await CompanionStt.instance.start(
+      onText: (text) {
+        if (!mounted) return;
+        setState(() => _listening = false);
+        _send(text);
+      },
+      onDone: () {
+        if (mounted) setState(() => _listening = false);
+      },
+    );
+    if (!mounted) return;
+    setState(() => _listening = ok);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('没有拿到麦克风或语音识别权限，可以去系统设置里打开')));
+    }
+  }
 
   Future<void> _regenerate(ChatState chat, ChatMessage msg) async {
     if (chat.streaming) return;
@@ -926,10 +953,19 @@ class _AssistantScreenState extends State<AssistantScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_pendingImages.isNotEmpty) _pendingImageStrip(),
+          if (_listening)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('正在听……说完会自动发出去',
+                  textAlign: TextAlign.center,
+                  style: AppType.caption
+                      .copyWith(color: AppColors.textSecondary)),
+            ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _attachButton(),
+              _voiceButton(),
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Container(
@@ -1047,6 +1083,25 @@ class _AssistantScreenState extends State<AssistantScreen>
             Icons.add_circle_outline_rounded,
             size: 26,
             color: disabled ? AppColors.textTertiary : AppColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _voiceButton() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: InkWell(
+        key: const ValueKey('chat-voice'),
+        customBorder: const CircleBorder(),
+        onTap: _toggleVoiceInput,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            _listening ? Icons.mic_rounded : Icons.mic_none_rounded,
+            size: 24,
+            color: _listening ? AppColors.danger : AppColors.textPrimary,
           ),
         ),
       ),

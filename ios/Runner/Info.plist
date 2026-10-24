@@ -64,6 +64,10 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>仅在你主动点「拍照」时使用相机：给 AI 对话发图片、给渔获日记配照片。不会在后台拍摄。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>只在你按住说话时使用麦克风，把你的话转成文字发给她。不会在后台录音。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>把你说的话转成文字，用来和她聊天。录音不会上传到第三方。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>仅在你主动从「照片」选图时访问：给 AI 对话发图片、给渔获日记配照片。不会自动读取你的照片。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
