@@ -25,6 +25,7 @@ import '../settings/account_kit.dart';
 import '../companion/companion_avatar.dart';
 import '../companion/interests_sheet.dart';
 import '../companion/companion_moments_screen.dart';
+import '../companion/memory_screen.dart';
 import '../companion/her_screen.dart';
 import '../companion/live_avatar.dart';
 import '../../models/companion_mood.dart';
@@ -228,12 +229,14 @@ class _AssistantScreenState extends State<AssistantScreen>
     final companion = isCompanion ? context.read<CompanionState>() : null;
     final prefs = companion?.interests;
     companion?.setMood(AvatarMood.listening);
+    await companion?.rememberFrom(text);
     await chat.sendMessage(text,
         portfolioContext: ctxJson,
         imageDataUrls: images,
         preferences: prefs,
         companionName: companion?.name,
-        companionStyle: companion?.look.style);
+        companionStyle: companion?.look.style,
+        memories: companion?.memories);
     final reply = chat.latestAssistant?.content ?? '';
     companion?.setMood(
       reply.contains('哈哈') || reply.contains('开心') || reply.contains('喜欢')
@@ -634,6 +637,7 @@ class _AssistantScreenState extends State<AssistantScreen>
       items: [
         _wxMenuItem('look', Icons.swipe_rounded, '遇见'),
         _wxMenuItem('moments', Icons.camera_alt_outlined, '看她'),
+        _wxMenuItem('memory', Icons.psychology_alt_outlined, '她记得的事'),
         _wxMenuItem('interests', Icons.favorite_border_rounded, '兴趣设置'),
         _wxMenuItem(
           'credits',
@@ -671,6 +675,10 @@ class _AssistantScreenState extends State<AssistantScreen>
       case 'moments':
         await Navigator.of(context).push(MaterialPageRoute<void>(
             builder: (_) => const CompanionMomentsScreen()));
+        break;
+      case 'memory':
+        await Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const MemoryScreen()));
         break;
       case 'voice':
         final on = !companion.voiceEnabled;

@@ -57,6 +57,7 @@ type ChatInput struct {
 	// CompanionName / CompanionStyle 是用户当前选的形象名与语气（companion 主题）。
 	CompanionName  string
 	CompanionStyle string
+	Memories       []string
 	// Topic 是主题 id（money / fishing）。空 = money，老版本 App 不传即保持原行为。
 	// 决定基础 system prompt、人设表、工具白名单、推荐追问口吻和扣费 reason。
 	Topic string
@@ -281,7 +282,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return err
 	}
 	llmMsgs := []llm.MessageWithTools{}
-	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText, in.Preferences, in.CompanionName, in.CompanionStyle); sys != "" {
+	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText, in.Preferences, in.CompanionName, in.CompanionStyle, in.Memories); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
 	// 只保留最近 MaxHistoryImageMessages 条带图消息的图片：图片每轮都会重发
@@ -482,7 +483,7 @@ func mapMessageToLLM(m Message, withImages bool) llm.MessageWithTools {
 //     App 的行为），没有时用服务端人设表里的 prompt —— 新版 App 只传 persona
 //     id，两条路径拼出的结果逐字一致；其它主题忽略 system_hint，只看 persona id。
 //   - 主题的 Guard 命中敏感词时，在末尾追加一段提醒。
-func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string, prefs []string, companionName, companionStyle string) string {
+func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string, prefs []string, companionName, companionStyle string, memories []string) string {
 	extra := ""
 	if tp.AcceptSystemHint && strings.TrimSpace(systemHint) != "" {
 		extra = systemHint
@@ -493,6 +494,7 @@ func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *P
 	if tp.ID == topic.Companion {
 		out += renderCompanionIdentity(companionName, companionStyle)
 		out += renderCompanionPreferences(prefs)
+		out += renderCompanionMemories(memories)
 	}
 	if tp.Guard != nil {
 		if g := tp.Guard(userText); g != "" {
@@ -500,6 +502,29 @@ func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *P
 		}
 	}
 	return out
+}
+
+// renderCompanionMemories 注入用户自己说过、且没有被删掉的记忆。
+func renderCompanionMemories(memories []string) string {
+	clean := make([]string, 0, len(memories))
+	for _, m := range memories {
+		m = strings.TrimSpace(m)
+		if m == "" {
+			continue
+		}
+		if r := []rune(m); len(r) > 80 {
+			m = string(r[:80])
+		}
+		clean = append(clean, m)
+		if len(clean) == 12 {
+			break
+		}
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	return "\n\n【她记得的事（用户明确说过的）】" + strings.Join(clean, "；") +
+		"。可以在合适的时候自然提起，但不要像念清单一样复述；不要补充或推断他没说过的事。"
 }
 
 // renderCompanionIdentity 让服务端跟着客户端当前选的形象改名字与语气。

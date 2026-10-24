@@ -24,6 +24,7 @@ class CompanionState extends ChangeNotifier {
   static const _kLastProactive = 'companion.last_proactive';
   static const _kLook = 'companion.look';
   static const _kVoice = 'companion.voice';
+  static const _kMemories = 'companion.memories';
 
   /// 编辑页里的预设。
   static const presets = <String>[
@@ -46,6 +47,7 @@ class CompanionState extends ChangeNotifier {
   int _lookIndex = 0;
   AvatarMood _mood = AvatarMood.calm;
   bool _voiceEnabled = true;
+  List<String> _memories = const [];
   DateTime? _lastProactive;
   bool _loaded = false;
 
@@ -54,6 +56,7 @@ class CompanionState extends ChangeNotifier {
   String get name => look.name;
   AvatarMood get mood => _mood;
   bool get voiceEnabled => _voiceEnabled;
+  List<String> get memories => List.unmodifiable(_memories);
   bool get loaded => _loaded;
 
   /// 读本机记忆。盒子没打开（单测）时就用默认值，不抛。
@@ -74,6 +77,10 @@ class CompanionState extends ChangeNotifier {
         }
         final voice = prefsBox.get(_kVoice);
         if (voice is bool) _voiceEnabled = voice;
+        final mem = prefsBox.get(_kMemories);
+        if (mem is String && mem.isNotEmpty) {
+          _memories = (jsonDecode(mem) as List).cast<String>();
+        }
       }
     } catch (_) {
       // 记忆坏了不该让 App 起不来：用默认值继续。
@@ -121,6 +128,47 @@ class CompanionState extends ChangeNotifier {
     _voiceEnabled = on;
     try {
       if (Hive.isBoxOpen(kBoxPrefs)) await prefsBox.put(_kVoice, on);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  /// 从你说的话里记住明确说过的事实（不猜、不推断）。
+  ///
+  /// 只收含「我喜欢 / 我最近 / 我住在 / 我习惯 …」这类第一人称陈述的句子，
+  /// 每句 ≤ 60 字，最多 20 条。
+  Future<void> rememberFrom(String text) async {
+    const keys = [
+      '我喜欢', '我不喜欢', '我最近', '我习惯', '我每天', '我周末',
+      '我想去', '我在学', '我住在', '我讨厌', '我怕', '我准备',
+    ];
+    final parts = text.split(RegExp(r'[。！？!?\n]'));
+    var changed = false;
+    for (final part in parts) {
+      final s = part.trim();
+      if (s.isEmpty || s.length > 60) continue;
+      if (!keys.any(s.contains)) continue;
+      if (_memories.contains(s)) continue;
+      _memories = [..._memories, s];
+      if (_memories.length > 20) {
+        _memories = _memories.sublist(_memories.length - 20);
+      }
+      changed = true;
+    }
+    if (!changed) return;
+    try {
+      if (Hive.isBoxOpen(kBoxPrefs)) {
+        await prefsBox.put(_kMemories, jsonEncode(_memories));
+      }
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> removeMemory(String memory) async {
+    _memories = _memories.where((m) => m != memory).toList();
+    try {
+      if (Hive.isBoxOpen(kBoxPrefs)) {
+        await prefsBox.put(_kMemories, jsonEncode(_memories));
+      }
     } catch (_) {}
     notifyListeners();
   }

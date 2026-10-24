@@ -150,6 +150,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		// CompanionName / CompanionStyle 是当前形象（companion 主题）。
 		CompanionName  string `json:"companion_name,omitempty"`
 		CompanionStyle string `json:"companion_style,omitempty"`
+		Memories       []string `json:"memories,omitempty"`
 		// Topic 是主题 id（money / fishing）。不传 = money：老版本 App 行为不变。
 		Topic string `json:"topic,omitempty"`
 	}
@@ -266,6 +267,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			Preferences:      body.Preferences,
 			CompanionName:    strings.TrimSpace(body.CompanionName),
 			CompanionStyle:   strings.TrimSpace(body.CompanionStyle),
+			Memories:         body.Memories,
 		}, emit)
 		close(stopHeartbeat)
 	}

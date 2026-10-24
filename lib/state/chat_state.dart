@@ -234,6 +234,7 @@ class ChatState extends ChangeNotifier {
     List<String>? preferences,
     String? companionName,
     String? companionStyle,
+    List<String>? memories,
   }) async {
     final session = active ?? await newSession();
     final images = imageDataUrls ?? const <String>[];
@@ -291,6 +292,7 @@ class ChatState extends ChangeNotifier {
       preferences: preferences,
       companionName: companionName,
       companionStyle: companionStyle,
+      memories: memories,
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
       wantSuggestions: true,
