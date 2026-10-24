@@ -63,6 +63,9 @@ PEOPLE = {
     "moment_xiaoman": "anime illustration, 2D cel-shaded, a quiet mountain trail "
     "in soft morning mist, pine trees, a wooden signpost, peaceful mood, no people, "
     "clean lineart, no text",
+    "room": "anime illustration, 2D cel-shaded, a cozy small living room at dusk, "
+    "warm floor lamp, big window with soft city lights, low sofa, bookshelf, "
+    "plants, a cup on the table, empty room, no people, clean lineart, no text",
     "linxia": "a 27-year-old Chinese woman photographer with long dark hair, "
     "wearing a beige knit sweater, standing by a rain-streaked window at dusk, "
     "warm terracotta light, a film camera on a strap over her shoulder",

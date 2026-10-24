@@ -6,6 +6,7 @@ import 'package:hive/hive.dart';
 import '../core/storage/hive_setup.dart';
 import '../models/chat.dart';
 import '../models/companion_look.dart';
+import '../models/companion_mood.dart';
 import 'chat_state.dart';
 
 /// 「喜爱」——AI 伴侣的状态。
@@ -42,12 +43,14 @@ class CompanionState extends ChangeNotifier {
 
   List<String> _interests = defaults;
   int _lookIndex = 0;
+  AvatarMood _mood = AvatarMood.calm;
   DateTime? _lastProactive;
   bool _loaded = false;
 
   List<String> get interests => List.unmodifiable(_interests);
   CompanionLook get look => kCompanionLooks[_lookIndex % kCompanionLooks.length];
   String get name => look.name;
+  AvatarMood get mood => _mood;
   bool get loaded => _loaded;
 
   /// 读本机记忆。盒子没打开（单测）时就用默认值，不抛。
@@ -101,6 +104,12 @@ class CompanionState extends ChangeNotifier {
     } catch (_) {}
     notifyListeners();
     return look;
+  }
+
+  void setMood(AvatarMood mood) {
+    if (_mood == mood) return;
+    _mood = mood;
+    notifyListeners();
   }
 
   /// 她先开口。

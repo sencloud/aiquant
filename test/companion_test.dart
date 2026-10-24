@@ -1,6 +1,6 @@
 import 'package:fincept_app/core/api/auth_models.dart';
 import 'package:fincept_app/models/chat.dart';
-import 'package:fincept_app/screens/companion/companion_avatar.dart';
+import 'package:fincept_app/screens/companion/live_avatar.dart';
 import 'package:fincept_app/screens/companion/companion_home.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
@@ -39,6 +39,12 @@ void main() {
   setUpAll(() {
     dotenv.testLoad(fileInput: 'API_BASE_URL=http://127.0.0.1:9');
   });
+
+  Future<void> settle(WidgetTester t) async {
+    for (var i = 0; i < 34; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+    }
+  }
 
   group('她开口的那句话', () {
     test('开盘前提到盘', () {
@@ -131,7 +137,7 @@ void main() {
       ],
       child: const MaterialApp(home: CompanionHome()),
     ));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.pump(const Duration(milliseconds: 600));
 
     expect(find.textContaining('我是喜爱'), findsOneWidget);
@@ -159,21 +165,21 @@ void main() {
       ],
       child: const MaterialApp(home: CompanionHome()),
     ));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.pump(const Duration(milliseconds: 600));
 
     await tester.tap(find.byKey(const ValueKey('chat-menu')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('兴趣设置'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('interest-咖啡')));
     await tester.tap(find.byKey(const ValueKey('interests-save')));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(companion.interests, contains('咖啡'));
   });
 
-  testWidgets('点她的头像：换一个形象，名字跟着换', (tester) async {
+  testWidgets('点她的头像：打开「此刻的她」', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -191,12 +197,12 @@ void main() {
       ],
       child: const MaterialApp(home: CompanionHome()),
     ));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.pump(const Duration(milliseconds: 600));
 
-    await tester.tap(find.byType(CompanionAvatar).first);
-    await tester.pumpAndSettle();
-    expect(companion.name, '清禾');
-    expect(find.text('清禾'), findsWidgets);
+    await tester.tap(find.byType(LiveAvatar).first);
+    await settle(tester);
+    expect(find.text('和她说句话'), findsOneWidget);
+    expect(find.textContaining('她'), findsWidgets);
   });
 }

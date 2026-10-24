@@ -7,6 +7,8 @@ import '../../state/chat_state.dart';
 import '../../state/companion_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
+import '../../models/companion_mood.dart';
+import 'live_avatar.dart';
 
 /// App 的全部：和喜爱的一段对话。
 ///
@@ -151,16 +153,23 @@ class _ArrivalState extends State<_Arrival>
           final fadeOut = _c.value > 0.85
               ? (1 - (_c.value - 0.85) / 0.15).clamp(0.0, 1.0)
               : 1.0;
-          return Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFF8F3EA), Color(0xFFE7D5BC)],
-              ),
-            ),
-            child: Stack(
+          return Stack(
+            fit: StackFit.expand,
               children: [
+                Image.asset('assets/portraits/room.jpg', fit: BoxFit.cover),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.30),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.45),
+                      ],
+                    ),
+                  ),
+                ),
                 for (var i = 0; i < 7; i++)
                   Positioned(
                     left: 30.0 + (i * 47) % 330,
@@ -182,14 +191,12 @@ class _ArrivalState extends State<_Arrival>
                       children: [
                         Transform.scale(
                           scale: 0.88 + 0.12 * t,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(28),
-                            child: Image.asset(
-                              look.asset,
-                              width: 156,
-                              height: 156,
-                              fit: BoxFit.cover,
-                            ),
+                          child: LiveAvatar(
+                            look: look,
+                            mood: AvatarMood.happy,
+                            width: 168,
+                            height: 208,
+                            radius: 28,
                           ),
                         ),
                         const SizedBox(height: AppSpace.lg),
@@ -215,7 +222,6 @@ class _ArrivalState extends State<_Arrival>
                   ),
                 ),
               ],
-            ),
           );
         },
       ),

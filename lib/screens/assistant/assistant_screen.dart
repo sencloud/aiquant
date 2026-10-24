@@ -23,6 +23,9 @@ import '../settings/account_kit.dart';
 import '../companion/companion_avatar.dart';
 import '../companion/interests_sheet.dart';
 import '../companion/companion_moments_screen.dart';
+import '../companion/her_screen.dart';
+import '../companion/live_avatar.dart';
+import '../../models/companion_mood.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 
@@ -213,12 +216,19 @@ class _AssistantScreenState extends State<AssistantScreen>
     final isCompanion = chat.active?.topic == 'companion';
     final companion = isCompanion ? context.read<CompanionState>() : null;
     final prefs = companion?.interests;
+    companion?.setMood(AvatarMood.listening);
     await chat.sendMessage(text,
         portfolioContext: ctxJson,
         imageDataUrls: images,
         preferences: prefs,
         companionName: companion?.name,
         companionStyle: companion?.look.style);
+    final reply = chat.latestAssistant?.content ?? '';
+    companion?.setMood(
+      reply.contains('哈哈') || reply.contains('开心') || reply.contains('喜欢')
+          ? AvatarMood.happy
+          : (reply.contains('害羞') ? AvatarMood.shy : AvatarMood.calm),
+    );
     Analytics.instance.track(Analytics.evChatSend, {
       'chars': text.length,
       'images': images.length,
@@ -413,6 +423,9 @@ class _AssistantScreenState extends State<AssistantScreen>
     final isCompanion = session?.topic == 'companion';
     final companion = isCompanion ? context.watch<CompanionState>() : null;
     final titleName = companion?.name ?? persona.displayName;
+    final companionMood = companion == null
+        ? AvatarMood.calm
+        : (chat.streaming ? AvatarMood.thinking : companion.mood);
     final selfName = context.watch<AuthState>().currentUser?.nickname ?? '';
 
     if (chat.streaming) _scrollToBottom(animate: false);
@@ -511,15 +524,21 @@ class _AssistantScreenState extends State<AssistantScreen>
                             showActions: !isCompanion,
                             assistantAvatar: session.topic == 'companion'
                                 ? GestureDetector(
-                                    onTap: () => _switchLook(companion),
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                          builder: (_) => const HerScreen()),
+                                    ),
                                     child: AnimatedSwitcher(
                                       duration:
                                           const Duration(milliseconds: 220),
-                                      child: CompanionAvatar(
+                                      child: LiveAvatar(
                                         key: ValueKey(companion!.look.id),
-                                        size: 40,
+                                        look: companion.look,
+                                        mood: companionMood,
+                                        width: 40,
+                                        height: 40,
                                         radius: 6,
-                                        asset: companion.look.asset,
+                                        glow: false,
                                       ),
                                     ),
                                   )
