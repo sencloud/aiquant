@@ -1,5 +1,6 @@
 import 'package:fincept_app/core/api/auth_models.dart';
 import 'package:fincept_app/models/chat.dart';
+import 'package:fincept_app/screens/companion/companion_avatar.dart';
 import 'package:fincept_app/screens/companion/companion_home.dart';
 import 'package:fincept_app/state/auth_state.dart';
 import 'package:fincept_app/state/billing_state.dart';
@@ -131,12 +132,13 @@ void main() {
       child: const MaterialApp(home: CompanionHome()),
     ));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
 
-    expect(find.text('我是喜爱。'), findsOneWidget);
-    expect(find.text('陪着你，是长情的告白。'), findsOneWidget);
-    expect(find.textContaining('她记得你喜欢'), findsOneWidget);
-    expect(find.text('今天有点累，陪我说会儿话吧'), findsOneWidget);
-    expect(find.text('AI 伴侣'), findsOneWidget);
+    expect(find.textContaining('我是喜爱'), findsOneWidget);
+    expect(find.textContaining('陪着你，是长情的告白'), findsOneWidget);
+    // 标题就是名字，没有 AI 标签。
+    expect(find.text('喜爱'), findsOneWidget);
+    expect(find.text('AI 伴侣'), findsNothing);
   });
 
   testWidgets('她记得的喜欢：勾一个咖啡，保存后页面跟着变', (tester) async {
@@ -158,14 +160,43 @@ void main() {
       child: const MaterialApp(home: CompanionHome()),
     ));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
 
-    await tester.tap(find.byKey(const ValueKey('companion-welcome-interests')));
+    await tester.tap(find.byKey(const ValueKey('chat-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('兴趣设置'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('interest-咖啡')));
     await tester.tap(find.byKey(const ValueKey('interests-save')));
     await tester.pumpAndSettle();
 
     expect(companion.interests, contains('咖啡'));
-    expect(find.textContaining('咖啡'), findsWidgets);
+  });
+
+  testWidgets('点她的头像：换一个形象，名字跟着换', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final chat = ChatState(store: MemoryChatSessionStore());
+    final companion =
+        CompanionState(clock: () => DateTime(2026, 10, 22, 9, 0));
+    await companion.load();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthState>(create: (_) => _Authed()),
+        ChangeNotifierProvider<BillingState>(create: (_) => _QuietBilling()),
+        ChangeNotifierProvider.value(value: chat),
+        ChangeNotifierProvider.value(value: companion),
+      ],
+      child: const MaterialApp(home: CompanionHome()),
+    ));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.tap(find.byType(CompanionAvatar).first);
+    await tester.pumpAndSettle();
+    expect(companion.name, '清禾');
+    expect(find.text('清禾'), findsWidgets);
   });
 }

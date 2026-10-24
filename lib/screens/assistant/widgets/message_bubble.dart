@@ -55,6 +55,7 @@ class MessageBubble extends StatelessWidget {
     this.assistantIcon,
     this.assistantColor,
     this.assistantAvatar,
+    this.showActions = true,
   });
 
   final ChatMessage message;
@@ -83,6 +84,9 @@ class MessageBubble extends StatelessWidget {
 
   /// 对面这位的自定义头像（广场居民用插画头像，钱主题用图标方块）。
   final Widget? assistantAvatar;
+
+  /// 伴侣页按微信的样子：气泡下面不放操作栏与追问。
+  final bool showActions;
 
   /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
   /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
@@ -153,7 +157,7 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
-        if (!isUser && hasContent && !message.streaming)
+        if (showActions && !isUser && hasContent && !message.streaming)
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 8),
             child: _MessageActionsBar(
@@ -170,7 +174,8 @@ class MessageBubble extends StatelessWidget {
                   : const [],
             ),
           ),
-        if (!isUser &&
+        if (showActions &&
+            !isUser &&
             isLatest &&
             !message.streaming &&
             onSuggestion != null &&
@@ -182,7 +187,7 @@ class MessageBubble extends StatelessWidget {
               onTap: onSuggestion!,
             ),
           ),
-        if (isUser && hasContent)
+        if (showActions && isUser && hasContent)
           Padding(
             padding: const EdgeInsets.only(top: 4, right: 8),
             child: _UserActionsBar(text: message.content),

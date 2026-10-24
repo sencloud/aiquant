@@ -33,6 +33,8 @@ class AiChatService {
     bool deepMode = false,
     String? systemHint,
     List<String>? preferences,
+    String? companionName,
+    String? companionStyle,
     Map<String, dynamic>? portfolioContext,
     List<String>? images,
     bool wantSuggestions = false,
@@ -59,6 +61,10 @@ class AiChatService {
         'system_hint': systemHint,
       if (preferences != null && preferences.isNotEmpty)
         'preferences': preferences,
+      if (companionName != null && companionName.isNotEmpty)
+        'companion_name': companionName,
+      if (companionStyle != null && companionStyle.isNotEmpty)
+        'companion_style': companionStyle,
       if (portfolioContext != null && portfolioContext.isNotEmpty)
         'portfolio_context': portfolioContext,
       // 多模态：本轮附带的图片 data URL 数组（服务端转成 content 片段）。

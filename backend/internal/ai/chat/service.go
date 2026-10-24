@@ -54,6 +54,9 @@ type ChatInput struct {
 	// Preferences 是用户自己勾选的兴趣（炒股 / 期货 / 钓鱼 / 爬山……）。
 	// 只用于 companion 主题：拼进 system prompt 的【用户的喜欢】，不落库。
 	Preferences []string
+	// CompanionName / CompanionStyle 是用户当前选的形象名与语气（companion 主题）。
+	CompanionName  string
+	CompanionStyle string
 	// Topic 是主题 id（money / fishing）。空 = money，老版本 App 不传即保持原行为。
 	// 决定基础 system prompt、人设表、工具白名单、推荐追问口吻和扣费 reason。
 	Topic string
@@ -278,7 +281,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return err
 	}
 	llmMsgs := []llm.MessageWithTools{}
-	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText, in.Preferences); sys != "" {
+	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText, in.Preferences, in.CompanionName, in.CompanionStyle); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
 	// 只保留最近 MaxHistoryImageMessages 条带图消息的图片：图片每轮都会重发
@@ -479,7 +482,7 @@ func mapMessageToLLM(m Message, withImages bool) llm.MessageWithTools {
 //     App 的行为），没有时用服务端人设表里的 prompt —— 新版 App 只传 persona
 //     id，两条路径拼出的结果逐字一致；其它主题忽略 system_hint，只看 persona id。
 //   - 主题的 Guard 命中敏感词时，在末尾追加一段提醒。
-func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string, prefs []string) string {
+func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string, prefs []string, companionName, companionStyle string) string {
 	extra := ""
 	if tp.AcceptSystemHint && strings.TrimSpace(systemHint) != "" {
 		extra = systemHint
@@ -488,12 +491,34 @@ func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *P
 	}
 	out := buildSystemPrompt(tp.Role, extra, pc)
 	if tp.ID == topic.Companion {
+		out += renderCompanionIdentity(companionName, companionStyle)
 		out += renderCompanionPreferences(prefs)
 	}
 	if tp.Guard != nil {
 		if g := tp.Guard(userText); g != "" {
 			out += "\n\n" + g
 		}
+	}
+	return out
+}
+
+// renderCompanionIdentity 让服务端跟着客户端当前选的形象改名字与语气。
+func renderCompanionIdentity(name, style string) string {
+	name = strings.TrimSpace(name)
+	style = strings.TrimSpace(style)
+	if name == "" {
+		return ""
+	}
+	if r := []rune(name); len(r) > 12 {
+		name = string(r[:12])
+	}
+	if r := []rune(style); len(r) > 80 {
+		style = string(r[:80])
+	}
+	out := "\n\n【你现在的名字与语气】你叫「" + name + "」。自称时用这个名字，不要说自己是喜爱。" +
+		"这是用户为你选的形象，名字与语气可以换，但你还是同一个陪伴者，记得你们之前的对话。"
+	if style != "" {
+		out += "说话风格：" + style + "。"
 	}
 	return out
 }

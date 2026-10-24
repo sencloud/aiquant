@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,30 +7,15 @@ import 'package:provider/provider.dart';
 import '../../services/analytics.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
-import 'splash_backdrop.dart';
 
 /// 开屏页。
 ///
-/// 它做两件事：
-///   1. 给冷启动一个体面的门面 —— 至少停 [minDuration]（默认 2 秒）；
-///   2. **等登录态校验真的结束**。
+/// 1.7.0 之后 App 只剩一位伴侣，开屏就只做一件事：让她先出现，然后安静地
+/// 让位给对话。没有星空、没有轨道线 —— 一张写真、名字、一句「陪伴是长情的
+/// 告白」，底部一根细线等登录态校验结束。
 ///
-/// 第二件事是这个页面存在的一半理由。`AuthState` 是懒创建的：谁先读它，它才
-/// 开始 `bootstrap()`。开屏如果不读不等，等开屏结束、`AuthGate` 拿到手时
-/// bootstrapping 还是 true，就会退回它自己的「还没就绪」占位屏 —— 也就是用户
-/// 看到的那个「第二个空标题页」。所以这里既读它（触发 bootstrap），也等它。
-/// 网络差到超过 [maxWait] 就直接进 App，不拿开屏锁人。
-///
-/// 版式（见 DESIGN.md「Motion」）：没有图标。整屏是一片夜空 —— 竖向多段渐变
-/// （品牌夜色：深墨绿 → 林间 → 晨绿），地平线辉光、围着题字的三道轨道细线、
-/// 下方几道起伏细线、错落闪烁的星光，全部由 [SplashBackdropPainter] 一支画笔画。
-/// 中间是衬线大字「喜爱」和口号「喜爱，并不是一定要得到」；底部一根发丝线代替
-/// 加载文字。
-///
-/// 第一帧只有中性渐变，与原生启动屏（iOS LaunchImage / Android
-/// splash_gradient，同一套色值）一致，所以冷启动不跳；随后 0.7s 内渐变过渡到
-/// 主题色、星光与细线依次出现、题字收字距淡入。系统「减少动态效果」打开时
-/// 直接显示最终静帧。
+/// 计时逻辑与旧版一致：至少停 [minDuration]，同时等 AuthState.bootstrap；
+/// 超过 [maxWait] 强制进 App。
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -40,22 +24,13 @@ class SplashScreen extends StatefulWidget {
     this.maxWait = _defaultMaxWait,
   });
 
-  /// 默认停 2 秒。设计走查可用 `--dart-define=SPLASH_MS=100` 缩短，
-  /// 正常构建不要动它。
   static const _defaultMinDuration = Duration(
-      milliseconds: int.fromEnvironment('SPLASH_MS', defaultValue: 2000));
-
-  /// 硬上限：登录态校验拖太久（网络差时 `/me` 最长能等 30 秒）也不锁人。
+      milliseconds: int.fromEnvironment('SPLASH_MS', defaultValue: 1600));
   static const _defaultMaxWait = Duration(
       milliseconds: int.fromEnvironment('SPLASH_MAX_MS', defaultValue: 4500));
 
-  /// 停顿结束后的回调。
   final VoidCallback onDone;
-
-  /// 最短停留时间。低于这个时长也要等满。
   final Duration minDuration;
-
-  /// 最长停留时间。到点无论如何进 App。
   final Duration maxWait;
 
   @override
@@ -64,71 +39,40 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  /// 品牌口号。全 App 统一一句，不随主题变。
-  ///
-  /// 1.3.0 换成「喜爱，并不是一定要得到」：产品从「效率承诺」改成
-  /// 「关系承诺」——不承诺你能得到什么，只承诺不假装。12 个字，字距从
-  /// 4（约 .27em）收到 3（约 .2em），一行放得下（390pt 宽）。
-  static const slogan = '喜爱，并不是一定要得到';
-  static const _sloganLetterSpacing = 3.0;
+  static const slogan = '陪伴是长情的告白';
 
-  /// 题字中心在屏高的位置（略高于正中，接近黄金分割）。
-  static const focusY = 0.43;
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..forward();
 
-  /// 入场节奏（毫秒，未压缩）。最后一段在 [_introEndMs] 放完。
-  static const _introEndMs = 1450.0;
-
-  /// 一支时钟驱动全部动效：只往前走一次（不 repeat），开屏最长也就 [maxWait]，
-  /// 测试里的 pumpAndSettle 也能收住。
-  static const _clockSpan = Duration(seconds: 10);
-
-  /// 最短停留比入场还短时（设计走查 SPLASH_MS=100 之类）按比例压缩，
-  /// 保证在停留时间内放完。
-  late final double _scale = () {
-    final cap = widget.minDuration.inMilliseconds * 0.8;
-    return cap < _introEndMs ? cap / _introEndMs : 1.0;
-  }();
-
-  late final AnimationController _clock =
-      AnimationController(vsync: this, duration: _clockSpan)..forward();
-
-  bool _still = false;
   Timer? _ceiling;
-
-  /// 最短停留是否已经走满。
   bool _minElapsed = false;
   bool _finished = false;
+  bool _still = false;
   AuthState? _auth;
   late final DateTime _started = DateTime.now();
-
-  /// 目标色组：品牌夜色（多主题下线后只有这一套）。
-  late SplashPalette _target = SplashPalette.neutral;
 
   @override
   void initState() {
     super.initState();
     Analytics.instance.track(Analytics.evAppOpen);
-
     Timer(widget.minDuration, () {
       if (!mounted) return;
       setState(() => _minElapsed = true);
       _maybeFinish();
     });
-
-    // 兜底：超过上限直接进 App。
     _ceiling = Timer(widget.maxWait, _finish);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 读一次即触发 AuthState.bootstrap()（provider 是懒创建的）。
     final auth = context.read<AuthState>();
     if (!identical(auth, _auth)) {
       _auth?.removeListener(_maybeFinish);
       _auth = auth..addListener(_maybeFinish);
     }
-    _target = SplashPalette.brand;
     _still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     if (_still) {
       _clock.stop();
@@ -145,7 +89,6 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  /// 两个条件都满足才收工：停够时间 + 登录态校验结束。
   void _maybeFinish() {
     if (_finished || !mounted || !_minElapsed) return;
     if (_auth?.bootstrapping ?? false) return;
@@ -162,111 +105,118 @@ class _SplashScreenState extends State<SplashScreen>
     widget.onDone();
   }
 
-  /// [startMs, endMs]（未压缩）这一段的进度。
-  double _phase(double ms, double startMs, double endMs,
-      [Curve curve = Curves.easeOutCubic]) {
-    final a = startMs * _scale, b = endMs * _scale;
-    final t = ((ms - a) / (b - a)).clamp(0.0, 1.0);
-    return curve.transform(t);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SplashPalette.neutral.stops[2],
+      backgroundColor: const Color(0xFFF4EEE4),
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: SystemUiOverlayStyle.dark,
         child: AnimatedBuilder(
           animation: _clock,
           builder: (context, _) {
-            final elapsed = _clock.value * _clockSpan.inMilliseconds;
-            final ms = _still ? double.infinity : elapsed;
-            final seconds = _still ? 0.0 : elapsed / 1000;
-
-            final bg = _phase(ms, 0, 700, Curves.easeInOutCubic);
-            final palette = SplashPalette.lerp(SplashPalette.neutral, _target, bg);
-            final title = _phase(ms, 380, 1180);
-            final rule = _phase(ms, 700, 1300);
-            final sub = _phase(ms, 820, 1450);
-            final bar = _phase(ms, 1000, 1400);
-            // 发丝线：停够时间就走满；还在等登录态就轻轻呼吸。
-            final waiting = _minElapsed && (_auth?.bootstrapping ?? false);
-            final progress = _still
-                ? 1.0
-                : Curves.easeInOut.transform(
-                    (elapsed / widget.minDuration.inMilliseconds).clamp(0.0, 1.0));
-
-            return LayoutBuilder(builder: (context, box) {
-              final h = box.maxHeight;
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      key: const Key('splash-backdrop'),
-                      painter: SplashBackdropPainter(
-                        palette: palette,
-                        clock: seconds,
-                        ambient: bg,
-                        stars: _phase(ms, 120, 1300, Curves.linear),
-                        lines: _phase(ms, 200, 1400, Curves.easeInOutCubic),
-                        focusY: focusY,
+            final t = _still ? 1.0 : _clock.value;
+            final photo = Curves.easeOutCubic
+                .transform((t / 0.75).clamp(0.0, 1.0));
+            final text = Curves.easeOutCubic
+                .transform(((t - 0.25) / 0.65).clamp(0.0, 1.0));
+            return Stack(
+              children: [
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFFF8F3EA), Color(0xFFEADCC8)],
                       ),
                     ),
                   ),
-                  Positioned(
-                    left: AppSpace.xl,
-                    right: AppSpace.xl,
-                    top: h * focusY - 44,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _Title(palette: palette, progress: title),
-                        const SizedBox(height: AppSpace.lg),
-                        _Rule(color: palette.line, progress: rule),
-                        const SizedBox(height: AppSpace.lg),
-                        Opacity(
-                          opacity: sub,
-                          child: Transform.translate(
-                            offset: Offset(0, (1 - sub) * 8),
-                            child: Padding(
-                              // 字距会在最后一个字后面也留一份，左边补齐才真居中。
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Text(
-                                slogan,
-                                key: const Key('splash-slogan'),
-                                textAlign: TextAlign.center,
-                                style: AppType.read.copyWith(
-                                  fontSize: 15,
-                                  height: 1.4,
-                                  letterSpacing: _sloganLetterSpacing,
-                                  fontWeight: FontWeight.w400,
-                                  color: palette.slogan.withValues(alpha: 0.86),
-                                ),
-                              ),
+                ),
+                // 左上角一团暖气，像清晨的窗光。
+                Positioned(
+                  left: -120,
+                  top: -140,
+                  child: Container(
+                    width: 420,
+                    height: 420,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF9E6322).withValues(alpha: 0.16),
+                          const Color(0xFF9E6322).withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Opacity(
+                        opacity: photo,
+                        child: Transform.translate(
+                          offset: Offset(0, (1 - photo) * 16),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: Image.asset(
+                              'assets/portraits/xiai.jpg',
+                              width: 132,
+                              height: 132,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: MediaQuery.paddingOf(context).bottom + 44,
-                    child: Semantics(
-                      label: waiting ? '网络有点慢，马上就好' : '正在加载',
-                      child: Opacity(
-                        opacity: bar *
-                            (waiting
-                                ? 0.55 + 0.45 * (0.5 + 0.5 * math.sin(seconds * 4))
-                                : 1),
-                        child: _Hairline(color: palette.line, progress: progress),
                       ),
+                      const SizedBox(height: AppSpace.xl),
+                      Opacity(
+                        opacity: text,
+                        child: Transform.translate(
+                          offset: Offset(0, (1 - text) * 10),
+                          child: Text(
+                            '喜爱',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 34,
+                              letterSpacing: 8,
+                              height: 1.2,
+                              fontWeight: FontWeight.w600,
+                              fontFamilyFallback: AppType.sansFallback,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                      Opacity(
+                        opacity: text,
+                        child: Text(
+                          slogan,
+                          style: AppType.read.copyWith(
+                            fontSize: 15,
+                            letterSpacing: 2.5,
+                            color: const Color(0xFF7A6A58),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 56,
+                  child: Center(
+                    child: _LoadingHairline(
+                      progress: _still
+                          ? 1
+                          : (t * 1.2).clamp(0.0, 1.0),
                     ),
                   ),
-                ],
-              );
-            });
+                ),
+              ],
+            );
           },
         ),
       ),
@@ -274,119 +224,29 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-/// 题字「喜爱」：衬线大字、上下双色渐变，入场时字距从疏收到定稿、淡入上浮。
-class _Title extends StatelessWidget {
-  const _Title({required this.palette, required this.progress});
+class _LoadingHairline extends StatelessWidget {
+  const _LoadingHairline({required this.progress});
 
-  final SplashPalette palette;
   final double progress;
 
   @override
   Widget build(BuildContext context) {
-    final spacing = 30 - 12 * progress;
-    return Opacity(
-      opacity: progress,
-      child: Transform.translate(
-        offset: Offset(0, (1 - progress) * 14),
-        child: ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (r) => LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [palette.titleTop, palette.titleBottom],
-          ).createShader(r),
-          child: Padding(
-            padding: EdgeInsets.only(left: spacing),
-            child: Text(
-              '喜爱',
-              key: const Key('splash-name'),
-              textAlign: TextAlign.center,
-              style: AppType.display.copyWith(
-                fontSize: 54,
-                height: 1.15,
-                fontWeight: FontWeight.w500,
-                letterSpacing: spacing,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
+    return Container(
+      width: 96,
+      height: 2,
+      decoration: BoxDecoration(
+        color: const Color(0xFF9E6322).withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(1),
       ),
-    );
-  }
-}
-
-/// 题字下的分隔：两段渐隐细线夹一粒菱形，从中间展开。
-class _Rule extends StatelessWidget {
-  const _Rule({required this.color, required this.progress});
-
-  final Color color;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final arm = 40 * progress;
-    Widget line(bool left) => Container(
-          width: arm,
-          height: 0.8,
+      alignment: Alignment.centerLeft,
+      child: FractionallySizedBox(
+        widthFactor: progress,
+        child: Container(
+          height: 2,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: left
-                  ? [color.withValues(alpha: 0), color.withValues(alpha: 0.7)]
-                  : [color.withValues(alpha: 0.7), color.withValues(alpha: 0)],
-            ),
+            color: const Color(0xFF9E6322),
+            borderRadius: BorderRadius.circular(1),
           ),
-        );
-    return Opacity(
-      opacity: progress,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          line(true),
-          const SizedBox(width: 8),
-          Transform.rotate(
-            angle: math.pi / 4,
-            child: Container(
-              width: 3.6,
-              height: 3.6,
-              color: color.withValues(alpha: 0.85),
-            ),
-          ),
-          const SizedBox(width: 8),
-          line(false),
-        ],
-      ),
-    );
-  }
-}
-
-/// 底部发丝线：替代「正在加载…」文字，从中间向两边走满。
-class _Hairline extends StatelessWidget {
-  const _Hairline({required this.color, required this.progress});
-
-  final Color color;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 96,
-        height: 1,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: ColoredBox(color: color.withValues(alpha: 0.14)),
-            ),
-            Center(
-              child: FractionallySizedBox(
-                key: const Key('splash-progress'),
-                widthFactor: progress,
-                heightFactor: 1,
-                child: ColoredBox(color: color.withValues(alpha: 0.62)),
-              ),
-            ),
-          ],
         ),
       ),
     );

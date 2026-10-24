@@ -5,6 +5,7 @@ import 'package:hive/hive.dart';
 
 import '../core/storage/hive_setup.dart';
 import '../models/chat.dart';
+import '../models/companion_look.dart';
 import 'chat_state.dart';
 
 /// 「喜爱」——AI 伴侣的状态。
@@ -20,6 +21,7 @@ class CompanionState extends ChangeNotifier {
 
   static const _kInterests = 'companion.interests';
   static const _kLastProactive = 'companion.last_proactive';
+  static const _kLook = 'companion.look';
 
   /// 编辑页里的预设。
   static const presets = <String>[
@@ -39,10 +41,13 @@ class CompanionState extends ChangeNotifier {
   final DateTime Function() _now;
 
   List<String> _interests = defaults;
+  int _lookIndex = 0;
   DateTime? _lastProactive;
   bool _loaded = false;
 
   List<String> get interests => List.unmodifiable(_interests);
+  CompanionLook get look => kCompanionLooks[_lookIndex % kCompanionLooks.length];
+  String get name => look.name;
   bool get loaded => _loaded;
 
   /// 读本机记忆。盒子没打开（单测）时就用默认值，不抛。
@@ -56,6 +61,11 @@ class CompanionState extends ChangeNotifier {
         }
         final last = prefsBox.get(_kLastProactive);
         if (last is String) _lastProactive = DateTime.tryParse(last);
+        final look = prefsBox.get(_kLook);
+        if (look is String) {
+          final i = kCompanionLooks.indexWhere((l) => l.id == look);
+          if (i >= 0) _lookIndex = i;
+        }
       }
     } catch (_) {
       // 记忆坏了不该让 App 起不来：用默认值继续。
@@ -79,6 +89,18 @@ class CompanionState extends ChangeNotifier {
       }
     } catch (_) {}
     notifyListeners();
+  }
+
+  /// 点一下头像：换下一个形象（名字与语气一起换），记住这次选择。
+  Future<CompanionLook> nextLook() async {
+    _lookIndex = (_lookIndex + 1) % kCompanionLooks.length;
+    try {
+      if (Hive.isBoxOpen(kBoxPrefs)) {
+        await prefsBox.put(_kLook, look.id);
+      }
+    } catch (_) {}
+    notifyListeners();
+    return look;
   }
 
   /// 她先开口。

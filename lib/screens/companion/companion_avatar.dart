@@ -5,17 +5,23 @@ import '../../theme/app_theme.dart';
 
 /// 喜爱的头像：写真（`assets/portraits/xiai.jpg`），缺图时回落到品牌字。
 class CompanionAvatar extends StatelessWidget {
-  const CompanionAvatar({super.key, this.size = 40, this.radius = 8});
+  const CompanionAvatar({
+    super.key,
+    this.size = 40,
+    this.radius = 8,
+    this.asset = 'assets/portraits/xiai.jpg',
+  });
 
   final double size;
   final double radius;
+  final String asset;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Image.asset(
-        'assets/portraits/xiai.jpg',
+        asset,
         width: size,
         height: size,
         fit: BoxFit.cover,

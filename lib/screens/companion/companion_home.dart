@@ -53,22 +53,26 @@ class _CompanionHomeState extends State<CompanionHome>
       await chat.bootstrap();
     }
     if (!mounted) return;
-    _ensureSession(chat);
+    await _ensureSession(chat);
+    if (!mounted) return;
+    final companion = context.read<CompanionState>();
+    if (chat.active?.messages.isEmpty ?? false) {
+      await chat.addLocalMessage(
+          '我是${companion.name}。\n陪着你，是长情的告白。');
+    }
     if (!mounted) return;
     setState(() => _ready = true);
-    await context.read<CompanionState>().maybeSaySomething(chat);
+    await companion.maybeSaySomething(chat);
   }
 
-  void _ensureSession(ChatState chat) {
+  Future<void> _ensureSession(ChatState chat) async {
     for (final s in chat.sessions) {
       if (s.topic == 'companion') {
         chat.selectSession(s.id);
         return;
       }
     }
-    // 没有就建一段；newSession 落盘不挡界面。
-    // ignore: unawaited_futures
-    chat.newSession(
+    await chat.newSession(
       topic: 'companion',
       personaId: 'xiai',
       title: '喜爱',

@@ -36,6 +36,18 @@ PEOPLE = {
     "xiai": "a 28-year-old Chinese woman with long soft dark hair, warm knowing gaze, "
     "slight smile, wearing a cream knit sweater, sitting by a window at dawn, "
     "soft golden morning light, calm and intimate mood, plain background",
+    "xiai_qinghe": "a 26-year-old Chinese woman with a short black bob and cool calm eyes, "
+    "wearing a white shirt, standing by a rainy window at dusk, cool blue light, "
+    "quiet and composed, minimal background",
+    "xiai_lulu": "a 23-year-old Chinese woman with long wavy brown hair, bright playful "
+    "smile, wearing a soft pink cardigan, warm afternoon sunlight, cheerful mood, "
+    "plain background",
+    "xiai_atang": "a 30-year-old Chinese woman with shoulder-length black hair and an "
+    "elegant confident look, black blazer, city night lights behind her, "
+    "warm amber and deep shadows, composed expression",
+    "xiai_xiaoman": "a 27-year-old Chinese woman with a low ponytail, gentle eyes, "
+    "wearing beige linen, sitting in a quiet warm library corner, soft window light, "
+    "peaceful mood",
     "linxia": "a 27-year-old Chinese woman photographer with long dark hair, "
     "wearing a beige knit sweater, standing by a rain-streaked window at dusk, "
     "warm terracotta light, a film camera on a strap over her shoulder",

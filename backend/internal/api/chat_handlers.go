@@ -147,6 +147,9 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		WantSuggestions bool `json:"want_suggestions,omitempty"`
 		// Preferences 是用户勾选的兴趣（companion 主题用），最多 8 个。
 		Preferences []string `json:"preferences,omitempty"`
+		// CompanionName / CompanionStyle 是当前形象（companion 主题）。
+		CompanionName  string `json:"companion_name,omitempty"`
+		CompanionStyle string `json:"companion_style,omitempty"`
 		// Topic 是主题 id（money / fishing）。不传 = money：老版本 App 行为不变。
 		Topic string `json:"topic,omitempty"`
 	}
@@ -261,6 +264,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			WantSuggestions:  body.WantSuggestions,
 			Topic:            strings.TrimSpace(body.Topic),
 			Preferences:      body.Preferences,
+			CompanionName:    strings.TrimSpace(body.CompanionName),
+			CompanionStyle:   strings.TrimSpace(body.CompanionStyle),
 		}, emit)
 		close(stopHeartbeat)
 	}

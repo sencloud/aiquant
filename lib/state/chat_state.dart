@@ -232,6 +232,8 @@ class ChatState extends ChangeNotifier {
     Map<String, dynamic>? portfolioContext,
     List<String>? imageDataUrls,
     List<String>? preferences,
+    String? companionName,
+    String? companionStyle,
   }) async {
     final session = active ?? await newSession();
     final images = imageDataUrls ?? const <String>[];
@@ -287,6 +289,8 @@ class ChatState extends ChangeNotifier {
       // 其它圈按 1 喜点 / 轮的普通对话（服务端也会强制）。
       deepMode: session.topic == 'money',
       preferences: preferences,
+      companionName: companionName,
+      companionStyle: companionStyle,
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
       wantSuggestions: true,
