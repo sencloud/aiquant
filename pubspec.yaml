@@ -1,5 +1,5 @@
 name: fincept_app
-description: "喜爱 — AI 投研助理。微信式的界面与交互：消息 / 通讯录 / 发现 / 我。"
+description: "喜爱 — AI 伴侣。陪伴是长情的告白。"
 publish_to: 'none'
 # 1.0.5 已过审上线，Apple 关闭了该 train，TestFlight 会拒绝同样或更低的
 # CFBundleShortVersionString（错误码 90062 / 90186），因此下一个版本必须抬号。
@@ -21,7 +21,10 @@ publish_to: 'none'
 # 上传被拒：90062（CFBundleShortVersionString 必须高于已过审的 1.1.0）与
 # 90186（train '1.1.0' is closed for new build submissions）。App Store Connect
 # 上已建好 1.2.0 版本页，这一行必须跟着抬，否则同号构建还是会被拒。
-version: 1.6.0+1
+#
+# 1.6.0 → 1.7.0：砍到只剩一个 AI 伴侣（广场 / 朋友圈 / 发现 / 故事全部下线），
+# 属于产品重做，抬一个 minor。
+version: 1.7.0+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -91,17 +94,8 @@ flutter:
     - assets/branding/
     # 广场居民的写真头像与朋友圈配图（由 .tools/gen_portraits.py 生成）
     - assets/portraits/
-    - assets/moments/
-    # 《天亮以前》立绘终稿的落点（当前代码绘制；终稿按 assets/night/portraits/README.md 放）
-    - assets/night/
     # 证伪台的数据资产（由 tools/strategy-mvp/build_falsification_data.py 生成）
     - assets/strategy/
-
-  fonts:
-    # 试用版专用：Noto Sans SC 子集，覆盖 lib/story 现有文案；换文案后重新生成。
-    - family: NightSans
-      fonts:
-        - asset: assets/fonts/NightSans-subset.ttf
 
 flutter_launcher_icons:
   image_path: "assets/branding/app_icon.png"

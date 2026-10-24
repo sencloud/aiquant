@@ -51,6 +51,9 @@ type ChatInput struct {
 	UserText    string
 	DeepMode    bool   // 启用 reasoner 模型 + 加价
 	SystemHint  string // 个性化 system prompt（可选；只有钱主题接受，兼容老版本 App）
+	// Preferences 是用户自己勾选的兴趣（炒股 / 期货 / 钓鱼 / 爬山……）。
+	// 只用于 companion 主题：拼进 system prompt 的【用户的喜欢】，不落库。
+	Preferences []string
 	// Topic 是主题 id（money / fishing）。空 = money，老版本 App 不传即保持原行为。
 	// 决定基础 system prompt、人设表、工具白名单、推荐追问口吻和扣费 reason。
 	Topic string
@@ -275,7 +278,7 @@ func (s *Service) Run(ctx context.Context, in ChatInput, emit Emitter) error {
 		return err
 	}
 	llmMsgs := []llm.MessageWithTools{}
-	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText); sys != "" {
+	if sys := buildTopicSystemPrompt(tp, firstNonEmpty(persona, sess.PersonaID), in.SystemHint, in.PortfolioContext, in.UserText, in.Preferences); sys != "" {
 		llmMsgs = append(llmMsgs, llm.MessageWithTools{Role: "system", Content: sys})
 	}
 	// 只保留最近 MaxHistoryImageMessages 条带图消息的图片：图片每轮都会重发
@@ -476,7 +479,7 @@ func mapMessageToLLM(m Message, withImages bool) llm.MessageWithTools {
 //     App 的行为），没有时用服务端人设表里的 prompt —— 新版 App 只传 persona
 //     id，两条路径拼出的结果逐字一致；其它主题忽略 system_hint，只看 persona id。
 //   - 主题的 Guard 命中敏感词时，在末尾追加一段提醒。
-func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string) string {
+func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *PortfolioContext, userText string, prefs []string) string {
 	extra := ""
 	if tp.AcceptSystemHint && strings.TrimSpace(systemHint) != "" {
 		extra = systemHint
@@ -484,12 +487,44 @@ func buildTopicSystemPrompt(tp *topic.Topic, personaID, systemHint string, pc *P
 		extra = p.Prompt
 	}
 	out := buildSystemPrompt(tp.Role, extra, pc)
+	if tp.ID == topic.Companion {
+		out += renderCompanionPreferences(prefs)
+	}
 	if tp.Guard != nil {
 		if g := tp.Guard(userText); g != "" {
 			out += "\n\n" + g
 		}
 	}
 	return out
+}
+
+// renderCompanionPreferences 把用户勾选的兴趣拼成一段给「喜爱」的记忆。
+//
+// 只写用户自己说过/勾过的：不推断持仓、不去过哪里、不认识谁。最多 8 个，
+// 每个截到 24 个字符，避免客户端塞进来一长段话。
+func renderCompanionPreferences(prefs []string) string {
+	seen := map[string]bool{}
+	clean := make([]string, 0, len(prefs))
+	for _, p := range prefs {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			continue
+		}
+		if r := []rune(p); len(r) > 24 {
+			p = string(r[:24])
+		}
+		seen[p] = true
+		clean = append(clean, p)
+		if len(clean) == 8 {
+			break
+		}
+	}
+	if len(clean) == 0 {
+		return "\n\n【用户的喜欢】他还没有告诉你他喜欢什么。先问一句，别猜。"
+	}
+	return "\n\n【用户的喜欢（他只说过这些）】" + strings.Join(clean, "、") +
+		"。聊天时自然结合这些兴趣，不要一上来罗列；不要假装知道更多。" +
+		"他把话题带到其中一件事时，先问他的感受，再聊你自己的想法。"
 }
 
 // buildSystemPrompt 注入主题基础段落（钱主题 = "我是中国 A 股助理"）；

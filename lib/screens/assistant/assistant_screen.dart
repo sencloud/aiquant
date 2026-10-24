@@ -13,14 +13,16 @@ import '../../services/analytics.dart';
 import '../../services/image_attach_service.dart';
 import '../../services/market_briefing.dart';
 import '../../state/auth_state.dart';
+import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
+import '../../state/companion_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
-import '../../models/resident.dart';
-import '../../wx/character_portrait.dart';
 import '../../wx/wx_kit.dart';
 import '../settings/account_kit.dart';
+import '../companion/companion_avatar.dart';
+import '../companion/interests_sheet.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 
@@ -204,9 +206,14 @@ class _AssistantScreenState extends State<AssistantScreen>
         );
       }
     }
-    await context
-        .read<ChatState>()
-        .sendMessage(text, portfolioContext: ctxJson, imageDataUrls: images);
+    final chat = context.read<ChatState>();
+    final prefs = chat.active?.topic == 'companion'
+        ? context.read<CompanionState>().interests
+        : null;
+    await chat.sendMessage(text,
+        portfolioContext: ctxJson,
+        imageDataUrls: images,
+        preferences: prefs);
     Analytics.instance.track(Analytics.evChatSend, {
       'chars': text.length,
       'images': images.length,
@@ -398,6 +405,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     final chat = context.watch<ChatState>();
     final session = chat.active;
     final persona = chat.currentPersona;
+    final isCompanion = session?.topic == 'companion';
     final selfName = context.watch<AuthState>().currentUser?.nickname ?? '';
 
     if (chat.streaming) _scrollToBottom(animate: false);
@@ -439,6 +447,10 @@ class _AssistantScreenState extends State<AssistantScreen>
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isCompanion) ...[
+              const CompanionAvatar(size: 26, radius: 6),
+              const SizedBox(width: AppSpace.sm),
+            ],
             Flexible(
               child: Text(
                 persona.displayName,
@@ -448,7 +460,7 @@ class _AssistantScreenState extends State<AssistantScreen>
               ),
             ),
             const SizedBox(width: AppSpace.sm),
-            const WkTag('AI'),
+            WkTag(isCompanion ? 'AI 伴侣' : 'AI'),
           ],
         ),
         actions: [
@@ -456,7 +468,9 @@ class _AssistantScreenState extends State<AssistantScreen>
             key: const ValueKey('chat-menu'),
             tooltip: '更多',
             icon: const Icon(Icons.more_horiz_rounded, size: 24),
-            onPressed: () => _openChatMenu(chat, persona),
+            onPressed: () => isCompanion
+                ? _openCompanionMenu(chat, persona)
+                : _openChatMenu(chat, persona),
           ),
           const SizedBox(width: AppSpace.xs),
         ],
@@ -492,9 +506,8 @@ class _AssistantScreenState extends State<AssistantScreen>
                             isLatest: isLatest,
                             selfName: selfName,
                             assistantName: persona.displayName,
-                            assistantAvatar: session.topic == 'social'
-                                ? CharacterPortrait(
-                                    resident: residentOf(persona.id))
+                            assistantAvatar: session.topic == 'companion'
+                                ? const CompanionAvatar(size: 40, radius: 6)
                                 : null,
                             onSuggestion: isLatest ? _sendSuggestion : null,
                             onRegenerate:
@@ -512,8 +525,137 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
+  /// 伴侣版的「…」：不换人、不新建 —— 只有「她记得什么」和账。
+  Future<void> _openCompanionMenu(ChatState chat, Persona persona) async {
+    final auth = context.read<AuthState>();
+    final billing = context.read<BillingState>();
+    final prefs = context.read<CompanionState>().interests;
+    final user = auth.currentUser;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpace.sm),
+            ListTile(
+              key: const ValueKey('companion-interests'),
+              leading: const Icon(Icons.favorite_outline_rounded),
+              title: const Text('她记得的喜欢', style: AppType.body),
+              subtitle: Text(prefs.join(' · '), style: AppType.caption),
+              onTap: () => Navigator.pop(ctx, 'interests'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('喜点', style: AppType.body),
+              subtitle: Text(
+                user == null
+                    ? '登录后查看'
+                    : '余额 ${CreditFmt.balance(billing.balance)}',
+                style: AppType.caption,
+              ),
+              onTap: () => Navigator.pop(ctx, 'credits'),
+            ),
+            ListTile(
+              leading: Icon(user == null
+                  ? Icons.login_rounded
+                  : Icons.logout_rounded),
+              title: Text(user == null ? '登录 / 注册' : '退出登录',
+                  style: AppType.body),
+              onTap: () => Navigator.pop(ctx, user == null ? 'login' : 'logout'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_sweep_outlined,
+                  color: AppColors.danger),
+              title: Text('清空这段对话',
+                  style: AppType.body.copyWith(color: AppColors.danger)),
+              onTap: () => Navigator.pop(ctx, 'clear'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded),
+              title: const Text('关于喜爱', style: AppType.body),
+              onTap: () => Navigator.pop(ctx, 'about'),
+            ),
+            const SizedBox(height: AppSpace.sm),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'interests':
+        await showInterestsSheet(context);
+        break;
+      case 'credits':
+        if (!auth.isAuthenticated) {
+          await requireLogin(context);
+        } else if (rechargeAvailable) {
+          await showRechargeSheet(context);
+        } else {
+          showLedgerSheet(context);
+        }
+        break;
+      case 'login':
+        await requireLogin(context);
+        break;
+      case 'logout':
+        await auth.logout();
+        break;
+      case 'clear':
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('清空这段对话'),
+            content: const Text('她会忘掉这段对话里的内容，但她记得的喜欢还在。'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('再想想')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('清空')),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
+        final id = chat.activeId;
+        if (id != null) await chat.deleteSession(id);
+        await chat.newSession(
+            topic: 'companion', personaId: 'xiai', title: '喜爱');
+        break;
+      case 'about':
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('关于喜爱'),
+            content: const Text(
+              '喜爱是 AI 伴侣，不是真人。\n\n'
+              '她会记得你勾选的喜欢（炒股、期货、钓鱼、爬山……），'
+              '在你一阵子没说话的时候先开口。她不替你下单、不承诺收益、'
+              '不向你索要钱财或隐私。\n\n'
+              '陪伴是长情的告白，但真实的生活和关系更值得你花时间。',
+              style: TextStyle(fontSize: 14, height: 1.65),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('知道了')),
+            ],
+          ),
+        );
+        break;
+    }
+  }
+
   /// 空会话时的问候：一行白字 + 三条快捷提问（白面行，和微信列表同一套）。
   Widget _welcomePanel(Persona persona) {
+    if (context.watch<ChatState>().active?.topic == 'companion') {
+      return _companionWelcome(persona);
+    }
     final loadedAt = _suggestionsLoadedAt;
     if (loadedAt == null ||
         DateTime.now().difference(loadedAt) > const Duration(minutes: 5)) {
@@ -559,6 +701,86 @@ class _AssistantScreenState extends State<AssistantScreen>
             ),
             const SizedBox(height: AppSpace.lg),
             for (final q in suggestions.take(3))
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                child: _entrance(slot++, _suggestion(q), from: 10),
+              ),
+            const SizedBox(height: AppSpace.xs),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 伴侣的空会话：她的头像、一句承诺、她记得的喜欢，以及三个开场。
+  Widget _companionWelcome(Persona persona) {
+    final interests = context.watch<CompanionState>().interests;
+    var slot = 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.md),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Spacer(),
+            _entrance(slot++,
+                const Center(child: CompanionAvatar(size: 88, radius: 22))),
+            const SizedBox(height: AppSpace.lg),
+            _entrance(
+                slot++,
+                const Text('我是喜爱。',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                      fontFamilyFallback: AppType.sansFallback,
+                    ))),
+            const SizedBox(height: AppSpace.sm),
+            _entrance(
+                slot++,
+                Text('陪着你，是长情的告白。',
+                    textAlign: TextAlign.center,
+                    style: AppType.read.copyWith(
+                        fontSize: 15, color: AppColors.textSecondary))),
+            const SizedBox(height: AppSpace.lg),
+            _entrance(
+              slot++,
+              Center(
+                child: InkWell(
+                  key: const ValueKey('companion-welcome-interests'),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  onTap: () => showInterestsSheet(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.favorite_rounded,
+                            size: 14, color: AppColors.amberDim),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '她记得你喜欢：${interests.join(' · ')}',
+                            style: AppType.caption
+                                .copyWith(color: AppColors.amberDim),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpace.xl),
+            for (final q in persona.welcomeSuggestions.take(3))
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpace.sm),
                 child: _entrance(slot++, _suggestion(q), from: 10),

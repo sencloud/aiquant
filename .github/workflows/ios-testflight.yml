@@ -122,7 +122,6 @@ jobs:
             --release \
             --build-number="${BN}" \
             --dart-define=API_BASE_URL=https://api.singzquant.com \
-            --dart-define=ENABLE_STORY_TRIAL=true \
             --export-options-plist=ios/ExportOptions.plist
 
       - name: Locate IPA

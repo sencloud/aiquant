@@ -70,8 +70,7 @@ jobs:
           flutter build apk \
             --release \
             --build-number="${BN}" \
-            --dart-define=API_BASE_URL=https://api.singzquant.com \
-            --dart-define=ENABLE_STORY_TRIAL=true
+            --dart-define=API_BASE_URL=https://api.singzquant.com
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

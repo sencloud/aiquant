@@ -33,6 +33,9 @@ STYLE = (
 )
 
 PEOPLE = {
+    "xiai": "a 28-year-old Chinese woman with long soft dark hair, warm knowing gaze, "
+    "slight smile, wearing a cream knit sweater, sitting by a window at dawn, "
+    "soft golden morning light, calm and intimate mood, plain background",
     "linxia": "a 27-year-old Chinese woman photographer with long dark hair, "
     "wearing a beige knit sweater, standing by a rain-streaked window at dusk, "
     "warm terracotta light, a film camera on a strap over her shoulder",

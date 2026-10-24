@@ -133,3 +133,29 @@ func TestSocialPlaza(t *testing.T) {
 		t.Fatal("social guard 误伤正常搭讪")
 	}
 }
+
+// 伴侣主线：一位「喜爱」、不挂工具、不接 system_hint、拒绝索财与越界。
+func TestCompanionTopic(t *testing.T) {
+	tp, err := Resolve(Companion)
+	if err != nil {
+		t.Fatalf("Resolve(companion) = %v", err)
+	}
+	if tp.Name != "喜爱" || !strings.Contains(tp.Role, "AI") {
+		t.Fatalf("companion name/role = %q / %q", tp.Name, tp.Role)
+	}
+	if len(tp.Personas) != 1 || tp.Persona("xiai").ID != "xiai" {
+		t.Fatalf("companion personas = %+v", tp.Personas)
+	}
+	if tp.DefaultPersona != "xiai" || tp.AcceptSystemHint || tp.AllowDeep {
+		t.Fatalf("companion default/system_hint/deep 不对")
+	}
+	if got := tp.AllowedTools([]string{"get_quote"}); len(got) != 0 {
+		t.Fatalf("companion 不该挂工具，得到 %v", got)
+	}
+	if tp.Guard == nil || tp.Guard("能转我点钱吗") == "" {
+		t.Fatal("companion guard 应拦转账类话题")
+	}
+	if tp.Guard("今天收盘怎么样") != "" {
+		t.Fatal("companion guard 误伤正常聊天")
+	}
+}

@@ -84,6 +84,17 @@ class ChatState extends ChangeNotifier {
 
   ChatSession? _mostRecent() => _sessions.isEmpty ? null : _sessions.first;
 
+  /// 本机往当前会话里插一条 assistant 消息（伴侣主动开口用）。
+  ///
+  /// 不走 /v1/ai/chat、不扣喜点；只是把她说的话放进本地会话。
+  Future<void> addLocalMessage(String text) async {
+    final session = active ?? await newSession();
+    session.messages.add(ChatMessage(role: 'assistant', content: text));
+    session.updatedAt = DateTime.now();
+    _store.save(session);
+    notifyListeners();
+  }
+
   Future<void> bootstrap() async {
     _sessions = _store.load()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -94,8 +105,12 @@ class ChatState extends ChangeNotifier {
       _activeId = first.id;
     }
     for (final s in _sessions) {
-      final v = prefsBox.get('$_kServerIdPrefix${s.id}');
-      if (v is String && v.isNotEmpty) _serverIdMap[s.id] = v;
+      try {
+        final v = prefsBox.get('$_kServerIdPrefix${s.id}');
+        if (v is String && v.isNotEmpty) _serverIdMap[s.id] = v;
+      } catch (_) {
+        // 盒子没打开（单测）时跳过服务端会话映射，不影响本地会话。
+      }
     }
     notifyListeners();
   }
@@ -216,6 +231,7 @@ class ChatState extends ChangeNotifier {
     String text, {
     Map<String, dynamic>? portfolioContext,
     List<String>? imageDataUrls,
+    List<String>? preferences,
   }) async {
     final session = active ?? await newSession();
     final images = imageDataUrls ?? const <String>[];
@@ -270,6 +286,7 @@ class ChatState extends ChangeNotifier {
       // 产品策略：喜爱钱深度推理始终开启（+5 喜点），不暴露给用户切换；
       // 其它圈按 1 喜点 / 轮的普通对话（服务端也会强制）。
       deepMode: session.topic == 'money',
+      preferences: preferences,
       portfolioContext: portfolioContext,
       images: images.isEmpty ? null : images,
       wantSuggestions: true,

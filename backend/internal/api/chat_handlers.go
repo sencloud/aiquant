@@ -145,6 +145,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 		// WantSuggestions 为 true 时 done 之后追加一条 `suggestions` 事件
 		// （推荐追问）。新版 App 才会传；旧版不传则协议完全不变。
 		WantSuggestions bool `json:"want_suggestions,omitempty"`
+		// Preferences 是用户勾选的兴趣（companion 主题用），最多 8 个。
+		Preferences []string `json:"preferences,omitempty"`
 		// Topic 是主题 id（money / fishing）。不传 = money：老版本 App 行为不变。
 		Topic string `json:"topic,omitempty"`
 	}
@@ -258,6 +260,7 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			Images:           images,
 			WantSuggestions:  body.WantSuggestions,
 			Topic:            strings.TrimSpace(body.Topic),
+			Preferences:      body.Preferences,
 		}, emit)
 		close(stopHeartbeat)
 	}

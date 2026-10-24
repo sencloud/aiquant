@@ -6,7 +6,7 @@ import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_theme.dart';
-import '../../wx/wx_shell.dart';
+import '../companion/companion_home.dart';
 
 /// AuthGate 是 App 的根 widget。
 /// - bootstrap 中：显示启动 splash；
@@ -23,7 +23,7 @@ import '../../wx/wx_shell.dart';
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, this.homeBuilder});
 
-  /// 登录态就绪后渲染的主界面。默认移动端 WxShell；
+  /// 登录态就绪后渲染的主界面。默认移动端 CompanionHome；
   /// 桌面平台（Windows/macOS/Linux）由 app.dart 传入 DesktopShell。
   final WidgetBuilder? homeBuilder;
 
@@ -76,7 +76,7 @@ class _AuthGateState extends State<AuthGate> {
       });
     }
 
-    // homeBuilder 为空时回落到移动端外壳（默认行为，保持向后兼容）。
-    return widget.homeBuilder?.call(context) ?? const WxShell();
+    // homeBuilder 为空时回落到伴侣页（默认行为，保持向后兼容）。
+    return widget.homeBuilder?.call(context) ?? const CompanionHome();
   }
 }

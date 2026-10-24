@@ -11,10 +11,10 @@ import 'core/storage/hive_setup.dart';
 import 'services/analytics.dart';
 import 'services/client_error_reporter.dart';
 import 'services/network_permission_service.dart';
-import 'social/social_state.dart';
 import 'state/auth_state.dart';
 import 'state/billing_state.dart';
 import 'state/chat_state.dart';
+import 'state/companion_state.dart';
 import 'state/settings_state.dart';
 
 Future<void> main() async {
@@ -63,8 +63,8 @@ Future<void> _bootstrap() async {
         ChangeNotifierProvider(create: (_) => SettingsState()..bootstrap()),
         ChangeNotifierProvider.value(value: auth..bootstrap()),
         ChangeNotifierProvider(create: (_) => BillingState()),
-        // 本机记录：事、话、回声、见面礼、今晚不在。
-        ChangeNotifierProvider(create: (_) => SocialState()..load()),
+        // 喜爱记得的喜欢，以及「她先开口」的节奏。
+        ChangeNotifierProvider(create: (_) => CompanionState()..load()),
         // ChatState 的 bootstrap() 由 AuthGate 在登录态切换时驱动，
         // 避免未登录就把上一个用户的本地缓存读出来。
         ChangeNotifierProvider.value(value: chat),

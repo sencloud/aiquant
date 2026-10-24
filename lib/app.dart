@@ -5,22 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_profile.dart';
-import 'core/config/features.dart';
 import 'desktop/desktop_shell.dart';
 import 'screens/auth/auth_gate.dart';
+import 'screens/companion/companion_home.dart';
 import 'screens/splash/splash_screen.dart';
-import 'story/night_shell.dart';
 import 'theme/app_theme.dart';
-import 'wx/wx_shell.dart';
 
 /// 喜爱 · 喜爱，并不是一定要得到。
 ///
 /// 启动顺序：开屏页（至少 1 秒，用于收尾初始化 + 等登录态）→ AuthGate →
-/// 主界面（移动端 [WxShell]，桌面端 [DesktopShell]）。
+/// 主界面（移动端 [CompanionHome]，桌面端 [DesktopShell]）。
 ///
-/// 2026-10 这次重构拿掉了「多主题」：不再有选主题页、不再有整屏换色、也不再
-/// 有圈子首页。[AppProfile] 是唯一的一份档案（见 `core/app_profile.dart`），
-/// 它只负责装配状态，不参与外观切换。
+/// 1.7.0 起 App 只剩一件事：和「喜爱」说话。广场、发现、故事、主题、圈子
+/// 全部下线，界面就是一段对话。
 class XiaiApp extends StatefulWidget {
   const XiaiApp({super.key});
 
@@ -48,12 +45,10 @@ class _XiaiAppState extends State<XiaiApp> {
                   if (mounted) setState(() => _splashDone = true);
                 },
               )
-            : kStoryTrialHome
-                ? const NightShell()
-                : AuthGate(
-                    homeBuilder: (_) =>
-                        _isDesktop ? const DesktopShell() : const WxShell(),
-                  ),
+            : AuthGate(
+                homeBuilder: (_) =>
+                    _isDesktop ? const DesktopShell() : const CompanionHome(),
+              ),
       ),
     );
   }
