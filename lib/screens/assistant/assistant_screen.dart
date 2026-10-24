@@ -22,6 +22,7 @@ import '../../wx/wx_kit.dart';
 import '../settings/account_kit.dart';
 import '../companion/companion_avatar.dart';
 import '../companion/interests_sheet.dart';
+import '../companion/companion_moments_screen.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 
@@ -565,7 +566,8 @@ class _AssistantScreenState extends State<AssistantScreen>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       constraints: const BoxConstraints(minWidth: 184),
       items: [
-        _wxMenuItem('look', Icons.face_retouching_natural_rounded, '换个形象'),
+        _wxMenuItem('look', Icons.swipe_rounded, '遇见'),
+        _wxMenuItem('moments', Icons.camera_alt_outlined, '看她'),
         _wxMenuItem('interests', Icons.favorite_border_rounded, '兴趣设置'),
         _wxMenuItem(
           'credits',
@@ -592,6 +594,10 @@ class _AssistantScreenState extends State<AssistantScreen>
           content: Text('现在是 ${look.name} 陪你'),
           duration: const Duration(milliseconds: 1200),
         ));
+        break;
+      case 'moments':
+        await Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const CompanionMomentsScreen()));
         break;
       case 'interests':
         await showInterestsSheet(context);

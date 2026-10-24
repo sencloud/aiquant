@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,7 @@ class CompanionHome extends StatefulWidget {
 class _CompanionHomeState extends State<CompanionHome>
     with WidgetsBindingObserver {
   bool _ready = false;
+  bool _arrival = true;
 
   @override
   void initState() {
@@ -81,9 +84,141 @@ class _CompanionHomeState extends State<CompanionHome>
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return Scaffold(backgroundColor: AppColors.bgBase);
-    }
-    return const AssistantScreen();
+    return Stack(
+      children: [
+        if (_ready)
+          const AssistantScreen()
+        else
+          const ColoredBox(color: Color(0xFFF4EEE4)),
+        if (_arrival)
+          Positioned.fill(
+            child: _Arrival(
+              onDone: () {
+                if (mounted) setState(() => _arrival = false);
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 「去她家」的开场：二次元欢迎。
+///
+/// 她的写真放大淡入，冒出一句「你来啦。」，几片花瓣飘过；1.8 秒后自动
+/// 让位给对话，点一下也能立刻跳过。
+class _Arrival extends StatefulWidget {
+  const _Arrival({required this.onDone});
+  final VoidCallback onDone;
+
+  @override
+  State<_Arrival> createState() => _ArrivalState();
+}
+
+class _ArrivalState extends State<_Arrival>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..forward();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addStatusListener((s) {
+      if (s == AnimationStatus.completed) widget.onDone();
+    });
+    _timer = Timer(const Duration(milliseconds: 2000), widget.onDone);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final look = context.watch<CompanionState>().look;
+    return GestureDetector(
+      onTap: widget.onDone,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) {
+          final t = Curves.easeOutCubic.transform(_c.value);
+          final fadeOut = _c.value > 0.85
+              ? (1 - (_c.value - 0.85) / 0.15).clamp(0.0, 1.0)
+              : 1.0;
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFF8F3EA), Color(0xFFE7D5BC)],
+              ),
+            ),
+            child: Stack(
+              children: [
+                for (var i = 0; i < 7; i++)
+                  Positioned(
+                    left: 30.0 + (i * 47) % 330,
+                    top: 90 + ((i * 83 + _c.value * 520) % 700),
+                    child: Opacity(
+                      opacity: 0.55 * fadeOut,
+                      child: Transform.rotate(
+                        angle: _c.value * (i.isEven ? 1.2 : -1.0),
+                        child: const Icon(Icons.local_florist_rounded,
+                            size: 14, color: Color(0xFFC9A67A)),
+                      ),
+                    ),
+                  ),
+                Center(
+                  child: Opacity(
+                    opacity: fadeOut,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Transform.scale(
+                          scale: 0.88 + 0.12 * t,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(28),
+                            child: Image.asset(
+                              look.asset,
+                              width: 156,
+                              height: 156,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpace.lg),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.lg, vertical: AppSpace.md),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            '你来啦。',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                              fontFamilyFallback: AppType.sansFallback,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 }
