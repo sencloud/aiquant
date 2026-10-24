@@ -97,6 +97,7 @@ class _LiveAvatarState extends State<LiveAvatar>
       AvatarMood.shy => 0.03,
       AvatarMood.thinking => -0.02,
       AvatarMood.listening => 0.0,
+      AvatarMood.speaking => 0.0,
       AvatarMood.sad => 0.02,
       _ => 0.0,
     };
@@ -105,6 +106,7 @@ class _LiveAvatarState extends State<LiveAvatar>
       AvatarMood.shy => const Color(0xFFD98A9A),
       AvatarMood.thinking => const Color(0xFF7C8FB5),
       AvatarMood.listening => const Color(0xFF9E6322),
+      AvatarMood.speaking => const Color(0xFFC98A3A),
       AvatarMood.sad => const Color(0xFF6F7A88),
       _ => const Color(0xFF9E6322),
     };
@@ -150,6 +152,12 @@ class _LiveAvatarState extends State<LiveAvatar>
               top: 8,
               child: _ThinkingDots(),
             ),
+          if (mood == AvatarMood.speaking)
+            const Positioned(
+              right: 8,
+              bottom: 8,
+              child: _SpeakingBars(),
+            ),
           if (mood == AvatarMood.happy || mood == AvatarMood.shy)
             Positioned(
               right: 6,
@@ -192,6 +200,60 @@ class _LiveAvatarState extends State<LiveAvatar>
               child: content,
             )
           : content,
+    );
+  }
+}
+
+class _SpeakingBars extends StatefulWidget {
+  const _SpeakingBars();
+  @override
+  State<_SpeakingBars> createState() => _SpeakingBarsState();
+}
+
+class _SpeakingBarsState extends State<_SpeakingBars>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 3; i++)
+              Container(
+                width: 2,
+                height: 6 +
+                    8 *
+                        (0.5 +
+                            0.5 *
+                                math.sin((_c.value * 2 * math.pi) + i * 1.4))
+                            .abs(),
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

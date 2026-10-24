@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../state/chat_state.dart';
 import '../../state/companion_state.dart';
 import '../../theme/app_theme.dart';
+import '../../services/companion_voice.dart';
 import '../assistant/assistant_screen.dart';
 import '../../models/companion_mood.dart';
 import 'live_avatar.dart';
@@ -64,6 +65,10 @@ class _CompanionHomeState extends State<CompanionHome>
     if (chat.active?.messages.isEmpty ?? false) {
       await chat.addLocalMessage(
           '我是${companion.name}。\n陪着你，是长情的告白。');
+      if (companion.voiceEnabled) {
+        // ignore: unawaited_futures
+        CompanionVoice.instance.speak('你来啦。我是${companion.name}。');
+      }
     }
     if (!mounted) return;
     setState(() => _ready = true);

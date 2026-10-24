@@ -12,6 +12,7 @@ import '../../models/persona.dart';
 import '../../services/analytics.dart';
 import '../../services/image_attach_service.dart';
 import '../../services/market_briefing.dart';
+import '../../services/companion_voice.dart';
 import '../../state/auth_state.dart';
 import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
@@ -105,8 +106,14 @@ class _AssistantScreenState extends State<AssistantScreen>
     _scroll.addListener(_onScroll);
     // 输入框有字没字，决定右边是「发送」还是灰着 —— 需要跟着重建。
     _input.addListener(_onInputChanged);
+    CompanionVoice.instance.init();
+    CompanionVoice.instance.speaking.addListener(_onVoiceChanged);
     // ignore: unawaited_futures
     _loadMarketSuggestions();
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onInputChanged() {
@@ -117,6 +124,8 @@ class _AssistantScreenState extends State<AssistantScreen>
 
   @override
   void dispose() {
+    CompanionVoice.instance.speaking.removeListener(_onVoiceChanged);
+    CompanionVoice.instance.stop();
     _input.removeListener(_onInputChanged);
     _input.dispose();
     _scroll.removeListener(_onScroll);
@@ -229,6 +238,11 @@ class _AssistantScreenState extends State<AssistantScreen>
           ? AvatarMood.happy
           : (reply.contains('害羞') ? AvatarMood.shy : AvatarMood.calm),
     );
+    if (companion?.voiceEnabled == true && reply.trim().isNotEmpty) {
+      // 她说出来；播放期间头像切到「说话」状态。
+      // ignore: unawaited_futures
+      CompanionVoice.instance.speak(reply);
+    }
     Analytics.instance.track(Analytics.evChatSend, {
       'chars': text.length,
       'images': images.length,
@@ -425,7 +439,9 @@ class _AssistantScreenState extends State<AssistantScreen>
     final titleName = companion?.name ?? persona.displayName;
     final companionMood = companion == null
         ? AvatarMood.calm
-        : (chat.streaming ? AvatarMood.thinking : companion.mood);
+        : (CompanionVoice.instance.speaking.value
+            ? AvatarMood.speaking
+            : (chat.streaming ? AvatarMood.thinking : companion.mood));
     final selfName = context.watch<AuthState>().currentUser?.nickname ?? '';
 
     if (chat.streaming) _scrollToBottom(animate: false);
@@ -492,7 +508,11 @@ class _AssistantScreenState extends State<AssistantScreen>
                 ? _welcomePanel(persona)
                 : GestureDetector(
                     behavior: HitTestBehavior.translucent,
-                    onTap: () => FocusScope.of(context).unfocus(),
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      // ignore: unawaited_futures
+                      CompanionVoice.instance.stop();
+                    },
                     child: ListView.builder(
                       controller: _scroll,
                       keyboardDismissBehavior:
@@ -596,6 +616,13 @@ class _AssistantScreenState extends State<AssistantScreen>
               : '喜点 ${CreditFmt.balance(billing.balance)}',
         ),
         _wxMenuItem(
+          'voice',
+          CompanionVoice.instance.speaking.value
+              ? Icons.volume_up_rounded
+              : Icons.volume_off_rounded,
+          companion.voiceEnabled ? '她的声音：开' : '她的声音：关',
+        ),
+        _wxMenuItem(
           user == null ? 'login' : 'logout',
           user == null ? Icons.login_rounded : Icons.logout_rounded,
           user == null ? '登录 / 注册' : '退出登录',
@@ -617,6 +644,11 @@ class _AssistantScreenState extends State<AssistantScreen>
       case 'moments':
         await Navigator.of(context).push(MaterialPageRoute<void>(
             builder: (_) => const CompanionMomentsScreen()));
+        break;
+      case 'voice':
+        final on = !companion.voiceEnabled;
+        await companion.setVoiceEnabled(on);
+        if (!on) await CompanionVoice.instance.stop();
         break;
       case 'interests':
         await showInterestsSheet(context);

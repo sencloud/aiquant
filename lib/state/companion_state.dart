@@ -23,6 +23,7 @@ class CompanionState extends ChangeNotifier {
   static const _kInterests = 'companion.interests';
   static const _kLastProactive = 'companion.last_proactive';
   static const _kLook = 'companion.look';
+  static const _kVoice = 'companion.voice';
 
   /// 编辑页里的预设。
   static const presets = <String>[
@@ -44,6 +45,7 @@ class CompanionState extends ChangeNotifier {
   List<String> _interests = defaults;
   int _lookIndex = 0;
   AvatarMood _mood = AvatarMood.calm;
+  bool _voiceEnabled = true;
   DateTime? _lastProactive;
   bool _loaded = false;
 
@@ -51,6 +53,7 @@ class CompanionState extends ChangeNotifier {
   CompanionLook get look => kCompanionLooks[_lookIndex % kCompanionLooks.length];
   String get name => look.name;
   AvatarMood get mood => _mood;
+  bool get voiceEnabled => _voiceEnabled;
   bool get loaded => _loaded;
 
   /// 读本机记忆。盒子没打开（单测）时就用默认值，不抛。
@@ -69,6 +72,8 @@ class CompanionState extends ChangeNotifier {
           final i = kCompanionLooks.indexWhere((l) => l.id == look);
           if (i >= 0) _lookIndex = i;
         }
+        final voice = prefsBox.get(_kVoice);
+        if (voice is bool) _voiceEnabled = voice;
       }
     } catch (_) {
       // 记忆坏了不该让 App 起不来：用默认值继续。
@@ -109,6 +114,14 @@ class CompanionState extends ChangeNotifier {
   void setMood(AvatarMood mood) {
     if (_mood == mood) return;
     _mood = mood;
+    notifyListeners();
+  }
+
+  Future<void> setVoiceEnabled(bool on) async {
+    _voiceEnabled = on;
+    try {
+      if (Hive.isBoxOpen(kBoxPrefs)) await prefsBox.put(_kVoice, on);
+    } catch (_) {}
     notifyListeners();
   }
 
