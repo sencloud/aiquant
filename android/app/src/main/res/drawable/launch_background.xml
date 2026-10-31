@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 冷启动首帧（Android 11 及以下）：无图标，铺满一张竖向五段渐变
-     （splash_gradient = Flutter 开屏 SplashPalette.neutral，tools/gen_splash_gradient.py 生成），
-     与 Flutter 开屏页第一帧一致，随后在 Flutter 里过渡到主题色。
-     Android 12+ 由系统 SplashScreen 接管，见 values-v31/styles.xml。 -->
+<!-- 喜AI 固定浅色主题：冷启动保持纯白，避免进入行情图表前闪深色。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splash_night" />
-    <item>
-        <bitmap
-            android:gravity="fill"
-            android:filter="true"
-            android:src="@drawable/splash_gradient" />
-    </item>
+    <item android:drawable="@color/splash_light" />
 </layer-list>

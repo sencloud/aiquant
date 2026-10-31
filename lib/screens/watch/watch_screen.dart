@@ -177,7 +177,7 @@ class _WatchScreenState extends State<WatchScreen> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: MarketColors.background,
         body: SafeArea(
@@ -237,7 +237,7 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             const SizedBox(width: 9),
             const Text(
-              '喜宽行情',
+              '喜AI',
               style: TextStyle(
                 color: MarketColors.textPrimary,
                 fontSize: 15,
@@ -294,7 +294,7 @@ class _WatchScreenState extends State<WatchScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '喜宽行情',
+                      '喜AI',
                       style: TextStyle(
                         color: MarketColors.textPrimary,
                         fontSize: 15,
@@ -407,21 +407,21 @@ class _WatchScreenState extends State<WatchScreen> {
   Widget _sideLevels() {
     final rows = <Widget>[];
     for (var i = _levels.resistances.length - 1; i >= 0; i--) {
-      final level = _levels.resistances[i];
+      final zone = _levels.resistances[i];
       rows.add(
         _levelRow(
           label: 'R${i + 1}',
-          level: level,
+          zone: zone,
           color: MarketColors.resistance,
         ),
       );
     }
     for (var i = 0; i < _levels.supports.length; i++) {
-      final level = _levels.supports[i];
+      final zone = _levels.supports[i];
       rows.add(
         _levelRow(
           label: 'S${i + 1}',
-          level: level,
+          zone: zone,
           color: MarketColors.support,
         ),
       );
@@ -443,13 +443,13 @@ class _WatchScreenState extends State<WatchScreen> {
 
   Widget _levelRow({
     required String label,
-    required MarketLevel level,
+    required MarketPriceZone zone,
     required Color color,
   }) {
     final close = _candles.isEmpty ? null : _candles.last.close;
     final distance = close == null || close == 0
         ? null
-        : (level.price - close) / close * 100;
+        : (zone.center - close) / close * 100;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -467,7 +467,7 @@ class _WatchScreenState extends State<WatchScreen> {
           ),
           Expanded(
             child: Text(
-              _formatPrice(level.price),
+              '${_formatPrice(zone.low)}–${_formatPrice(zone.high)}',
               style: const TextStyle(
                 color: MarketColors.textSecondary,
                 fontSize: 11,

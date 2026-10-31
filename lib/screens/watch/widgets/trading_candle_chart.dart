@@ -39,7 +39,7 @@ class TradingCandleChart extends StatefulWidget {
 }
 
 class _TradingCandleChartState extends State<TradingCandleChart> {
-  static const _priceAxisWidth = 64.0;
+  static const _priceAxisWidth = 88.0;
 
   double _visibleBars = 100;
   double _visibleEnd = 0;
@@ -247,7 +247,7 @@ class _TradingChartPainter extends CustomPainter {
   final int? crosshairIndex;
   final double? crosshairY;
 
-  static const _axisWidth = 64.0;
+  static const _axisWidth = 88.0;
   static const _timeHeight = 24.0;
   static const _top = 8.0;
 
@@ -277,11 +277,11 @@ class _TradingChartPainter extends CustomPainter {
       rawMax += rawMax.abs() * 0.002 + 0.01;
     }
     final rawSpan = rawMax - rawMin;
-    for (final level in [...levels.supports, ...levels.resistances]) {
-      if (level.price >= rawMin - rawSpan * 0.08 &&
-          level.price <= rawMax + rawSpan * 0.08) {
-        rawMin = math.min(rawMin, level.price);
-        rawMax = math.max(rawMax, level.price);
+    for (final zone in [...levels.supports, ...levels.resistances]) {
+      if (zone.high >= rawMin - rawSpan * 0.08 &&
+          zone.low <= rawMax + rawSpan * 0.08) {
+        rawMin = math.min(rawMin, zone.low);
+        rawMax = math.max(rawMax, zone.high);
       }
     }
 
@@ -350,7 +350,7 @@ class _TradingChartPainter extends CustomPainter {
     );
 
     _paintWatermark(canvas, priceRect);
-    _paintLevels(canvas, plotW, priceRect, minPrice, maxPrice);
+    _paintLevels(canvas, plotW, priceRect, minPrice, maxPrice, yAt);
     _paintCandles(canvas, bars, plotW, yAt);
     _paintMovingAverages(
       canvas,
@@ -540,43 +540,84 @@ class _TradingChartPainter extends CustomPainter {
     Rect priceRect,
     double minPrice,
     double maxPrice,
+    double Function(double) yAt,
   ) {
-    void draw(MarketLevel level, int rank) {
-      if (level.price < minPrice || level.price > maxPrice) return;
-      final y = priceRect.top +
-          (maxPrice - level.price) / (maxPrice - minPrice) * priceRect.height;
-      final color = level.kind == MarketLevelKind.support
+    final placedLabels = <double>[];
+
+    void draw(MarketPriceZone zone, int rank) {
+      if (zone.high < minPrice || zone.low > maxPrice) return;
+      final top = yAt(math.min(zone.high, maxPrice))
+          .clamp(priceRect.top, priceRect.bottom);
+      final bottom = yAt(math.max(zone.low, minPrice))
+          .clamp(priceRect.top, priceRect.bottom);
+      if (bottom <= top) return;
+      final color = zone.kind == MarketLevelKind.support
           ? MarketColors.support
           : MarketColors.resistance;
       canvas.drawRect(
-        Rect.fromLTWH(0, y - 2, plotW, 4),
-        Paint()..color = color.withValues(alpha: 0.08),
+        Rect.fromLTRB(0, top, plotW, bottom),
+        Paint()..color = color.withValues(alpha: 0.105),
       );
+      for (final y in [top, bottom]) {
+        _drawDashed(
+          canvas,
+          Offset(0, y),
+          Offset(plotW, y),
+          Paint()
+            ..color = color.withValues(alpha: 0.74)
+            ..strokeWidth = 0.9,
+          dash: 5,
+          gap: 4,
+        );
+      }
+      final centerY = (top + bottom) / 2;
       _drawDashed(
         canvas,
-        Offset(0, y),
-        Offset(plotW, y),
+        Offset(0, centerY),
+        Offset(plotW, centerY),
         Paint()
-          ..color = color.withValues(alpha: 0.8)
-          ..strokeWidth = 0.9,
-        dash: 5,
+          ..color = color.withValues(alpha: 0.34)
+          ..strokeWidth = 0.7,
+        dash: 2,
         gap: 4,
       );
-      final label = level.kind == MarketLevelKind.support ? 'S$rank' : 'R$rank';
-      final text = '$label ${_formatPrice(level.price)}';
-      final painter = _textPainter(
-        text,
+
+      final label = zone.kind == MarketLevelKind.support ? 'S$rank' : 'R$rank';
+      final rangeText = '${_formatPrice(zone.low)}–${_formatPrice(zone.high)}';
+      _paintText(
+        canvas,
+        label,
+        Offset(7, centerY - 6),
         TextStyle(
           color: color,
           fontSize: 9,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      final painter = _textPainter(
+        rangeText,
+        TextStyle(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       );
+      var labelY =
+          (centerY - painter.height / 2 - 2).clamp(0.0, priceRect.bottom - 14);
+      var direction = labelY + 18 <= priceRect.bottom - 14 ? 18.0 : -18.0;
+      var attempts = 0;
+      while (placedLabels.any((y) => (y - labelY).abs() < 17) && attempts < 5) {
+        labelY =
+            (labelY + direction).clamp(0.0, priceRect.bottom - 14).toDouble();
+        direction = -direction;
+        attempts++;
+      }
+      placedLabels.add(labelY);
       final labelRect = RRect.fromRectAndRadius(
         Rect.fromLTWH(
           plotW + 4,
-          y - painter.height / 2 - 2,
+          labelY,
           _axisWidth - 8,
           painter.height + 4,
         ),
@@ -588,7 +629,7 @@ class _TradingChartPainter extends CustomPainter {
       );
       painter.paint(
         canvas,
-        Offset(plotW + 8, y - painter.height / 2),
+        Offset(plotW + 7, labelY + 2),
       );
     }
 

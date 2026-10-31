@@ -2,35 +2,35 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// TradingView 式深色行情终端配色。只用于行情首页及其选择器。
+/// TradingView 式浅色行情终端配色。只用于行情首页及其选择器。
 class MarketColors {
   MarketColors._();
 
-  static const background = Color(0xFF131722);
-  static const panel = Color(0xFF1E222D);
-  static const panelRaised = Color(0xFF252A36);
-  static const border = Color(0xFF2A2E39);
-  static const grid = Color(0xFF1F2430);
-  static const textPrimary = Color(0xFFD1D4DC);
-  static const textSecondary = Color(0xFFA3A6AF);
-  static const textMuted = Color(0xFF787B86);
+  static const background = Color(0xFFFFFFFF);
+  static const panel = Color(0xFFF8F9FD);
+  static const panelRaised = Color(0xFFF0F3FA);
+  static const border = Color(0xFFE0E3EB);
+  static const grid = Color(0xFFE9ECF2);
+  static const textPrimary = Color(0xFF131722);
+  static const textSecondary = Color(0xFF434651);
+  static const textMuted = Color(0xFF6A6D78);
   static const accent = Color(0xFF2962FF);
-  static const accentSoft = Color(0x262962FF);
-  static const up = Color(0xFFF23645);
-  static const down = Color(0xFF089981);
-  static const support = Color(0xFF26A69A);
-  static const resistance = Color(0xFFFF9800);
-  static const warning = Color(0xFFF7A600);
+  static const accentSoft = Color(0xFFEAF0FF);
+  static const up = Color(0xFFD93025);
+  static const down = Color(0xFF007A5A);
+  static const support = Color(0xFF00796B);
+  static const resistance = Color(0xFFC65300);
+  static const warning = Color(0xFFB26A00);
   static const ma5 = Color(0xFF2962FF);
-  static const ma10 = Color(0xFFFF9800);
-  static const ma20 = Color(0xFFAB47BC);
+  static const ma10 = Color(0xFFD97706);
+  static const ma20 = Color(0xFF8E24AA);
 }
 
 ThemeData buildMarketTheme() {
-  final base = ThemeData.dark(useMaterial3: true);
+  final base = ThemeData.light(useMaterial3: true);
   return base.copyWith(
     scaffoldBackgroundColor: MarketColors.background,
-    colorScheme: const ColorScheme.dark(
+    colorScheme: const ColorScheme.light(
       primary: MarketColors.accent,
       secondary: MarketColors.accent,
       surface: MarketColors.panel,
@@ -81,8 +81,8 @@ ThemeData buildMarketTheme() {
       linearTrackColor: MarketColors.grid,
     ),
     snackBarTheme: const SnackBarThemeData(
-      backgroundColor: MarketColors.panelRaised,
-      contentTextStyle: TextStyle(color: MarketColors.textPrimary),
+      backgroundColor: MarketColors.textPrimary,
+      contentTextStyle: TextStyle(color: Colors.white),
       behavior: SnackBarBehavior.floating,
     ),
     tooltipTheme: TooltipThemeData(

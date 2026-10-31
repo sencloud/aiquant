@@ -36,14 +36,14 @@ void main() {
     expect(result.supports, isNotEmpty);
     expect(result.resistances, isNotEmpty);
     expect(result.atr, greaterThan(0));
-    expect(result.supports.first.price, lessThan(candles.last.close));
-    expect(result.resistances.first.price, greaterThan(candles.last.close));
+    expect(result.supports.first.width, greaterThan(0));
+    expect(result.resistances.first.width, greaterThan(0));
     expect(
-      result.supports.every((level) => level.price < candles.last.close),
+      result.supports.every((zone) => zone.high < candles.last.close),
       isTrue,
     );
     expect(
-      result.resistances.every((level) => level.price > candles.last.close),
+      result.resistances.every((zone) => zone.low > candles.last.close),
       isTrue,
     );
   });

@@ -35,6 +35,12 @@ class _FakeMarketData extends TushareService {
 }
 
 void main() {
+  test('行情主题固定为浅色', () {
+    final theme = buildMarketTheme();
+    expect(theme.brightness, Brightness.light);
+    expect(MarketColors.background, Colors.white);
+  });
+
   testWidgets('首页展示六个周期并可切换分钟线', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -78,9 +84,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('喜宽行情'), findsOneWidget);
+    expect(find.text('喜AI'), findsOneWidget);
     expect(find.text('选择品种'), findsOneWidget);
     expect(find.text('最近查看'), findsOneWidget);
+    expect(find.textContaining('–'), findsWidgets);
     expect(find.textContaining('滚轮缩放'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

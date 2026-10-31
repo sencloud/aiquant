@@ -4,21 +4,28 @@ import '../models/instrument.dart';
 
 enum MarketLevelKind { support, resistance }
 
-/// 一个由历史摆动点聚类得到的支撑/阻力价位。
-class MarketLevel {
-  const MarketLevel({
-    required this.price,
+/// 由历史摆动点聚类形成的支撑/阻力区间。
+class MarketPriceZone {
+  const MarketPriceZone({
+    required this.low,
+    required this.high,
     required this.kind,
     required this.score,
     required this.touches,
     required this.lastIndex,
   });
 
-  final double price;
+  final double low;
+  final double high;
   final MarketLevelKind kind;
   final double score;
   final int touches;
   final int lastIndex;
+
+  double get center => (low + high) / 2;
+  double get width => high - low;
+
+  bool contains(double price) => price >= low && price <= high;
 }
 
 class SupportResistance {
@@ -28,14 +35,14 @@ class SupportResistance {
     this.atr = 0,
   });
 
-  final List<MarketLevel> supports;
-  final List<MarketLevel> resistances;
+  final List<MarketPriceZone> supports;
+  final List<MarketPriceZone> resistances;
   final double atr;
 }
 
-/// 用局部摆动高/低点识别关键价位，再按 ATR 聚类。
+/// 用局部摆动高/低点识别关键区间，再按 ATR 聚类。
 ///
-/// 这不是预测模型：它只把过去被反复验证、且距离现价最近的结构位搬到图上，
+/// 这不是预测模型：它只把过去被反复验证、且距离现价最近的结构带搬到图上，
 /// 方便观察价格在当前区间中的位置。
 class MarketLevelAnalyzer {
   MarketLevelAnalyzer._();
@@ -82,8 +89,20 @@ class MarketLevelAnalyzer {
 
     if (pivots.isEmpty) {
       return SupportResistance(
-        supports: _fallbackSide(bars, close, true, tolerance, maxPerSide),
-        resistances: _fallbackSide(bars, close, false, tolerance, maxPerSide),
+        supports: _fallbackZones(
+          bars,
+          close,
+          true,
+          tolerance,
+          maxPerSide,
+        ),
+        resistances: _fallbackZones(
+          bars,
+          close,
+          false,
+          tolerance,
+          maxPerSide,
+        ),
         atr: atr,
       );
     }
@@ -93,7 +112,7 @@ class MarketLevelAnalyzer {
       _Cluster? closest;
       for (final cluster in clusters) {
         if (cluster.kind != pivot.kind) continue;
-        if ((cluster.price - pivot.price).abs() <= tolerance * 1.3) {
+        if ((cluster.center - pivot.price).abs() <= tolerance * 1.3) {
           closest = cluster;
           break;
         }
@@ -107,7 +126,7 @@ class MarketLevelAnalyzer {
       }
     }
 
-    final scored = <MarketLevel>[];
+    final scored = <MarketPriceZone>[];
     final latestVolume = _averageVolume(bars, 20);
     for (final cluster in clusters) {
       final recency = 1 - cluster.lastIndex / math.max(1, bars.length - 1);
@@ -118,42 +137,50 @@ class MarketLevelAnalyzer {
           : math.min(0.8, cluster.averageVolume / latestVolume * 0.22);
       final score = cluster.touches * 1.35 + recency * 0.9 + volumeBoost;
       scored.add(
-        MarketLevel(
-          price: cluster.price,
-          kind: cluster.kind,
+        cluster.toZone(
           score: score,
-          touches: cluster.touches,
-          lastIndex: cluster.lastIndex,
+          minimumHalfWidth: tolerance * 0.55,
+          maximumHalfWidth: tolerance * 1.55,
         ),
       );
     }
 
     var supports = scored
-        .where((level) =>
-            level.kind == MarketLevelKind.support &&
-            level.price < close - tolerance * 0.15)
+        .where(
+          (zone) =>
+              zone.kind == MarketLevelKind.support &&
+              zone.high < close - tolerance * 0.05,
+        )
         .toList()
       ..sort((a, b) {
-        final byPrice = b.price.compareTo(a.price);
-        return byPrice != 0 ? byPrice : b.score.compareTo(a.score);
+        final byDistance = b.high.compareTo(a.high);
+        return byDistance != 0 ? byDistance : b.score.compareTo(a.score);
       });
     var resistances = scored
-        .where((level) =>
-            level.kind == MarketLevelKind.resistance &&
-            level.price > close + tolerance * 0.15)
+        .where(
+          (zone) =>
+              zone.kind == MarketLevelKind.resistance &&
+              zone.low > close + tolerance * 0.05,
+        )
         .toList()
       ..sort((a, b) {
-        final byPrice = a.price.compareTo(b.price);
-        return byPrice != 0 ? byPrice : b.score.compareTo(a.score);
+        final byDistance = a.low.compareTo(b.low);
+        return byDistance != 0 ? byDistance : b.score.compareTo(a.score);
       });
 
-    supports = _dedupeNear(supports, tolerance, maxPerSide);
-    resistances = _dedupeNear(resistances, tolerance, maxPerSide);
+    supports = _dedupeZones(supports, tolerance, maxPerSide);
+    resistances = _dedupeZones(resistances, tolerance, maxPerSide);
     if (supports.isEmpty) {
-      supports = _fallbackSide(bars, close, true, tolerance, maxPerSide);
+      supports = _fallbackZones(bars, close, true, tolerance, maxPerSide);
     }
     if (resistances.isEmpty) {
-      resistances = _fallbackSide(bars, close, false, tolerance, maxPerSide);
+      resistances = _fallbackZones(
+        bars,
+        close,
+        false,
+        tolerance,
+        maxPerSide,
+      );
     }
     return SupportResistance(
       supports: List.unmodifiable(supports),
@@ -162,22 +189,31 @@ class MarketLevelAnalyzer {
     );
   }
 
-  static List<MarketLevel> _dedupeNear(
-    List<MarketLevel> levels,
+  static List<MarketPriceZone> _dedupeZones(
+    List<MarketPriceZone> zones,
     double tolerance,
     int limit,
   ) {
-    final out = <MarketLevel>[];
-    for (final level in levels) {
-      if (out.every((v) => (v.price - level.price).abs() > tolerance * 1.2)) {
-        out.add(level);
-      }
+    final out = <MarketPriceZone>[];
+    for (final zone in zones) {
+      final overlaps = out.any(
+        (existing) =>
+            (existing.center - zone.center).abs() <= tolerance * 1.4 ||
+            _overlapRatio(existing, zone) >= 0.35,
+      );
+      if (!overlaps) out.add(zone);
       if (out.length >= limit) break;
     }
     return out;
   }
 
-  static List<MarketLevel> _fallbackSide(
+  static double _overlapRatio(MarketPriceZone a, MarketPriceZone b) {
+    final overlap = math.min(a.high, b.high) - math.max(a.low, b.low);
+    if (overlap <= 0) return 0;
+    return overlap / math.max(1e-9, math.min(a.width, b.width));
+  }
+
+  static List<MarketPriceZone> _fallbackZones(
     List<CandlePoint> bars,
     double close,
     bool support,
@@ -190,23 +226,27 @@ class MarketLevelAnalyzer {
     ];
     values.sort();
     final candidates = support ? values.reversed : values;
-    final out = <MarketLevel>[];
+    final out = <MarketPriceZone>[];
     for (final value in candidates) {
+      final halfWidth = math.max(tolerance * 0.55, value * 0.001);
+      final low = value - halfWidth;
+      final high = value + halfWidth;
       final valid = support
-          ? value < close - tolerance * 0.15
-          : value > close + tolerance * 0.15;
+          ? high < close - tolerance * 0.05
+          : low > close + tolerance * 0.05;
       if (!valid) continue;
-      if (out.every((v) => (v.price - value).abs() > tolerance * 1.2)) {
-        out.add(
-          MarketLevel(
-            price: value,
-            kind:
-                support ? MarketLevelKind.support : MarketLevelKind.resistance,
-            score: 0.8,
-            touches: 1,
-            lastIndex: bars.length - 1,
-          ),
-        );
+      final zone = MarketPriceZone(
+        low: low,
+        high: high,
+        kind: support ? MarketLevelKind.support : MarketLevelKind.resistance,
+        score: 0.8,
+        touches: 1,
+        lastIndex: bars.length - 1,
+      );
+      if (out.every(
+        (existing) => (existing.center - zone.center).abs() > tolerance * 1.4,
+      )) {
+        out.add(zone);
       }
       if (out.length >= limit) break;
     }
@@ -253,10 +293,10 @@ class _Pivot {
 }
 
 class _Cluster {
-  _Cluster(this.price, this.kind, this.points, this.lastIndex)
+  _Cluster(this.center, this.kind, this.points, this.lastIndex)
       : averageVolume = points.isEmpty ? 0 : points.first.volume;
 
-  double price;
+  double center;
   final MarketLevelKind kind;
   final List<_Pivot> points;
   int lastIndex;
@@ -265,11 +305,36 @@ class _Cluster {
   int get touches => points.length;
 
   void add(_Pivot pivot) {
-    final total = price * points.length + pivot.price;
+    final total = center * points.length + pivot.price;
     points.add(pivot);
-    price = total / points.length;
+    center = total / points.length;
     lastIndex = math.max(lastIndex, pivot.index);
     averageVolume = points.fold<double>(0, (sum, point) => sum + point.volume) /
         points.length;
+  }
+
+  MarketPriceZone toZone({
+    required double score,
+    required double minimumHalfWidth,
+    required double maximumHalfWidth,
+  }) {
+    var low = points.first.price;
+    var high = points.first.price;
+    for (final point in points.skip(1)) {
+      low = math.min(low, point.price);
+      high = math.max(high, point.price);
+    }
+    final halfWidth = ((high - low) / 2).clamp(
+      minimumHalfWidth,
+      math.max(minimumHalfWidth, maximumHalfWidth),
+    );
+    return MarketPriceZone(
+      low: center - halfWidth,
+      high: center + halfWidth,
+      kind: kind,
+      score: score,
+      touches: touches,
+      lastIndex: lastIndex,
+    );
   }
 }

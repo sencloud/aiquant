@@ -1,5 +1,5 @@
 name: fincept_app
-description: "喜宽行情 — 股票与期货 K 线、关键价位。"
+description: "喜AI — 股票与期货 K 线、关键区间。"
 publish_to: 'none'
 # 1.0.5 已过审上线，Apple 关闭了该 train，TestFlight 会拒绝同样或更低的
 # CFBundleShortVersionString（错误码 90062 / 90186），因此下一个版本必须抬号。
