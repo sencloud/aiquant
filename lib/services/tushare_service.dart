@@ -5,6 +5,7 @@ import '../core/api/api_client.dart' show buildNoProxyAdapter;
 import '../core/config/app_config.dart';
 import '../core/utils/china_market.dart';
 import '../models/instrument.dart';
+import '../models/market_period.dart';
 
 class TushareException implements Exception {
   final String message;
@@ -69,8 +70,7 @@ class TushareService {
       // Web hits a CORS wall on the public Tushare endpoint — surface a
       // dedicated, actionable hint instead of the generic XHR error string.
       if (kIsWeb) {
-        throw TushareException(
-            'Tushare 在 Web 端被浏览器跨域 (CORS) 拦截。\n'
+        throw TushareException('Tushare 在 Web 端被浏览器跨域 (CORS) 拦截。\n'
             '请改用 Android / iOS 客户端，或在“设置”里把 Tushare Endpoint '
             '指向你自己的 HTTPS 代理（透传到 http://api.tushare.pro 即可）。\n\n'
             '本地调试也可启动：\n'
@@ -90,9 +90,8 @@ class TushareService {
     }
     final codeNum = data['code'] as int? ?? -1;
     final payload = data['data'] as Map?;
-    final rowCount = payload == null
-        ? 0
-        : (payload['items'] as List? ?? const []).length;
+    final rowCount =
+        payload == null ? 0 : (payload['items'] as List? ?? const []).length;
     debugPrint('[Tushare] $apiName code=$codeNum rows=$rowCount '
         'msg=${data['msg'] ?? ''}');
     if (codeNum != 0) {
@@ -319,6 +318,80 @@ class TushareService {
     return daily(tsCode: code, startDate: s, endDate: e);
   }
 
+  /// 行情终端使用的统一历史数据入口。
+  ///
+  /// 股票分钟线走 `stk_mins`，期货走 `ft_mins`；周/月线由日线在本地聚合。
+  /// 这样六个周期都只依赖一个 Tushare Token，不需要额外的行情服务。
+  Future<List<CandlePoint>> historyForPeriod(
+    String symbol,
+    MarketPeriod period, {
+    DateTime? end,
+  }) async {
+    final code = ChinaMarket.normalizeSymbol(symbol);
+    final finish = end ?? DateTime.now();
+    final start = finish.subtract(period.historyWindow);
+    if (period.isIntraday) {
+      return _minuteHistory(
+        symbol: code,
+        period: period,
+        start: start,
+        end: finish,
+      );
+    }
+    final dailyRows = await historyFor(code, start: start, end: finish);
+    if (period == MarketPeriod.oneWeek || period == MarketPeriod.oneMonth) {
+      return CandleAggregator.aggregate(dailyRows, period);
+    }
+    return dailyRows;
+  }
+
+  Future<List<CandlePoint>> _minuteHistory({
+    required String symbol,
+    required MarketPeriod period,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final isFuture = ChinaMarket.isFuture(symbol);
+    final api = isFuture ? 'ft_mins' : 'stk_mins';
+    final fields = isFuture
+        ? 'ts_code,trade_time,open,high,low,close,vol,amount,oi'
+        : 'ts_code,trade_time,open,high,low,close,vol,amount';
+    final rows = await _post(
+      apiName: api,
+      params: {
+        'ts_code': symbol,
+        'freq': period.tushareFrequency,
+        'start_date': _formatDateTime(start),
+        'end_date': _formatDateTime(end),
+      },
+      fields: fields,
+    );
+    final out = <CandlePoint>[];
+    double? previousClose;
+    for (final row in rows) {
+      final dt = _parseTradeTime(row['trade_time'] ?? row['trade_date']);
+      if (dt == null) continue;
+      final close = _toDouble(row['close']);
+      final pct = previousClose != null && previousClose != 0
+          ? (close - previousClose) / previousClose * 100
+          : null;
+      out.add(
+        CandlePoint(
+          date: dt,
+          close: close,
+          open: _toDoubleOrNull(row['open']),
+          high: _toDoubleOrNull(row['high']),
+          low: _toDoubleOrNull(row['low']),
+          pctChg: pct,
+          vol: _toDoubleOrNull(row['vol']),
+        ),
+      );
+      previousClose = close;
+    }
+    out.sort((a, b) => a.date.compareTo(b.date));
+    return out;
+  }
+
   // ── Utilities ───────────────────────────────────────────────────────────
 
   static double _toDouble(dynamic v) {
@@ -334,10 +407,40 @@ class TushareService {
     return null;
   }
 
-  static String _formatYmd(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}'
+  static String _formatYmd(DateTime d) => '${d.year.toString().padLeft(4, '0')}'
       '${d.month.toString().padLeft(2, '0')}'
       '${d.day.toString().padLeft(2, '0')}';
+
+  static String _formatDateTime(DateTime d) => '${_formatYmd(d)} '
+      '${d.hour.toString().padLeft(2, '0')}:'
+      '${d.minute.toString().padLeft(2, '0')}:00';
+
+  static DateTime? _parseTradeTime(dynamic raw) {
+    final value = raw?.toString().trim() ?? '';
+    if (value.isEmpty) return null;
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length >= 14) {
+      return DateTime.tryParse(
+        '${digits.substring(0, 4)}-${digits.substring(4, 6)}-'
+        '${digits.substring(6, 8)}T${digits.substring(8, 10)}:'
+        '${digits.substring(10, 12)}:${digits.substring(12, 14)}',
+      );
+    }
+    if (digits.length == 12) {
+      return DateTime.tryParse(
+        '${digits.substring(0, 4)}-${digits.substring(4, 6)}-'
+        '${digits.substring(6, 8)}T${digits.substring(8, 10)}:'
+        '${digits.substring(10, 12)}:00',
+      );
+    }
+    if (digits.length >= 8) {
+      return DateTime.tryParse(
+        '${digits.substring(0, 4)}-${digits.substring(4, 6)}-'
+        '${digits.substring(6, 8)}',
+      );
+    }
+    return DateTime.tryParse(value);
+  }
 
   /// 启动预热：发起一个轻量请求，目的有两个——
   ///   1. 触发 iOS 中国地区首启时的"允许 App 使用 Wi-Fi 和蜂窝数据"系统弹窗，

@@ -10,10 +10,12 @@ class ChinaMarket {
 
     // Already qualified — fix the futures-exchange suffix differences.
     if (s.contains('.')) {
-      if (s.endsWith('.CZCE')) return s.substring(0, s.length - 1); // CZCE → CZC
+      if (s.endsWith('.CFFEX')) return '${s.substring(0, s.length - 6)}.CFX';
+      if (s.endsWith('.CFE')) return '${s.substring(0, s.length - 4)}.CFX';
+      if (s.endsWith('.CZCE')) return '${s.substring(0, s.length - 5)}.ZCE';
+      if (s.endsWith('.CZC')) return '${s.substring(0, s.length - 4)}.ZCE';
       if (s.endsWith('.SHFE')) return '${s.substring(0, s.length - 5)}.SHF';
       if (s.endsWith('.GFEX')) return '${s.substring(0, s.length - 5)}.GFE';
-      if (s.endsWith('.CFFEX')) return '${s.substring(0, s.length - 6)}.CFE';
       return s;
     }
 
@@ -37,12 +39,18 @@ class ChinaMarket {
   }
 
   static const _futureSuffixes = {
-    '.CZC', '.CZCE',
+    '.ZCE',
+    '.CZC',
+    '.CZCE',
     '.DCE',
-    '.SHF', '.SHFE',
+    '.SHF',
+    '.SHFE',
     '.INE',
-    '.GFE', '.GFEX',
-    '.CFE', '.CFFEX',
+    '.GFE',
+    '.GFEX',
+    '.CFX',
+    '.CFE',
+    '.CFFEX',
   };
 
   static bool isFuture(String symbol) {
@@ -67,12 +75,16 @@ class ChinaMarket {
     if (s.endsWith('.SH')) return 'SSE';
     if (s.endsWith('.SZ')) return 'SZSE';
     if (s.endsWith('.BJ')) return 'BSE';
-    if (s.endsWith('.CZC') || s.endsWith('.CZCE')) return '郑商所';
+    if (s.endsWith('.ZCE') || s.endsWith('.CZC') || s.endsWith('.CZCE')) {
+      return '郑商所';
+    }
     if (s.endsWith('.DCE')) return '大商所';
     if (s.endsWith('.SHF') || s.endsWith('.SHFE')) return '上期所';
     if (s.endsWith('.INE')) return '上海能源';
     if (s.endsWith('.GFE') || s.endsWith('.GFEX')) return '广期所';
-    if (s.endsWith('.CFE') || s.endsWith('.CFFEX')) return '中金所';
+    if (s.endsWith('.CFX') || s.endsWith('.CFE') || s.endsWith('.CFFEX')) {
+      return '中金所';
+    }
     return '';
   }
 

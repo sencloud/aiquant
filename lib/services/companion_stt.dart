@@ -27,9 +27,11 @@ class CompanionStt {
     if (!await init()) return false;
     try {
       await _stt.listen(
-        localeId: 'zh_CN',
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
+        listenOptions: SpeechListenOptions(
+          localeId: 'zh_CN',
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+        ),
         onResult: (r) {
           if (!r.finalResult) return;
           final text = r.recognizedWords.trim();

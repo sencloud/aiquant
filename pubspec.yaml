@@ -1,5 +1,5 @@
 name: fincept_app
-description: "喜爱 — AI 伴侣。陪伴是长情的告白。"
+description: "喜宽行情 — 股票与期货 K 线、关键价位。"
 publish_to: 'none'
 # 1.0.5 已过审上线，Apple 关闭了该 train，TestFlight 会拒绝同样或更低的
 # CFBundleShortVersionString（错误码 90062 / 90186），因此下一个版本必须抬号。
@@ -24,7 +24,10 @@ publish_to: 'none'
 #
 # 1.6.0 → 1.7.0：砍到只剩一个 AI 伴侣（广场 / 朋友圈 / 发现 / 故事全部下线），
 # 属于产品重做，抬一个 minor。
-version: 1.13.0+1
+#
+# 1.13.0 → 1.14.0：再次收敛为单一行情终端，只保留股票/期货 K 线与关键价位，
+# 启动不再经过登录、开屏或伴侣页。
+version: 1.14.0+1
 # 1.7.0 → 1.8.0：对话页对齐微信（无 AI 标、黑色标题、点头像换形象、深色浮层菜单、点屏收键盘），开屏重做。
 
 environment:

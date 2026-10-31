@@ -30,9 +30,13 @@ Future<void> openAppBoxes() async {
   ]);
 }
 
+/// 行情首页只需要本机偏好，不启动聊天、组合等旧业务的数据表。
+Future<void> openMarketBox() async {
+  await Hive.openBox(kBoxPrefs);
+}
+
 Box<Portfolio> get portfoliosBox => Hive.box<Portfolio>(kBoxPortfolios);
 Box<PortfolioTransaction> get transactionsBox =>
     Hive.box<PortfolioTransaction>(kBoxTransactions);
-Box<ChatSession> get chatSessionsBox =>
-    Hive.box<ChatSession>(kBoxChatSessions);
+Box<ChatSession> get chatSessionsBox => Hive.box<ChatSession>(kBoxChatSessions);
 Box get prefsBox => Hive.box(kBoxPrefs);
