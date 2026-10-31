@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/china_market.dart';
 import '../../models/instrument.dart';
 import '../../services/tushare_service.dart';
+import '../../state/watchlist_state.dart';
 import 'market_theme.dart';
 
-enum MarketAssetTab { stock, future }
+enum MarketAssetTab { recent, stock, future }
 
 Future<Instrument?> showMarketSymbolPicker(
   BuildContext context, {
-  MarketAssetTab initialTab = MarketAssetTab.stock,
+  MarketAssetTab initialTab = MarketAssetTab.recent,
   String? selectedCode,
+  List<WatchItem> recent = const [],
   TushareService? service,
 }) {
   return showDialog<Instrument>(
@@ -18,6 +21,7 @@ Future<Instrument?> showMarketSymbolPicker(
     builder: (_) => MarketSymbolPicker(
       initialTab: initialTab,
       selectedCode: selectedCode,
+      recent: recent,
       service: service,
     ),
   );
@@ -26,13 +30,15 @@ Future<Instrument?> showMarketSymbolPicker(
 class MarketSymbolPicker extends StatefulWidget {
   const MarketSymbolPicker({
     super.key,
-    this.initialTab = MarketAssetTab.stock,
+    this.initialTab = MarketAssetTab.recent,
     this.selectedCode,
+    this.recent = const [],
     this.service,
   });
 
   final MarketAssetTab initialTab;
   final String? selectedCode;
+  final List<WatchItem> recent;
   final TushareService? service;
 
   @override
@@ -79,6 +85,14 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
   }
 
   Future<void> _load() async {
+    if (_tab == MarketAssetTab.recent) {
+      setState(() {
+        _loading = false;
+        _error = null;
+        _instruments = const [];
+      });
+      return;
+    }
     final requestId = ++_requestId;
     setState(() {
       _loading = true;
@@ -105,9 +119,12 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
 
   List<Instrument> get _visible {
     final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return _instruments;
+    final source = _tab == MarketAssetTab.recent
+        ? widget.recent.map(_fromRecent).toList(growable: false)
+        : _instruments;
+    if (query.isEmpty) return source;
     return [
-      for (final item in _instruments)
+      for (final item in source)
         if (item.tsCode.toLowerCase().contains(query) ||
             item.name.toLowerCase().contains(query) ||
             item.industry.toLowerCase().contains(query))
@@ -115,13 +132,26 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
     ];
   }
 
+  Instrument _fromRecent(WatchItem item) => Instrument(
+        tsCode: item.tsCode,
+        displaySymbol: ChinaMarket.displaySymbol(item.tsCode),
+        name: item.name,
+        exchange: ChinaMarket.exchangeOf(item.tsCode),
+        assetClass: item.assetClass,
+      );
+
   void _switchTab(MarketAssetTab tab) {
     if (_tab == tab) return;
     setState(() {
       _tab = tab;
       _search.clear();
+      if (tab == MarketAssetTab.recent) {
+        _loading = false;
+        _error = null;
+        _requestId++;
+      }
     });
-    _load();
+    if (tab != MarketAssetTab.recent) _load();
   }
 
   void _switchExchange(String exchange) {
@@ -166,7 +196,11 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
           ),
           const SizedBox(width: 10),
           Text(
-            _tab == MarketAssetTab.stock ? 'A 股' : '国内期货',
+            switch (_tab) {
+              MarketAssetTab.recent => '股票 · 期货',
+              MarketAssetTab.stock => 'A 股',
+              MarketAssetTab.future => '国内期货',
+            },
             style: const TextStyle(
               color: MarketColors.textMuted,
               fontSize: 12,
@@ -228,18 +262,20 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
       child: Row(
         children: [
           const SizedBox(width: 6),
+          tab(MarketAssetTab.recent, '常看'),
           tab(MarketAssetTab.stock, '股票'),
           tab(MarketAssetTab.future, '期货'),
           const Spacer(),
-          IconButton(
-            tooltip: '重新载入',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(
-              Icons.refresh,
-              color: MarketColors.textMuted,
-              size: 18,
+          if (_tab != MarketAssetTab.recent)
+            IconButton(
+              tooltip: '重新载入',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(
+                Icons.refresh,
+                color: MarketColors.textMuted,
+                size: 18,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -257,7 +293,11 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
           fontSize: 14,
         ),
         decoration: InputDecoration(
-          hintText: _tab == MarketAssetTab.stock ? '输入股票代码或名称' : '输入合约代码或名称',
+          hintText: switch (_tab) {
+            MarketAssetTab.recent => '筛选常看品种',
+            MarketAssetTab.stock => '输入股票代码或名称',
+            MarketAssetTab.future => '输入合约代码或名称',
+          },
           prefixIcon: const Icon(Icons.search, size: 19),
           suffixIcon: _search.text.isEmpty
               ? null
@@ -310,6 +350,9 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
   }
 
   Widget _body() {
+    if (_tab == MarketAssetTab.recent && _visible.isEmpty) {
+      return _recentEmpty();
+    }
     if (_loading) {
       return const Center(
         child: SizedBox(
@@ -341,7 +384,9 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
           child: Row(
             children: [
               Text(
-                '${visible.length} 个结果',
+                _tab == MarketAssetTab.recent
+                    ? '最近查看 ${visible.length} 个'
+                    : '${visible.length} 个结果',
                 style: const TextStyle(
                   color: MarketColors.textMuted,
                   fontSize: 11,
@@ -371,6 +416,13 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
 
   Widget _row(Instrument instrument) {
     final selected = instrument.tsCode == widget.selectedCode;
+    final isFuture = instrument.assetClass == '期货';
+    final subtitle = _tab == MarketAssetTab.recent
+        ? [
+            instrument.assetClass,
+            if (instrument.exchange.isNotEmpty) instrument.exchange,
+          ].join(' · ')
+        : instrument.industry;
     return InkWell(
       onTap: () => Navigator.of(context).pop(instrument),
       child: Container(
@@ -392,9 +444,7 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
               child: Text(
                 instrument.name.isEmpty ? '—' : instrument.name.substring(0, 1),
                 style: TextStyle(
-                  color: _tab == MarketAssetTab.stock
-                      ? MarketColors.up
-                      : MarketColors.resistance,
+                  color: isFuture ? MarketColors.resistance : MarketColors.up,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -416,10 +466,10 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (instrument.industry.isNotEmpty) ...[
+                  if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      instrument.industry,
+                      subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -446,6 +496,56 @@ class _MarketSymbolPickerState extends State<MarketSymbolPicker> {
               selected ? Icons.check_circle : Icons.chevron_right,
               size: selected ? 17 : 18,
               color: selected ? MarketColors.accent : MarketColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _recentEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.history_toggle_off,
+              size: 34,
+              color: MarketColors.textMuted,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '还没有常看品种',
+              style: TextStyle(
+                color: MarketColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '选择股票或期货后，会自动出现在这里。',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: MarketColors.textMuted,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: () => _switchTab(MarketAssetTab.stock),
+                  child: const Text('去选股票'),
+                ),
+                OutlinedButton(
+                  onPressed: () => _switchTab(MarketAssetTab.future),
+                  child: const Text('去选期货'),
+                ),
+              ],
             ),
           ],
         ),

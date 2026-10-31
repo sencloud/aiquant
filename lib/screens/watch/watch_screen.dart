@@ -8,11 +8,15 @@ import '../../core/storage/hive_setup.dart' show prefsBox;
 import '../../core/utils/china_market.dart';
 import '../../models/instrument.dart';
 import '../../models/market_period.dart';
+import '../../services/market_ai_context.dart';
 import '../../services/market_levels.dart';
 import '../../services/tushare_service.dart';
 import '../../state/watchlist_state.dart';
+import 'market_ai_sheet.dart';
 import 'market_symbol_picker.dart';
 import 'market_theme.dart';
+import 'widgets/ai_mascot_button.dart';
+import 'widgets/market_brand.dart';
 import 'widgets/trading_candle_chart.dart';
 
 /// 应用唯一首页：股票 / 期货行情与关键价位。
@@ -143,12 +147,16 @@ class _WatchScreenState extends State<WatchScreen> {
   }
 
   Future<void> _openPicker() async {
+    final recent = [
+      _selected,
+      for (final item in _recent)
+        if (item.tsCode != _selected.tsCode) item,
+    ].take(6).toList(growable: false);
     final item = await showMarketSymbolPicker(
       context,
-      initialTab: ChinaMarket.isFuture(_selected.tsCode)
-          ? MarketAssetTab.future
-          : MarketAssetTab.stock,
+      initialTab: MarketAssetTab.recent,
       selectedCode: _selected.tsCode,
+      recent: recent,
       service: _service,
     );
     if (item == null || !mounted) return;
@@ -254,6 +262,37 @@ class _WatchScreenState extends State<WatchScreen> {
     });
   }
 
+  Future<void> _openMarketAi() async {
+    if (_candles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('等待 K 线加载后再问喜AI')),
+      );
+      return;
+    }
+    if (_replayPlaying) {
+      _replayTimer?.cancel();
+      setState(() => _replayPlaying = false);
+    }
+    final activeIndex =
+        _crosshair?.index ?? _replayIndex ?? _candles.length - 1;
+    final prefix = _candles
+        .take(activeIndex.clamp(0, _candles.length - 1) + 1)
+        .toList(growable: false);
+    final snapshot = MarketAiSnapshot(
+      name: _selected.name,
+      code: _selected.tsCode,
+      assetClass: _selected.assetClass,
+      period: _period,
+      asOf: prefix.last.date,
+      activeIndex: prefix.length - 1,
+      totalBars: _candles.length,
+      isReplay: _replayIndex != null,
+      candles: List.unmodifiable(prefix),
+      levels: MarketLevelAnalyzer.analyze(prefix),
+    );
+    await showMarketAiSheet(context, snapshot: snapshot);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -298,43 +337,12 @@ class _WatchScreenState extends State<WatchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: MarketColors.accent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                '喜',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 9),
-            const Text(
-              '喜AI',
-              style: TextStyle(
-                color: MarketColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            const MarketBrandLockup(compact: true),
             const Spacer(),
             _symbolSwitchButton(),
             const SizedBox(width: 4),
-            IconButton(
-              tooltip: '刷新行情',
-              onPressed: _loading ? null : () => _load(),
-              icon: const Icon(
-                Icons.refresh,
-                color: MarketColors.textSecondary,
-                size: 19,
-              ),
+            AiMascotButton(
+              onPressed: _openMarketAi,
             ),
           ],
         ),
@@ -348,50 +356,9 @@ class _WatchScreenState extends State<WatchScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 14, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: MarketColors.accent,
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: const Text(
-                    '喜',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '喜AI',
-                      style: TextStyle(
-                        color: MarketColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      '股票 · 期货',
-                      style: TextStyle(
-                        color: MarketColors.textMuted,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 18, 14, 16),
+            child: MarketBrandLockup(),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -799,14 +766,8 @@ class _WatchScreenState extends State<WatchScreen> {
                 const Spacer(),
                 _symbolSwitchButton(),
                 const SizedBox(width: 2),
-                IconButton(
-                  tooltip: '刷新行情',
-                  onPressed: _loading ? null : () => _load(),
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: MarketColors.textSecondary,
-                    size: 19,
-                  ),
+                AiMascotButton(
+                  onPressed: _openMarketAi,
                 ),
               ],
             ],

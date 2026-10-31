@@ -2,6 +2,7 @@ import 'package:fincept_app/models/instrument.dart';
 import 'package:fincept_app/models/market_period.dart';
 import 'package:fincept_app/screens/watch/market_theme.dart';
 import 'package:fincept_app/screens/watch/watch_screen.dart';
+import 'package:fincept_app/screens/watch/widgets/market_brand.dart';
 import 'package:fincept_app/screens/watch/widgets/trading_candle_chart.dart';
 import 'package:fincept_app/services/tushare_service.dart';
 import 'package:flutter/material.dart';
@@ -139,6 +140,34 @@ void main() {
     expect(after, isNot(before));
   });
 
+  testWidgets('AI图标打开四个盘面问题并返回本地速读', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildMarketTheme(),
+        home: WatchScreen(service: _FakeMarketData()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('刷新行情'), findsNothing);
+    await tester.tap(find.byTooltip('问问喜AI'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('问问喜AI'), findsWidgets);
+    expect(find.text('现在能不能建仓/补仓？'), findsOneWidget);
+    expect(find.text('现在要不要止盈？'), findsOneWidget);
+    expect(find.text('现在要不要止损？'), findsOneWidget);
+    expect(find.text('评估现在什么情况？'), findsOneWidget);
+
+    await tester.tap(find.text('现在能不能建仓/补仓？'));
+    await tester.pumpAndSettle();
+    expect(find.text('盘面速读'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('桌面宽屏显示品种侧栏', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -152,11 +181,35 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('喜AI'), findsOneWidget);
+    expect(find.byType(MarketBrandLockup), findsOneWidget);
     expect(find.text('选择品种'), findsOneWidget);
     expect(find.text('最近查看'), findsOneWidget);
     expect(find.textContaining('–'), findsWidgets);
     expect(find.textContaining('滚轮缩放'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('品种弹窗默认进入常看并混排最近品种', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildMarketTheme(),
+        home: WatchScreen(service: _FakeMarketData()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(MarketBrandLockup), findsOneWidget);
+
+    await tester.tap(find.text('600519'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('常看'), findsOneWidget);
+    expect(find.text('股票'), findsWidgets);
+    expect(find.text('期货'), findsWidgets);
+    expect(find.text('最近查看 1 个'), findsOneWidget);
+    expect(find.text('600519.SH'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }
