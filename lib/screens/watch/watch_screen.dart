@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -39,7 +40,10 @@ class _WatchScreenState extends State<WatchScreen> {
   List<CandlePoint> _candles = const [];
   SupportResistance _levels = const SupportResistance();
   List<WatchItem> _recent = const [];
-  CandlePoint? _crosshair;
+  ChartCrosshair? _crosshair;
+  int? _replayIndex;
+  bool _replayPlaying = false;
+  Timer? _replayTimer;
   bool _loading = false;
   bool _showMovingAverages = true;
   bool _showVolume = true;
@@ -52,6 +56,12 @@ class _WatchScreenState extends State<WatchScreen> {
     super.initState();
     _restoreLocalState();
     _load(clear: true);
+  }
+
+  @override
+  void dispose() {
+    _replayTimer?.cancel();
+    super.dispose();
   }
 
   void _restoreLocalState() {
@@ -84,10 +94,16 @@ class _WatchScreenState extends State<WatchScreen> {
 
   Future<void> _load({bool clear = false}) async {
     final requestId = ++_requestId;
+    _replayTimer?.cancel();
     setState(() {
       _loading = true;
       _error = null;
       _crosshair = null;
+      _replayIndex = null;
+      _replayPlaying = false;
+      if (!clear && _candles.isNotEmpty) {
+        _levels = MarketLevelAnalyzer.analyze(_candles);
+      }
       if (clear) {
         _candles = const [];
         _levels = const SupportResistance();
@@ -172,6 +188,70 @@ class _WatchScreenState extends State<WatchScreen> {
     } catch (_) {
       // 本地缓存失败不阻断行情。
     }
+  }
+
+  SupportResistance _levelsThrough(int index) => MarketLevelAnalyzer.analyze(
+        _candles.take(index + 1).toList(growable: false),
+      );
+
+  void _startReplay() {
+    final crosshair = _crosshair;
+    if (crosshair == null || _candles.isEmpty) return;
+    final start = crosshair.index.clamp(0, _candles.length - 1);
+    final hasFuture = start < _candles.length - 1;
+    _replayTimer?.cancel();
+    setState(() {
+      _crosshair = null;
+      _replayIndex = start;
+      _replayPlaying = hasFuture;
+      _levels = _levelsThrough(start);
+    });
+    if (hasFuture) _scheduleReplayTick();
+  }
+
+  void _toggleReplayPlay() {
+    final index = _replayIndex;
+    if (index == null || index >= _candles.length - 1) return;
+    setState(() => _replayPlaying = !_replayPlaying);
+    if (_replayPlaying) {
+      _scheduleReplayTick();
+    } else {
+      _replayTimer?.cancel();
+    }
+  }
+
+  void _moveReplay(int delta, {bool automatic = false}) {
+    final current = _replayIndex;
+    if (current == null) return;
+    final next = (current + delta).clamp(0, _candles.length - 1);
+    final atEnd = next >= _candles.length - 1;
+    if (!automatic) _replayTimer?.cancel();
+    setState(() {
+      _replayIndex = next;
+      _levels = _levelsThrough(next);
+      if (!automatic || atEnd) _replayPlaying = false;
+    });
+  }
+
+  void _scheduleReplayTick() {
+    _replayTimer?.cancel();
+    if (!_replayPlaying || _replayIndex == null) return;
+    _replayTimer = Timer(const Duration(milliseconds: 650), () {
+      if (!mounted || !_replayPlaying || _replayIndex == null) return;
+      _moveReplay(1, automatic: true);
+      if (_replayPlaying) _scheduleReplayTick();
+    });
+  }
+
+  void _exitReplay() {
+    if (_replayIndex == null) return;
+    _replayTimer?.cancel();
+    setState(() {
+      _replayIndex = null;
+      _replayPlaying = false;
+      _crosshair = null;
+      _levels = MarketLevelAnalyzer.analyze(_candles);
+    });
   }
 
   @override
@@ -638,7 +718,12 @@ class _WatchScreenState extends State<WatchScreen> {
   }
 
   Widget _symbolHeader({required bool compact}) {
-    final active = _crosshair ?? (_candles.isEmpty ? null : _candles.last);
+    final replayCandle = _replayIndex == null || _candles.isEmpty
+        ? null
+        : _candles[_replayIndex!];
+    final active = _crosshair?.candle ??
+        replayCandle ??
+        (_candles.isEmpty ? null : _candles.last);
     final previous = _previousClose(active);
     final change =
         active == null ? null : active.close - (previous ?? active.close);
@@ -652,6 +737,9 @@ class _WatchScreenState extends State<WatchScreen> {
         : (change ?? pct ?? 0) < 0
             ? MarketColors.down
             : MarketColors.textPrimary;
+    final canStartReplay = _replayIndex == null &&
+        _crosshair != null &&
+        _crosshair!.index < _candles.length - 1;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -693,6 +781,20 @@ class _WatchScreenState extends State<WatchScreen> {
                   ),
                 ),
               ),
+              if (compact && canStartReplay) ...[
+                const Spacer(),
+                _replayShortcut(),
+              ] else if (compact && _replayIndex != null) ...[
+                const Spacer(),
+                const Text(
+                  '回放模式',
+                  style: TextStyle(
+                    color: MarketColors.accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               if (!compact) ...[
                 const Spacer(),
                 _symbolSwitchButton(),
@@ -742,19 +844,43 @@ class _WatchScreenState extends State<WatchScreen> {
                   ),
                 ),
               const Spacer(),
-              if (_crosshair != null)
+              if (!compact && canStartReplay)
+                _replayShortcut()
+              else if (!compact && _replayIndex != null)
                 const Text(
-                  '十字光标',
+                  '回放模式',
                   style: TextStyle(
-                    color: MarketColors.textMuted,
+                    color: MarketColors.accent,
                     fontSize: 10,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
             ],
           ),
           SizedBox(height: compact ? 8 : 10),
           _ohlcRow(active, compact: compact),
+          if (_replayIndex != null) ...[
+            const SizedBox(height: 5),
+            _replayControls(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _replayShortcut() {
+    return TextButton.icon(
+      onPressed: _startReplay,
+      style: TextButton.styleFrom(
+        foregroundColor: MarketColors.accent,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        minimumSize: const Size(0, 30),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: const Icon(Icons.replay, size: 15),
+      label: const Text(
+        '从此处回放',
+        style: TextStyle(fontSize: 10),
       ),
     );
   }
@@ -810,7 +936,8 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
             if (i != values.length - 1) const SizedBox(width: 14),
           ],
-          if (active != null && _crosshair != null) ...[
+          if (active != null &&
+              (_crosshair != null || _replayIndex != null)) ...[
             const SizedBox(width: 14),
             Text(
               _formatDateTime(active.date),
@@ -823,6 +950,73 @@ class _WatchScreenState extends State<WatchScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _replayControls() {
+    final index = _replayIndex;
+    if (index == null) return const SizedBox.shrink();
+    final atStart = index <= 0;
+    final atEnd = index >= _candles.length - 1;
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.only(left: 8, right: 2),
+      decoration: BoxDecoration(
+        color: MarketColors.accentSoft,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '回放 ${index + 1}/${_candles.length}',
+            style: const TextStyle(
+              color: MarketColors.accent,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 6),
+          _replayIcon(
+            icon: Icons.skip_previous,
+            tooltip: '上一根',
+            onPressed: atStart ? null : () => _moveReplay(-1),
+          ),
+          _replayIcon(
+            icon: _replayPlaying ? Icons.pause : Icons.play_arrow,
+            tooltip: _replayPlaying ? '暂停' : '播放',
+            onPressed: atEnd ? null : _toggleReplayPlay,
+          ),
+          _replayIcon(
+            icon: Icons.skip_next,
+            tooltip: '下一根',
+            onPressed: atEnd ? null : () => _moveReplay(1),
+          ),
+          _replayIcon(
+            icon: Icons.close,
+            tooltip: '退出回放',
+            onPressed: _exitReplay,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _replayIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      color: MarketColors.accent,
+      disabledColor: MarketColors.textMuted.withValues(alpha: 0.4),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      visualDensity: VisualDensity.compact,
     );
   }
 
@@ -991,9 +1185,11 @@ class _WatchScreenState extends State<WatchScreen> {
       watermark: ChinaMarket.displaySymbol(_selected.tsCode),
       showMovingAverages: _showMovingAverages,
       showVolume: _showVolume,
-      onCrosshair: (candle) {
-        if (identical(candle, _crosshair)) return;
-        setState(() => _crosshair = candle);
+      replayIndex: _replayIndex,
+      onCrosshair: (crosshair) {
+        if (_replayIndex != null) return;
+        if (_crosshair?.index == crosshair?.index) return;
+        setState(() => _crosshair = crosshair);
       },
     );
   }
@@ -1141,15 +1337,7 @@ class _WatchScreenState extends State<WatchScreen> {
               ),
             ),
           const Spacer(),
-          if (_updatedAt != null)
-            Text(
-              _formatClock(_updatedAt!),
-              style: const TextStyle(
-                color: MarketColors.textMuted,
-                fontSize: 9,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
+          const _LiveClock(),
         ],
       ),
     );
@@ -1183,4 +1371,46 @@ class _WatchScreenState extends State<WatchScreen> {
       '${date.day.toString().padLeft(2, '0')} '
       '${date.hour.toString().padLeft(2, '0')}:'
       '${date.minute.toString().padLeft(2, '0')}';
+}
+
+class _LiveClock extends StatefulWidget {
+  const _LiveClock();
+
+  @override
+  State<_LiveClock> createState() => _LiveClockState();
+}
+
+class _LiveClockState extends State<_LiveClock> {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = '${_now.hour.toString().padLeft(2, '0')}:'
+        '${_now.minute.toString().padLeft(2, '0')}:'
+        '${_now.second.toString().padLeft(2, '0')}';
+    return Text(
+      text,
+      key: const Key('market-live-clock'),
+      style: const TextStyle(
+        color: MarketColors.textMuted,
+        fontSize: 9,
+        fontFeatures: [FontFeature.tabularFigures()],
+      ),
+    );
+  }
 }

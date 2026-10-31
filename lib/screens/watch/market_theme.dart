@@ -24,6 +24,7 @@ class MarketColors {
   static const ma5 = Color(0xFF2962FF);
   static const ma10 = Color(0xFFD97706);
   static const ma20 = Color(0xFF8E24AA);
+  static const futureBar = Color(0xFF9EA3AE);
 }
 
 ThemeData buildMarketTheme() {

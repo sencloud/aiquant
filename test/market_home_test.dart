@@ -2,6 +2,7 @@ import 'package:fincept_app/models/instrument.dart';
 import 'package:fincept_app/models/market_period.dart';
 import 'package:fincept_app/screens/watch/market_theme.dart';
 import 'package:fincept_app/screens/watch/watch_screen.dart';
+import 'package:fincept_app/screens/watch/widgets/trading_candle_chart.dart';
 import 'package:fincept_app/services/tushare_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +70,73 @@ void main() {
     expect(service.requestedPeriods.last, MarketPeriod.fiveMinutes);
     expect(find.text('5 分钟 · Tushare'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('长按十字线后可从当前位置回放', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final service = _FakeMarketData();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildMarketTheme(),
+        home: WatchScreen(service: service),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final chart = find.byType(TradingCandleChart);
+    await tester.longPressAt(tester.getCenter(chart));
+    await tester.pump();
+
+    expect(find.text('从此处回放'), findsOneWidget);
+    await tester.tap(find.text('从此处回放'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final replayChart = tester.widget<TradingCandleChart>(chart);
+    expect(replayChart.replayIndex, isNotNull);
+    expect(find.textContaining('回放 '), findsOneWidget);
+    expect(find.byTooltip('退出回放'), findsOneWidget);
+    expect(replayChart.levels.supports, isNotEmpty);
+
+    final firstLevels = replayChart.levels;
+    final firstIndex = replayChart.replayIndex!;
+    await tester.pump(const Duration(milliseconds: 700));
+    final advancedChart = tester.widget<TradingCandleChart>(chart);
+    expect(advancedChart.replayIndex, firstIndex + 1);
+    expect(identical(advancedChart.levels, firstLevels), isFalse);
+
+    await tester.tap(find.byTooltip('退出回放'));
+    await tester.pump();
+    expect(
+      tester.widget<TradingCandleChart>(chart).replayIndex,
+      isNull,
+    );
+  });
+
+  testWidgets('右下角时钟每秒自动更新', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildMarketTheme(),
+        home: WatchScreen(service: _FakeMarketData()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final clock = find.byKey(const Key('market-live-clock'));
+    final before = tester.widget<Text>(clock).data;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1100)),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    final after = tester.widget<Text>(clock).data;
+
+    expect(before, matches(RegExp(r'^\d{2}:\d{2}:\d{2}$')));
+    expect(after, matches(RegExp(r'^\d{2}:\d{2}:\d{2}$')));
+    expect(after, isNot(before));
   });
 
   testWidgets('桌面宽屏显示品种侧栏', (tester) async {

@@ -9,6 +9,21 @@ import '../../../services/market_levels.dart';
 import '../market_theme.dart';
 import 'chart_indicators.dart';
 
+class ChartCrosshair {
+  const ChartCrosshair({required this.index, required this.candle});
+
+  final int index;
+  final CandlePoint candle;
+}
+
+double chartBarCenterX({
+  required int index,
+  required double windowStart,
+  required double visibleBars,
+  required double plotWidth,
+}) =>
+    (index - windowStart + 0.5) / visibleBars * plotWidth;
+
 /// TradingView 式交互 K 线：
 /// - 单指拖动看历史，双指捏合缩放
 /// - 长按/鼠标悬停显示十字光标
@@ -23,6 +38,7 @@ class TradingCandleChart extends StatefulWidget {
     required this.watermark,
     this.showMovingAverages = true,
     this.showVolume = true,
+    this.replayIndex,
     this.onCrosshair,
   });
 
@@ -32,7 +48,8 @@ class TradingCandleChart extends StatefulWidget {
   final String watermark;
   final bool showMovingAverages;
   final bool showVolume;
-  final ValueChanged<CandlePoint?>? onCrosshair;
+  final int? replayIndex;
+  final ValueChanged<ChartCrosshair?>? onCrosshair;
 
   @override
   State<TradingCandleChart> createState() => _TradingCandleChartState();
@@ -65,6 +82,10 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
       _crosshairY = null;
       _fitData();
     }
+    if (oldWidget.replayIndex == null && widget.replayIndex != null) {
+      _crosshairIndex = null;
+      _crosshairY = null;
+    }
   }
 
   void _fitData() {
@@ -80,7 +101,7 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
   }
 
   int get _startIndex {
-    final start = _visibleEnd.floor() - _visibleBars.ceil();
+    final start = (_visibleEnd - _visibleBars).floor();
     return start.clamp(0, math.max(0, widget.candles.length - 1));
   }
 
@@ -148,7 +169,8 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
     final length = widget.candles.length;
     if (length == 0 || _plotWidth <= 0) return;
     final x = position.dx.clamp(0.0, _plotWidth);
-    final index = (_startIndex + x / _plotWidth * _visibleBars)
+    final windowStart = _visibleEnd - _visibleBars;
+    final index = (windowStart + x / _plotWidth * _visibleBars)
         .floor()
         .clamp(0, length - 1);
     if (index == _crosshairIndex && position.dy == _crosshairY) return;
@@ -156,7 +178,9 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
       _crosshairIndex = index;
       _crosshairY = position.dy;
     });
-    widget.onCrosshair?.call(widget.candles[index]);
+    widget.onCrosshair?.call(
+      ChartCrosshair(index: index, candle: widget.candles[index]),
+    );
   }
 
   void _clearCrosshair() {
@@ -179,7 +203,6 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
         return MouseRegion(
           cursor: SystemMouseCursors.precise,
           onHover: (event) => _updateCrosshairAt(event.localPosition),
-          onExit: (_) => _clearCrosshair(),
           child: Listener(
             onPointerSignal: _onPointerSignal,
             child: GestureDetector(
@@ -195,7 +218,6 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
                   _updateCrosshairAt(details.localPosition),
               onLongPressMoveUpdate: (details) =>
                   _updateCrosshairAt(details.localPosition),
-              onLongPressEnd: (_) => _clearCrosshair(),
               child: CustomPaint(
                 painter: _TradingChartPainter(
                   candles: widget.candles,
@@ -204,9 +226,11 @@ class _TradingCandleChartState extends State<TradingCandleChart> {
                   watermark: widget.watermark,
                   startIndex: _startIndex,
                   endIndex: _endIndex,
+                  windowStart: _visibleEnd - _visibleBars,
                   visibleBars: _visibleBars,
                   showMovingAverages: widget.showMovingAverages,
                   showVolume: widget.showVolume,
+                  replayIndex: widget.replayIndex,
                   crosshairIndex: _crosshairIndex,
                   crosshairY: _crosshairY,
                 ),
@@ -228,9 +252,11 @@ class _TradingChartPainter extends CustomPainter {
     required this.watermark,
     required this.startIndex,
     required this.endIndex,
+    required this.windowStart,
     required this.visibleBars,
     required this.showMovingAverages,
     required this.showVolume,
+    required this.replayIndex,
     required this.crosshairIndex,
     required this.crosshairY,
   });
@@ -241,9 +267,11 @@ class _TradingChartPainter extends CustomPainter {
   final String watermark;
   final int startIndex;
   final int endIndex;
+  final double windowStart;
   final double visibleBars;
   final bool showMovingAverages;
   final bool showVolume;
+  final int? replayIndex;
   final int? crosshairIndex;
   final double? crosshairY;
 
@@ -306,8 +334,12 @@ class _TradingChartPainter extends CustomPainter {
     final priceSpan = maxPrice - minPrice;
 
     double xAt(int index) {
-      final local = index - (endIndex - visibleBars);
-      return (local + 0.5) / visibleBars * plotW;
+      return chartBarCenterX(
+        index: index,
+        windowStart: windowStart,
+        visibleBars: visibleBars,
+        plotWidth: plotW,
+      );
     }
 
     double yAt(double price) =>
@@ -351,7 +383,7 @@ class _TradingChartPainter extends CustomPainter {
 
     _paintWatermark(canvas, priceRect);
     _paintLevels(canvas, plotW, priceRect, minPrice, maxPrice, yAt);
-    _paintCandles(canvas, bars, plotW, yAt);
+    _paintCandles(canvas, bars, plotW, yAt, replayIndex);
     _paintMovingAverages(
       canvas,
       ma5,
@@ -369,7 +401,7 @@ class _TradingChartPainter extends CustomPainter {
         plotW,
         size.height - _timeHeight,
       );
-      _paintVolume(canvas, bars, volumeRect, plotW);
+      _paintVolume(canvas, bars, volumeRect, plotW, replayIndex);
       canvas.drawLine(
         Offset(0, volumeTop),
         Offset(plotW, volumeTop),
@@ -379,6 +411,7 @@ class _TradingChartPainter extends CustomPainter {
 
     _paintTimeAxis(canvas, size, plotW, bars);
     _paintLatestPrice(canvas, plotW, priceRect, yAt);
+    _paintReplayMarker(canvas, plotW, priceRect);
     _paintCrosshair(
       canvas,
       size,
@@ -395,6 +428,7 @@ class _TradingChartPainter extends CustomPainter {
     List<CandlePoint> bars,
     double plotW,
     double Function(double) yAt,
+    int? replayIndex,
   ) {
     final barWidth = plotW / visibleBars;
     final bodyWidth = (barWidth * 0.68).clamp(1.0, 14.0);
@@ -405,9 +439,19 @@ class _TradingChartPainter extends CustomPainter {
       final open = candle.open ?? candle.close;
       final high = candle.high ?? math.max(open, candle.close);
       final low = candle.low ?? math.min(open, candle.close);
+      final future = replayIndex != null && index > replayIndex;
       final up = candle.close >= open;
-      final color = up ? MarketColors.up : MarketColors.down;
-      final x = (index - (endIndex - visibleBars) + 0.5) / visibleBars * plotW;
+      final color = future
+          ? MarketColors.futureBar
+          : up
+              ? MarketColors.up
+              : MarketColors.down;
+      final x = chartBarCenterX(
+        index: index,
+        windowStart: windowStart,
+        visibleBars: visibleBars,
+        plotWidth: plotW,
+      );
       final wickPaint = Paint()
         ..color = color
         ..strokeWidth = wickWidth;
@@ -424,7 +468,10 @@ class _TradingChartPainter extends CustomPainter {
         bodyWidth,
         math.max(1, bottom - top),
       );
-      canvas.drawRect(body, Paint()..color = color);
+      canvas.drawRect(
+        body,
+        Paint()..color = future ? color.withValues(alpha: 0.72) : color,
+      );
     }
   }
 
@@ -440,7 +487,8 @@ class _TradingChartPainter extends CustomPainter {
       if (series == null) return;
       final path = Path();
       var started = false;
-      for (var i = startIndex; i < endIndex; i++) {
+      final seriesEnd = replayIndex == null ? endIndex : replayIndex! + 1;
+      for (var i = startIndex; i < math.min(endIndex, seriesEnd); i++) {
         final value = series[i];
         if (value == null) {
           started = false;
@@ -490,9 +538,10 @@ class _TradingChartPainter extends CustomPainter {
       x += painter.width + 10;
     }
 
-    label('MA5', MarketColors.ma5, ma5?[endIndex - 1]);
-    label('MA10', MarketColors.ma10, ma10?[endIndex - 1]);
-    label('MA20', MarketColors.ma20, ma20?[endIndex - 1]);
+    final displayIndex = replayIndex ?? endIndex - 1;
+    label('MA5', MarketColors.ma5, ma5?[displayIndex]);
+    label('MA10', MarketColors.ma10, ma10?[displayIndex]);
+    label('MA20', MarketColors.ma20, ma20?[displayIndex]);
   }
 
   void _paintVolume(
@@ -500,6 +549,7 @@ class _TradingChartPainter extends CustomPainter {
     List<CandlePoint> bars,
     Rect rect,
     double plotW,
+    int? replayIndex,
   ) {
     var maxVolume = 0.0;
     for (final bar in bars) {
@@ -519,9 +569,19 @@ class _TradingChartPainter extends CustomPainter {
       final volume = bar.vol ?? 0;
       if (volume <= 0) continue;
       final open = bar.open ?? bar.close;
-      final color = bar.close >= open ? MarketColors.up : MarketColors.down;
+      final future = replayIndex != null && startIndex + local > replayIndex;
+      final color = future
+          ? MarketColors.futureBar
+          : bar.close >= open
+              ? MarketColors.up
+              : MarketColors.down;
       final height = volume / maxVolume * (rect.height - 7);
-      final center = (local + 0.5) / visibleBars * plotW;
+      final center = chartBarCenterX(
+        index: startIndex + local,
+        windowStart: windowStart,
+        visibleBars: visibleBars,
+        plotWidth: plotW,
+      );
       canvas.drawRect(
         Rect.fromLTWH(
           center - bodyWidth / 2,
@@ -529,7 +589,7 @@ class _TradingChartPainter extends CustomPainter {
           bodyWidth,
           height,
         ),
-        Paint()..color = color.withValues(alpha: 0.55),
+        Paint()..color = color.withValues(alpha: future ? 0.34 : 0.55),
       );
     }
   }
@@ -647,8 +707,9 @@ class _TradingChartPainter extends CustomPainter {
     Rect priceRect,
     double Function(double) yAt,
   ) {
-    final latest = candles.last;
-    final previous = candles.length > 1 ? candles[candles.length - 2] : null;
+    final index = replayIndex ?? candles.length - 1;
+    final latest = candles[index];
+    final previous = index > 0 ? candles[index - 1] : null;
     final up = previous == null || latest.close >= previous.close;
     final y = yAt(latest.close).clamp(priceRect.top, priceRect.bottom);
     final color = up ? MarketColors.up : MarketColors.down;
@@ -684,6 +745,33 @@ class _TradingChartPainter extends CustomPainter {
     );
   }
 
+  void _paintReplayMarker(Canvas canvas, double plotW, Rect priceRect) {
+    final index = replayIndex;
+    if (index == null || index < startIndex || index >= endIndex) return;
+    final x = chartBarCenterX(
+      index: index,
+      windowStart: windowStart,
+      visibleBars: visibleBars,
+      plotWidth: plotW,
+    );
+    _drawDashed(
+      canvas,
+      Offset(x, 0),
+      Offset(x, priceRect.bottom),
+      Paint()
+        ..color = MarketColors.accent.withValues(alpha: 0.72)
+        ..strokeWidth = 1,
+      dash: 3,
+      gap: 3,
+    );
+    final triangle = Path()
+      ..moveTo(x - 5, 0)
+      ..lineTo(x + 5, 0)
+      ..lineTo(x, 6)
+      ..close();
+    canvas.drawPath(triangle, Paint()..color = MarketColors.accent);
+  }
+
   void _paintTimeAxis(
     Canvas canvas,
     Size size,
@@ -694,7 +782,13 @@ class _TradingChartPainter extends CustomPainter {
     final step = math.max(1, (bars.length / tickCount).ceil());
     for (var local = 0; local < bars.length; local += step) {
       final candle = bars[local];
-      final x = (local + 0.5) / visibleBars * plotW;
+      final index = startIndex + local;
+      final x = chartBarCenterX(
+        index: index,
+        windowStart: windowStart,
+        visibleBars: visibleBars,
+        plotWidth: plotW,
+      );
       if (x < 18 || x > plotW - 22) continue;
       final label = _formatAxisTime(candle.date, period);
       final painter = _textPainter(
@@ -722,7 +816,12 @@ class _TradingChartPainter extends CustomPainter {
   ) {
     final index = crosshairIndex;
     if (index == null || index < startIndex || index >= endIndex) return;
-    final x = (index - (endIndex - visibleBars) + 0.5) / visibleBars * plotW;
+    final x = chartBarCenterX(
+      index: index,
+      windowStart: windowStart,
+      visibleBars: visibleBars,
+      plotWidth: plotW,
+    );
     final y = (crosshairY ?? priceRect.top + priceRect.height / 2)
         .clamp(priceRect.top, priceRect.bottom);
     final paint = Paint()
@@ -907,9 +1006,11 @@ class _TradingChartPainter extends CustomPainter {
       old.levels != levels ||
       old.startIndex != startIndex ||
       old.endIndex != endIndex ||
+      old.windowStart != windowStart ||
       old.visibleBars != visibleBars ||
       old.showMovingAverages != showMovingAverages ||
       old.showVolume != showVolume ||
+      old.replayIndex != replayIndex ||
       old.crosshairIndex != crosshairIndex ||
       old.crosshairY != crosshairY ||
       old.watermark != watermark;
