@@ -38,6 +38,13 @@ void main() {
     expect(result.atr, greaterThan(0));
     expect(result.supports.first.width, greaterThan(0));
     expect(result.resistances.first.width, greaterThan(0));
+    expect(result.supports.first.strength, inInclusiveRange(0, 1));
+    expect(result.resistances.first.strength, inInclusiveRange(0, 1));
+    expect(
+      {...result.supports, ...result.resistances}
+          .every((zone) => ['弱', '中', '强'].contains(zone.strengthLabel)),
+      isTrue,
+    );
     expect(
       result.supports.every((zone) => zone.high < candles.last.close),
       isTrue,

@@ -4,6 +4,21 @@ import '../models/instrument.dart';
 
 enum MarketLevelKind { support, resistance }
 
+enum MarketZoneStrength { weak, medium, strong }
+
+extension MarketZoneStrengthX on MarketZoneStrength {
+  String get label {
+    switch (this) {
+      case MarketZoneStrength.weak:
+        return '弱';
+      case MarketZoneStrength.medium:
+        return '中';
+      case MarketZoneStrength.strong:
+        return '强';
+    }
+  }
+}
+
 /// 由历史摆动点聚类形成的支撑/阻力区间。
 class MarketPriceZone {
   const MarketPriceZone({
@@ -11,6 +26,7 @@ class MarketPriceZone {
     required this.high,
     required this.kind,
     required this.score,
+    required this.strength,
     required this.touches,
     required this.lastIndex,
   });
@@ -19,6 +35,7 @@ class MarketPriceZone {
   final double high;
   final MarketLevelKind kind;
   final double score;
+  final double strength;
   final int touches;
   final int lastIndex;
 
@@ -26,6 +43,14 @@ class MarketPriceZone {
   double get width => high - low;
 
   bool contains(double price) => price >= low && price <= high;
+
+  MarketZoneStrength get strengthLevel {
+    if (strength >= 0.68) return MarketZoneStrength.strong;
+    if (strength >= 0.43) return MarketZoneStrength.medium;
+    return MarketZoneStrength.weak;
+  }
+
+  String get strengthLabel => strengthLevel.label;
 }
 
 class SupportResistance {
@@ -136,9 +161,15 @@ class MarketLevelAnalyzer {
           ? 0.0
           : math.min(0.8, cluster.averageVolume / latestVolume * 0.22);
       final score = cluster.touches * 1.35 + recency * 0.9 + volumeBoost;
+      final strength = _strength(
+        touches: cluster.touches,
+        recency: recency,
+        volumeBoost: volumeBoost,
+      );
       scored.add(
         cluster.toZone(
           score: score,
+          strength: strength,
           minimumHalfWidth: tolerance * 0.55,
           maximumHalfWidth: tolerance * 1.55,
         ),
@@ -240,6 +271,7 @@ class MarketLevelAnalyzer {
         high: high,
         kind: support ? MarketLevelKind.support : MarketLevelKind.resistance,
         score: 0.8,
+        strength: 0.18,
         touches: 1,
         lastIndex: bars.length - 1,
       );
@@ -282,6 +314,18 @@ class MarketLevelAnalyzer {
     }
     return count == 0 ? 0 : sum / count;
   }
+
+  static double _strength({
+    required int touches,
+    required double recency,
+    required double volumeBoost,
+  }) {
+    final touchScore = ((touches - 1) / 3).clamp(0.0, 1.0);
+    final recentScore = recency.clamp(0.0, 1.0);
+    final volumeScore = (volumeBoost / 0.8).clamp(0.0, 1.0);
+    return (touchScore * 0.52 + recentScore * 0.28 + volumeScore * 0.2)
+        .clamp(0.0, 1.0);
+  }
 }
 
 class _Pivot {
@@ -315,6 +359,7 @@ class _Cluster {
 
   MarketPriceZone toZone({
     required double score,
+    required double strength,
     required double minimumHalfWidth,
     required double maximumHalfWidth,
   }) {
@@ -333,6 +378,7 @@ class _Cluster {
       high: center + halfWidth,
       kind: kind,
       score: score,
+      strength: strength,
       touches: touches,
       lastIndex: lastIndex,
     );

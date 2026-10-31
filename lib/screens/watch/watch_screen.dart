@@ -459,7 +459,6 @@ class _WatchScreenState extends State<WatchScreen> {
         _levelRow(
           label: 'R${i + 1}',
           zone: zone,
-          color: MarketColors.resistance,
         ),
       );
     }
@@ -469,7 +468,6 @@ class _WatchScreenState extends State<WatchScreen> {
         _levelRow(
           label: 'S${i + 1}',
           zone: zone,
-          color: MarketColors.support,
         ),
       );
     }
@@ -491,20 +489,22 @@ class _WatchScreenState extends State<WatchScreen> {
   Widget _levelRow({
     required String label,
     required MarketPriceZone zone,
-    required Color color,
   }) {
     final close = _candles.isEmpty ? null : _candles.last.close;
     final distance = close == null || close == 0
         ? null
         : (zone.center - close) / close * 100;
+    final color = zone.kind == MarketLevelKind.support
+        ? MarketColors.supportZone(zone.strength)
+        : MarketColors.resistanceZone(zone.strength);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           SizedBox(
-            width: 24,
+            width: 42,
             child: Text(
-              label,
+              '$label ${zone.strengthLabel}',
               style: TextStyle(
                 color: color,
                 fontSize: 10,
@@ -526,7 +526,7 @@ class _WatchScreenState extends State<WatchScreen> {
             Text(
               '${distance >= 0 ? '+' : ''}${distance.toStringAsFixed(2)}%',
               style: TextStyle(
-                color: color.withValues(alpha: 0.82),
+                color: color,
                 fontSize: 10,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),

@@ -147,8 +147,9 @@ ${question.label}
 2. 先给一句明确倾向，再给盘面证据；只能使用上述数据，不得虚构新闻、基本面、资金流、持仓成本或未来价格。
 3. 用“观察 → 触发条件 → 失效条件”描述，不使用“必涨、必跌、保证收益”等表达。
 4. 支撑阻力优先使用给出的区间上下界，不要把区间偷换成单一价格。
-5. 输出 Markdown，控制在 350 字以内，依次使用小标题：结论、盘面依据、执行条件、风险。
-6. 结尾固定写：AI分析仅供盘面参考，不构成投资建议。
+5. 支撑阻力强度已按触碰次数、近期性和成交量评级为强/中/弱；强区间优先作为失效与突破条件。
+6. 输出 Markdown，控制在 350 字以内，依次使用小标题：结论、盘面依据、执行条件、风险。
+7. 结尾固定写：AI分析仅供盘面参考，不构成投资建议。
 ''';
   }
 
@@ -186,7 +187,9 @@ ${question.label}
         ? '暂未形成稳定阻力区间'
         : '${_price(resistance.low)}–${_price(resistance.high)}';
     final commonEvidence =
-        '现价 ${_price(active.close)}，${aboveMa20 ? '位于 MA20 上方' : '位于 MA20 下方'}；最近支撑 $supportText，最近阻力 $resistanceText。';
+        '现价 ${_price(active.close)}，${aboveMa20 ? '位于 MA20 上方' : '位于 MA20 下方'}；'
+        '最近支撑 $supportText${support == null ? '' : '（${support.strengthLabel}）'}，'
+        '最近阻力 $resistanceText${resistance == null ? '' : '（${resistance.strengthLabel}）'}。';
 
     final conclusion = switch (question) {
       MarketAiQuestion.entry =>
@@ -232,7 +235,8 @@ AI分析仅供盘面参考，不构成投资建议。
     return [
       for (var i = 0; i < zones.length; i++)
         '$prefix${i + 1}：${_price(zones[i].low)}–${_price(zones[i].high)}'
-            '（中心 ${_price(zones[i].center)}，触碰 ${zones[i].touches} 次）',
+            '（${zones[i].strengthLabel}，中心 ${_price(zones[i].center)}，'
+            '触碰 ${zones[i].touches} 次）',
     ];
   }
 

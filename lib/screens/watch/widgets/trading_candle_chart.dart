@@ -612,11 +612,15 @@ class _TradingChartPainter extends CustomPainter {
           .clamp(priceRect.top, priceRect.bottom);
       if (bottom <= top) return;
       final color = zone.kind == MarketLevelKind.support
-          ? MarketColors.support
-          : MarketColors.resistance;
+          ? MarketColors.supportZone(zone.strength)
+          : MarketColors.resistanceZone(zone.strength);
+      final normalizedStrength = zone.strength.clamp(0.0, 1.0);
       canvas.drawRect(
         Rect.fromLTRB(0, top, plotW, bottom),
-        Paint()..color = color.withValues(alpha: 0.105),
+        Paint()
+          ..color = color.withValues(
+            alpha: 0.045 + normalizedStrength * 0.14,
+          ),
       );
       for (final y in [top, bottom]) {
         _drawDashed(
@@ -624,8 +628,10 @@ class _TradingChartPainter extends CustomPainter {
           Offset(0, y),
           Offset(plotW, y),
           Paint()
-            ..color = color.withValues(alpha: 0.74)
-            ..strokeWidth = 0.9,
+            ..color = color.withValues(
+              alpha: 0.48 + normalizedStrength * 0.42,
+            )
+            ..strokeWidth = 0.7 + normalizedStrength * 0.8,
           dash: 5,
           gap: 4,
         );
@@ -636,13 +642,16 @@ class _TradingChartPainter extends CustomPainter {
         Offset(0, centerY),
         Offset(plotW, centerY),
         Paint()
-          ..color = color.withValues(alpha: 0.34)
+          ..color = color.withValues(
+            alpha: 0.18 + normalizedStrength * 0.3,
+          )
           ..strokeWidth = 0.7,
         dash: 2,
         gap: 4,
       );
 
-      final label = zone.kind == MarketLevelKind.support ? 'S$rank' : 'R$rank';
+      final prefix = zone.kind == MarketLevelKind.support ? 'S$rank' : 'R$rank';
+      final label = '$prefix ${zone.strengthLabel}';
       final rangeText = '${_formatPrice(zone.low)}–${_formatPrice(zone.high)}';
       _paintText(
         canvas,

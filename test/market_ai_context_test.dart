@@ -42,6 +42,7 @@ void main() {
     expect(prompt, contains('MA20'));
     expect(prompt, contains('支撑区间'));
     expect(prompt, contains('阻力区间'));
+    expect(prompt, contains('评级为强/中/弱'));
     expect(prompt, contains('空仓是否适合新建仓'));
     expect(prompt, contains('已有持仓是否适合补仓'));
     expect(prompt, contains('不构成投资建议'));

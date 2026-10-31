@@ -20,11 +20,27 @@ class MarketColors {
   static const down = Color(0xFF007A5A);
   static const support = Color(0xFF00796B);
   static const resistance = Color(0xFFC65300);
+  static const supportZoneWeak = Color(0xFF4C9E89);
+  static const supportZoneStrong = Color(0xFF005C48);
+  static const resistanceZoneWeak = Color(0xFFC36C64);
+  static const resistanceZoneStrong = Color(0xFF8E1B1B);
   static const warning = Color(0xFFB26A00);
   static const ma5 = Color(0xFF2962FF);
   static const ma10 = Color(0xFFD97706);
   static const ma20 = Color(0xFF8E24AA);
   static const futureBar = Color(0xFF9EA3AE);
+
+  static Color supportZone(double strength) => Color.lerp(
+        supportZoneWeak,
+        supportZoneStrong,
+        strength.clamp(0.0, 1.0),
+      )!;
+
+  static Color resistanceZone(double strength) => Color.lerp(
+        resistanceZoneWeak,
+        resistanceZoneStrong,
+        strength.clamp(0.0, 1.0),
+      )!;
 }
 
 ThemeData buildMarketTheme() {

@@ -41,6 +41,14 @@ void main() {
     final theme = buildMarketTheme();
     expect(theme.brightness, Brightness.light);
     expect(MarketColors.background, Colors.white);
+    expect(
+      MarketColors.supportZone(1).computeLuminance(),
+      lessThan(MarketColors.supportZone(0).computeLuminance()),
+    );
+    expect(
+      MarketColors.resistanceZone(1).computeLuminance(),
+      lessThan(MarketColors.resistanceZone(0).computeLuminance()),
+    );
   });
 
   testWidgets('首页展示六个周期并可切换分钟线', (tester) async {
