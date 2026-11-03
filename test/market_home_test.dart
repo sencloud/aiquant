@@ -5,6 +5,7 @@ import 'package:fincept_app/screens/watch/watch_screen.dart';
 import 'package:fincept_app/screens/watch/widgets/market_brand.dart';
 import 'package:fincept_app/screens/watch/widgets/trading_candle_chart.dart';
 import 'package:fincept_app/services/tushare_service.dart';
+import 'package:fincept_app/services/market_realtime_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,6 +37,30 @@ class _FakeMarketData extends TushareService {
   }
 }
 
+class _FakeRealtimeQuote implements MarketQuoteService {
+  @override
+  Future<RealtimeQuote> fetchQuote(String tsCode) async {
+    final now = DateTime.now();
+    return RealtimeQuote(
+      tsCode: tsCode,
+      name: '测试行情',
+      assetClass: '股票',
+      last: 120,
+      pctChg: 0.2,
+      open: 119,
+      high: 121,
+      low: 118,
+      preClose: 119.8,
+      preSettle: 0,
+      volume: 100000,
+      delayed: false,
+      source: 'tencent_qt',
+      asOf: now,
+      quoteTime: now,
+    );
+  }
+}
+
 void main() {
   test('行情主题固定为浅色', () {
     final theme = buildMarketTheme();
@@ -59,7 +84,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: service),
+        home: WatchScreen(
+          service: service,
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -71,6 +99,7 @@ void main() {
     expect(find.text('1天'), findsOneWidget);
     expect(find.text('1周'), findsOneWidget);
     expect(find.text('1月'), findsOneWidget);
+    expect(find.text('实时'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('5分'));
@@ -89,7 +118,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: service),
+        home: WatchScreen(
+          service: service,
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -130,7 +162,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: _FakeMarketData()),
+        home: WatchScreen(
+          service: _FakeMarketData(),
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -155,7 +190,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: _FakeMarketData()),
+        home: WatchScreen(
+          service: _FakeMarketData(),
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -184,7 +222,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: service),
+        home: WatchScreen(
+          service: service,
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -204,7 +245,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildMarketTheme(),
-        home: WatchScreen(service: _FakeMarketData()),
+        home: WatchScreen(
+          service: _FakeMarketData(),
+          realtimeService: _FakeRealtimeQuote(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

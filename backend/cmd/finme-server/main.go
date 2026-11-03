@@ -263,6 +263,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Chat:       chatSvc,
 		Qwen:       qwenVision,
 		Ingest:     ingest.Default(),
+		Realtime:   liveRt,
 		Share:      share.NewRepo(st),
 		Shell:      shellRepo,
 		Predict:    predictSvc,

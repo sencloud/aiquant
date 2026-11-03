@@ -14,21 +14,23 @@ import (
 // 所有价格已转换为「元」，涨跌幅已转换为「百分比」。
 // PreClose 缺失（指数）时为 0；ETF 不一定有 TurnoverRate。
 type Quote struct {
-	Code         string  `json:"code"`         // 6 位代码
-	TsCode       string  `json:"ts_code"`      // 标准化形态：600519.SH
+	Code         string  `json:"code"`    // 6 位代码
+	TsCode       string  `json:"ts_code"` // 标准化形态：600519.SH
 	Name         string  `json:"name"`
-	Last         float64 `json:"last"`         // 最新价
-	PctChg       float64 `json:"pct_chg"`      // 当日涨跌幅 %
-	Change       float64 `json:"change"`       // 涨跌额
+	Last         float64 `json:"last"`    // 最新价
+	PctChg       float64 `json:"pct_chg"` // 当日涨跌幅 %
+	Change       float64 `json:"change"`  // 涨跌额
 	Open         float64 `json:"open"`
 	High         float64 `json:"high"`
 	Low          float64 `json:"low"`
 	PreClose     float64 `json:"pre_close"`
-	Volume       int64   `json:"volume"`       // 手 (股票) / 张 (期货)
-	Amount       float64 `json:"amount"`       // 成交额 元
+	Volume       int64   `json:"volume"`                  // 手 (股票) / 张 (期货)
+	Amount       float64 `json:"amount"`                  // 成交额 元
 	TurnoverRate float64 `json:"turnover_rate,omitempty"` // %
-	PE           float64 `json:"pe,omitempty"` // TTM
-	Delayed      bool    `json:"delayed"`      // 延时报价
+	PE           float64 `json:"pe,omitempty"`            // TTM
+	Delayed      bool    `json:"delayed"`                 // 延时报价
+	// AsOf is the upstream quote timestamp in unix seconds when available.
+	AsOf int64 `json:"as_of,omitempty"`
 }
 
 // fetchSnapshotEM 拉单标的实时报价（东方财富 push2 实现，保留作为 client.go 公开方法的可选备用）。
@@ -49,10 +51,10 @@ func (c *Client) fetchSnapshotEM(ctx context.Context, symbol string) (*Quote, er
 	u := "https://push2delay.eastmoney.com/api/qt/stock/get" +
 		"?secid=" + secid +
 		"&fields=" + strings.Join([]string{
-			"f43", "f44", "f45", "f46", "f47", "f48",
-			"f57", "f58", "f60", "f168", "f169", "f170",
-			"f152", "f162", "f1",
-		}, ",")
+		"f43", "f44", "f45", "f46", "f47", "f48",
+		"f57", "f58", "f60", "f168", "f169", "f170",
+		"f152", "f162", "f1", "f86",
+	}, ",")
 	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 finme-backend")
 	req.Header.Set("Referer", "https://quote.eastmoney.com/")
@@ -79,20 +81,21 @@ func (c *Client) fetchSnapshotEM(ctx context.Context, symbol string) (*Quote, er
 		return nil, fmt.Errorf("eastmoney snapshot empty data for %s", symbol)
 	}
 	q := &Quote{
-		Code:     asString(r.Data["f57"]),
-		Name:     asString(r.Data["f58"]),
-		Last:     toRMB(asInt(r.Data["f43"])),
-		High:     toRMB(asInt(r.Data["f44"])),
-		Low:      toRMB(asInt(r.Data["f45"])),
-		Open:     toRMB(asInt(r.Data["f46"])),
-		Volume:   asInt(r.Data["f47"]),
-		Amount:   asFloat(r.Data["f48"]),
-		PreClose: toRMB(asInt(r.Data["f60"])),
-		PctChg:   toPercent(asInt(r.Data["f170"])),
-		Change:   toRMB(asInt(r.Data["f169"])),
-		PE:       float64(asInt(r.Data["f162"])) / 100.0,
+		Code:         asString(r.Data["f57"]),
+		Name:         asString(r.Data["f58"]),
+		Last:         toRMB(asInt(r.Data["f43"])),
+		High:         toRMB(asInt(r.Data["f44"])),
+		Low:          toRMB(asInt(r.Data["f45"])),
+		Open:         toRMB(asInt(r.Data["f46"])),
+		Volume:       asInt(r.Data["f47"]),
+		Amount:       asFloat(r.Data["f48"]),
+		PreClose:     toRMB(asInt(r.Data["f60"])),
+		PctChg:       toPercent(asInt(r.Data["f170"])),
+		Change:       toRMB(asInt(r.Data["f169"])),
+		PE:           float64(asInt(r.Data["f162"])) / 100.0,
 		TurnoverRate: float64(asInt(r.Data["f168"])) / 100.0,
-		Delayed:  asInt(r.Data["f1"]) > 1,
+		Delayed:      asInt(r.Data["f1"]) > 1,
+		AsOf:         asInt(r.Data["f86"]),
 	}
 	q.TsCode = restoreTsCode(secid, q.Code)
 	return q, nil

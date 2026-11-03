@@ -68,6 +68,8 @@ type Deps struct {
 	Story *story.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
+	// Realtime 是行情首页使用的公开实时快照源；nil 时接口返回 503。
+	Realtime MarketQuoteSource
 }
 
 // NewRouter 装配业务路由。
@@ -128,6 +130,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountIngest(r, d)
 			// 首页内容（今天想聊点什么）公开：无用户数据，未登录也能看。
 			mountAIHomePublic(r, d)
+			// 行情首页实时快照：公开只读行情，不涉及用户数据。
+			mountMarketRealtimePublic(r, d)
 			// 证伪档案公开：获客内容，免登录（不含 report_url，付费字段按解锁状态下发）。
 			mountFalsificationPublic(r, d)
 			// 喜爱钓鱼公开：出钓指数 / 禁渔提示（无用户数据）。

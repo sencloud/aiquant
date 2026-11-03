@@ -19,24 +19,26 @@ import (
 //   - 期货独有 Bid / Ask（买一卖一，部分非交易时段会为 0）；
 //   - 价格统一已用 push2 字段 f59（小数位数）还原成"真实合约价"。
 type FuturesQuote struct {
-	Code      string  `json:"code"`      // 合约代码（如 RB2510 / IF2509 / sc2509）
-	TsCode    string  `json:"ts_code"`   // 标准化 ts_code（RB2510.SHF）
-	Name      string  `json:"name"`      // 合约中文名（如 螺纹钢2510）
-	Exchange  string  `json:"exchange"`  // CFFEX / SHFE / DCE / CZCE / INE / GFEX
-	Last      float64 `json:"last"`      // 最新价
-	PctChg    float64 `json:"pct_chg"`   // 涨跌幅 %
-	Change    float64 `json:"change"`    // 涨跌额
+	Code      string  `json:"code"`     // 合约代码（如 RB2510 / IF2509 / sc2509）
+	TsCode    string  `json:"ts_code"`  // 标准化 ts_code（RB2510.SHF）
+	Name      string  `json:"name"`     // 合约中文名（如 螺纹钢2510）
+	Exchange  string  `json:"exchange"` // CFFEX / SHFE / DCE / CZCE / INE / GFEX
+	Last      float64 `json:"last"`     // 最新价
+	PctChg    float64 `json:"pct_chg"`  // 涨跌幅 %
+	Change    float64 `json:"change"`   // 涨跌额
 	Open      float64 `json:"open"`
 	High      float64 `json:"high"`
 	Low       float64 `json:"low"`
 	PreClose  float64 `json:"pre_close,omitempty"`
 	PreSettle float64 `json:"pre_settle"`
-	Volume    int64   `json:"volume"`     // 成交量（手）
-	Amount    float64 `json:"amount"`     // 成交额（元）
-	OI        int64   `json:"oi"`         // 持仓量（手）
+	Volume    int64   `json:"volume"` // 成交量（手）
+	Amount    float64 `json:"amount"` // 成交额（元）
+	OI        int64   `json:"oi"`     // 持仓量（手）
 	Bid       float64 `json:"bid,omitempty"`
 	Ask       float64 `json:"ask,omitempty"`
 	Delayed   bool    `json:"delayed"`
+	// AsOf is the upstream quote timestamp in unix seconds when available.
+	AsOf int64 `json:"as_of,omitempty"`
 }
 
 // fetchFuturesSnapshotEM 拉单期货合约实时行情（东方财富 push2 实现）。
@@ -62,7 +64,7 @@ func (c *Client) fetchFuturesSnapshotEM(ctx context.Context, tsCode string) (*Fu
 	}
 	fields := []string{
 		"f1", "f43", "f44", "f45", "f46", "f47", "f48", "f49",
-		"f50", "f51", "f57", "f58", "f59", "f60", "f161", "f169", "f170",
+		"f50", "f51", "f57", "f58", "f59", "f60", "f86", "f161", "f169", "f170",
 	}
 	u := "https://push2delay.eastmoney.com/api/qt/stock/get" +
 		"?secid=" + secid +
@@ -126,6 +128,7 @@ func (c *Client) fetchFuturesSnapshotEM(ctx context.Context, tsCode string) (*Fu
 		Change:    scale(r.Data["f169"]),
 		PctChg:    toPercent(asInt(r.Data["f170"])),
 		Delayed:   asInt(r.Data["f1"]) > 1,
+		AsOf:      asInt(r.Data["f86"]),
 	}
 	q.TsCode = strings.ToUpper(tsCode)
 	q.Exchange = futuresExchangeFromSecID(secid)

@@ -10,6 +10,8 @@ import '../../models/instrument.dart';
 import '../../models/market_period.dart';
 import '../../services/market_ai_context.dart';
 import '../../services/market_levels.dart';
+import '../../services/market_realtime_service.dart';
+import '../../services/realtime_candle_merge.dart';
 import '../../services/tushare_service.dart';
 import '../../state/watchlist_state.dart';
 import 'market_ai_sheet.dart';
@@ -21,15 +23,20 @@ import 'widgets/trading_candle_chart.dart';
 
 /// 应用唯一首页：股票 / 期货行情与关键价位。
 class WatchScreen extends StatefulWidget {
-  const WatchScreen({super.key, this.service});
+  const WatchScreen({
+    super.key,
+    this.service,
+    this.realtimeService,
+  });
 
   final TushareService? service;
+  final MarketQuoteService? realtimeService;
 
   @override
   State<WatchScreen> createState() => _WatchScreenState();
 }
 
-class _WatchScreenState extends State<WatchScreen> {
+class _WatchScreenState extends State<WatchScreen> with WidgetsBindingObserver {
   static const _selectionKey = 'market_home.selection.v1';
   static const _recentKey = 'market_home.recent.v1';
   static const _defaultItem = WatchItem(
@@ -39,6 +46,8 @@ class _WatchScreenState extends State<WatchScreen> {
   );
 
   late final TushareService _service = widget.service ?? TushareService();
+  late final MarketQuoteService _realtimeService =
+      widget.realtimeService ?? MarketRealtimeService();
   WatchItem _selected = _defaultItem;
   MarketPeriod _period = MarketPeriod.oneDay;
   List<CandlePoint> _candles = const [];
@@ -53,19 +62,43 @@ class _WatchScreenState extends State<WatchScreen> {
   bool _showVolume = true;
   String? _error;
   DateTime? _updatedAt;
+  RealtimeQuote? _realtimeQuote;
+  String? _realtimeError;
+  int? _lastQuoteVolume;
+  Timer? _quoteTimer;
+  bool _quoteRequestInFlight = false;
+  bool _appPaused = false;
   int _requestId = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _restoreLocalState();
     _load(clear: true);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopQuotePolling();
     _replayTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final paused = state != AppLifecycleState.resumed;
+    if (paused) {
+      _appPaused = true;
+      _stopQuotePolling();
+      return;
+    }
+    if (!_appPaused) return;
+    _appPaused = false;
+    // A short background trip can cross a K-line boundary. Reload history
+    // once on resume, then let quote polling maintain the current bar.
+    _load(clear: false);
   }
 
   void _restoreLocalState() {
@@ -98,6 +131,7 @@ class _WatchScreenState extends State<WatchScreen> {
 
   Future<void> _load({bool clear = false}) async {
     final requestId = ++_requestId;
+    _stopQuotePolling();
     _replayTimer?.cancel();
     setState(() {
       _loading = true;
@@ -105,6 +139,10 @@ class _WatchScreenState extends State<WatchScreen> {
       _crosshair = null;
       _replayIndex = null;
       _replayPlaying = false;
+      _realtimeQuote = null;
+      _realtimeError = null;
+      _lastQuoteVolume = null;
+      _quoteRequestInFlight = false;
       if (!clear && _candles.isNotEmpty) {
         _levels = MarketLevelAnalyzer.analyze(_candles);
       }
@@ -129,6 +167,7 @@ class _WatchScreenState extends State<WatchScreen> {
         _loading = false;
         _updatedAt = DateTime.now();
       });
+      _startQuotePolling();
     } catch (error) {
       if (!mounted || requestId != _requestId) return;
       setState(() {
@@ -137,6 +176,74 @@ class _WatchScreenState extends State<WatchScreen> {
         _levels = const SupportResistance();
         _error = error is TushareException ? error.message : error.toString();
       });
+    }
+  }
+
+  void _startQuotePolling() {
+    if (!mounted ||
+        _appPaused ||
+        _candles.isEmpty ||
+        _replayIndex != null ||
+        _quoteTimer != null) {
+      return;
+    }
+    unawaited(_refreshRealtimeQuote());
+    _quoteTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_refreshRealtimeQuote()),
+    );
+  }
+
+  void _stopQuotePolling() {
+    _quoteTimer?.cancel();
+    _quoteTimer = null;
+  }
+
+  Future<void> _refreshRealtimeQuote() async {
+    if (!mounted ||
+        _appPaused ||
+        _quoteRequestInFlight ||
+        _candles.isEmpty ||
+        _replayIndex != null) {
+      return;
+    }
+    final requestId = _requestId;
+    final tsCode = _selected.tsCode;
+    final period = _period;
+    _quoteRequestInFlight = true;
+    try {
+      final quote = await _realtimeService.fetchQuote(tsCode);
+      if (!mounted ||
+          requestId != _requestId ||
+          period != _period ||
+          _replayIndex != null) {
+        return;
+      }
+      final update = RealtimeCandleMerger.merge(
+        candles: _candles,
+        tsCode: tsCode,
+        period: period,
+        quote: quote,
+        previousCumulativeVolume: _lastQuoteVolume,
+      );
+      if (update == null) return;
+      final levels = MarketLevelAnalyzer.analyze(update.candles);
+      setState(() {
+        _candles = update.candles;
+        _levels = levels;
+        _realtimeQuote = quote;
+        _realtimeError = null;
+        _lastQuoteVolume = update.cumulativeVolume;
+        _updatedAt = DateTime.now();
+      });
+    } catch (error) {
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _realtimeError =
+            error is MarketRealtimeException ? error.message : '实时行情连接失败';
+      });
+    } finally {
+      if (requestId == _requestId) _quoteRequestInFlight = false;
     }
   }
 
@@ -207,6 +314,7 @@ class _WatchScreenState extends State<WatchScreen> {
     if (crosshair == null || _candles.isEmpty) return;
     final start = crosshair.index.clamp(0, _candles.length - 1);
     final hasFuture = start < _candles.length - 1;
+    _stopQuotePolling();
     _replayTimer?.cancel();
     setState(() {
       _crosshair = null;
@@ -260,6 +368,7 @@ class _WatchScreenState extends State<WatchScreen> {
       _crosshair = null;
       _levels = MarketLevelAnalyzer.analyze(_candles);
     });
+    _startQuotePolling();
   }
 
   Future<void> _openMarketAi() async {
@@ -273,6 +382,7 @@ class _WatchScreenState extends State<WatchScreen> {
       _replayTimer?.cancel();
       setState(() => _replayPlaying = false);
     }
+    _stopQuotePolling();
     final activeIndex =
         _crosshair?.index ?? _replayIndex ?? _candles.length - 1;
     final prefix = _candles
@@ -291,6 +401,7 @@ class _WatchScreenState extends State<WatchScreen> {
       levels: MarketLevelAnalyzer.analyze(prefix),
     );
     await showMarketAiSheet(context, snapshot: snapshot);
+    if (mounted) _startQuotePolling();
   }
 
   @override
@@ -1281,24 +1392,65 @@ class _WatchScreenState extends State<WatchScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          if (!compact)
+          if (!compact) ...[
             const Text(
               '滚轮缩放 · 拖动平移 · 双击复位',
               style: TextStyle(
                 color: MarketColors.textMuted,
                 fontSize: 9,
               ),
-            )
-          else
-            const Text(
-              '捏合缩放 · 长按十字线',
-              style: TextStyle(
-                color: MarketColors.textMuted,
-                fontSize: 9,
-              ),
             ),
+          ],
+          const SizedBox(width: 8),
+          _quoteStatus(),
           const Spacer(),
           const _LiveClock(),
+        ],
+      ),
+    );
+  }
+
+  Widget _quoteStatus() {
+    final quote = _realtimeQuote;
+    final error = _realtimeError;
+    final color = error != null
+        ? MarketColors.warning
+        : quote?.delayed == true
+            ? MarketColors.warning
+            : quote != null
+                ? MarketColors.up
+                : MarketColors.textMuted;
+    final label = error != null
+        ? '行情断开'
+        : quote?.delayed == true
+            ? '延迟'
+            : quote != null
+                ? '实时'
+                : '连接中';
+    final source = quote?.source == 'local_agent'
+        ? '本机采集实时快照'
+        : quote?.delayed == true
+            ? '东方财富延迟行情'
+            : '腾讯实时快照';
+    return Tooltip(
+      message: error ?? source,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

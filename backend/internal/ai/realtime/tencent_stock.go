@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
 )
@@ -199,8 +200,22 @@ func parseTencentStockRow(fields []string, tsCode string, isIndex bool) Quote {
 		TurnoverRate: round4(turnover),
 		PE:           round4(pe),
 		Delayed:      false,
+		AsOf:         parseTencentTime(fieldAtT(fields, 30)),
 	}
 	return q
+}
+
+// parseTencentTime parses YYYYMMDDHHMMSS in China Standard Time.
+func parseTencentTime(raw string) int64 {
+	if len(raw) < 14 {
+		return 0
+	}
+	t, err := time.ParseInLocation("20060102150405", raw[:14],
+		time.FixedZone("CST", 8*60*60))
+	if err != nil {
+		return 0
+	}
+	return t.Unix()
 }
 
 // restoreTsCodeFromTencent sh600519 → 600519.SH(用于反查不在 mapBack 里的 symbol)。
