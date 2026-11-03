@@ -1,11 +1,11 @@
 {
-    "name": "喜爱",
-    "short_name": "喜爱",
+    "name": "喜AI",
+    "short_name": "喜AI",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FFE4BA",
-    "theme_color": "#9E6322",
-    "description": "喜爱（喜 AI）— AI 投研助理 + 策略证伪台：先证明什么不行。",
+    "background_color": "#0A1938",
+    "theme_color": "#1C49C9",
+    "description": "喜AI — 股票与期货 K 线、实时行情、支撑阻力与 AI 盘面研判。",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

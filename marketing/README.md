@@ -20,12 +20,12 @@
 # 1) Logo 方案总览图
 powershell -ExecutionPolicy Bypass -File marketing/logo/build.ps1
 
-# 2) 定稿 App 图标（先生成字形轮廓，再出图）
-python marketing/logo/tools/outline_xi.py
-powershell -ExecutionPolicy Bypass -File marketing/logo/build-final.ps1
+# 2) 定稿 App 图标（与 App 首页左上角标志同源）
+powershell -ExecutionPolicy Bypass -File marketing/logo/build-xiai.ps1
+dart run flutter_launcher_icons
 ```
 
-第 2 步的 `outline_xi.py` 需要 `fontTools`，并依赖 `C:\Windows\Fonts\NotoSansSC-VF.ttf`（Windows 自带；缺失就自行装一份 Noto Sans SC）。它把「喜」字转成路径写进 `logo/src/xi-900.path`，所以导出的 SVG 不依赖字体，换台机器打开形状一致。
+第 2 步使用纯矢量源文件，不依赖字体：`logo/src/icon-xiai-market*.svg` 定义深蓝渐变、白色抽象 A 和金色行情轨迹；脚本会同时生成 iOS 方形图标源图与 Android 自适应前景 / 背景层。
 
 > 上传 App Store 时用的是 `app-store-assets/` 里这些本地 PNG。它们不在 Git 里，换机器后要重新生成（或从原机器拷过来）。
 
@@ -34,10 +34,10 @@ powershell -ExecutionPolicy Bypass -File marketing/logo/build-final.ps1
 - 截图标题 / 副标题、配色和排版：`app-store-assets/tools/compose.py`（`SHOTS`、`PALETTES`）
 - 截图里的 App 画面和演示数据：`app-store-assets/tools/zz_appstore_shots_test.dart`、`app-store-assets/data/*.json`
 - 上架文案、审核备注、隐私标签：`app-store-assets/tools/gen_listing.py`（`listing.md` 是它生成的，不要手改）
-- Logo 图形：`logo/src/mark-*.svg`；定稿图标用 `logo/src/icon-*-template.svg`，其中 `{{XI_PATH}}` 由脚本替换成字形路径
+- Logo 图形：`logo/src/mark-*.svg`；App 图标以 `logo/src/icon-xiai-market*.svg` 为唯一源文件
 
 ## 与 App 的关系
 
-`assets/branding/app_icon.png`（不在本目录）才是 App 真正的图标源，`flutter_launcher_icons` 从它生成 iOS / Android / Web 全套。换图标流程：把 `logo/icons/喜宽_appicon_*.png` 拷成 `assets/branding/app_icon.png`，然后跑 `dart run flutter_launcher_icons`。
+`assets/branding/app_icon.png`（不在本目录）是 App 真正的图标源，`flutter_launcher_icons` 从它生成 iOS / Android / Web 全套。换图标时先改 `logo/src/icon-xiai-market*.svg`，运行 `build-xiai.ps1` 重出 PNG，再执行 `dart run flutter_launcher_icons`。
 
-落地页用的 `/app-icon.svg` 是 `logo/icons/喜宽_appicon_A_推荐.svg` 的副本，放在 `backend/deploy/www/` 下随站点部署。
+落地页用的 `/app-icon.svg` 是 `logo/src/icon-xiai-market.svg` 的副本，放在 `backend/deploy/www/` 下随站点部署。

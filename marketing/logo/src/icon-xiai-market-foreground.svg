@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜AI Android 自适应图标前景">
+  <path d="M235.5 788.5 L471 245.8 Q512 163.8 553 245.8 L788.5 788.5 L645 788.5 L573.4 604 L450.6 604 L379 788.5 Z"
+        fill="#FAFCFF"/>
+  <rect x="399" y="584" width="226" height="56" rx="31" fill="#E0B25C"/>
+  <path d="M676 348 L737 297 L799 327" fill="none" stroke="#E0B25C"
+        stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="799" cy="327" r="41" fill="#FFFFFF"/>
+</svg>

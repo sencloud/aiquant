@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="喜AI Android 自适应图标背景">
+  <defs>
+    <linearGradient id="marketBg" x1="96" y1="56" x2="928" y2="968" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A1938"/>
+      <stop offset="1" stop-color="#1C49C9"/>
+    </linearGradient>
+    <radialGradient id="marketGlow" cx="0" cy="0" r="1" gradientTransform="translate(798 205) rotate(90) scale(287)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#77A2FF" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#77A2FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#marketBg)"/>
+  <rect width="1024" height="1024" fill="url(#marketGlow)"/>
+  <rect x="18" y="18" width="988" height="988" rx="226" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.24" stroke-width="12"/>
+</svg>
