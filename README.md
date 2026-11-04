@@ -1,10 +1,13 @@
 # 喜AI
 
-一个只做股票、期货 K 线的 Flutter 行情终端。打开 App 直接进入图表，
-没有登录、开屏、页签或其它业务入口。
+一个带上班搭子的股票、期货看盘应用。底部有三个页签：
+**搭子 / 云搭子 / 我的**，完整行情终端从“我的 → 看盘”进入。
 
 ## 功能
 
+- 搭子页：两个原创角色、9 套表情、7 类 35 个动作、本地陪伴天数和换搭子；
+- 云搭子：跨设备陪伴模块的待建设入口；
+- 我的：微信式个人页，集中放置看盘、搭子和设置；
 - 搜索 A 股和国内期货合约；
 - 5 分钟、15 分钟、1 小时、1 天、1 周、1 月六种周期；
 - 自绘 K 线、MA5 / MA10 / MA20、成交量和右侧价格轴；
@@ -36,7 +39,10 @@ flutter test
 
 主要入口：
 
-- `lib/screens/watch/watch_screen.dart`：唯一首页；
+- `lib/screens/shell/xiai_shell.dart`：三栏应用外壳；
+- `lib/screens/buddy/work_buddy_screen.dart`：手机版上班搭子；
+- `lib/screens/my/my_screen.dart`：微信式“我的”页；
+- `lib/screens/watch/watch_screen.dart`：从“我的 → 看盘”进入的行情终端；
 - `lib/screens/watch/widgets/trading_candle_chart.dart`：交互式 K 线；
 - `lib/services/tushare_service.dart`：行情数据；
 - `lib/services/market_levels.dart`：支撑阻力分析。

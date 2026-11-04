@@ -98,6 +98,8 @@ flutter:
   assets:
     - .env
     - assets/branding/
+    - assets/work_buddy/characters/xiaotao/
+    - assets/work_buddy/characters/momo/
     # 广场居民的写真头像与朋友圈配图（由 .tools/gen_portraits.py 生成）
     - assets/portraits/
     # 证伪台的数据资产（由 tools/strategy-mvp/build_falsification_data.py 生成）

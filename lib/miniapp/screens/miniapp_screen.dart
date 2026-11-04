@@ -68,7 +68,9 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
           if (mounted) showMiniAppSnack(context, '已从发现页取下');
         case 'rename':
           final t = await _askTitle(a.title);
-          if (t != null && t.trim().isNotEmpty) await _store.rename(a.uuid, t.trim());
+          if (t != null && t.trim().isNotEmpty) {
+            await _store.rename(a.uuid, t.trim());
+          }
         case 'versions':
           await _versions(a);
         case 'delete':

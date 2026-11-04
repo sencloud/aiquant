@@ -111,7 +111,9 @@ List<String> axisLabels(List<double> ticks) {
       ? math.max(0, (-math.log(step) / math.ln10).ceil()).toInt()
       : 0;
   // 量级在 10 以内（如降雨 0–6.8 mm）至少保留一位小数，不然刻度太粗。
-  if (xs.map((x) => x.abs()).reduce(math.max) < 10) digits = math.max(digits, 1);
+  if (xs.map((x) => x.abs()).reduce(math.max) < 10) {
+    digits = math.max(digits, 1);
+  }
   digits = math.min(digits, 4);
   String fmt(double x, int d) {
     final t = x.toStringAsFixed(d);

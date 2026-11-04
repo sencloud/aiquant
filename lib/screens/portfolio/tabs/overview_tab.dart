@@ -394,7 +394,9 @@ class _PerformanceCard extends StatelessWidget {
               interval: (pts.length / 5).ceilToDouble().clamp(1, 9999),
               getTitlesWidget: (v, _) {
                 final idx = v.toInt();
-                if (idx < 0 || idx >= pts.length) return const SizedBox.shrink();
+                if (idx < 0 || idx >= pts.length) {
+                  return const SizedBox.shrink();
+                }
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(

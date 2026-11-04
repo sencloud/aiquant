@@ -406,25 +406,28 @@ class _WatchScreenState extends State<WatchScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: MarketColors.background,
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 920;
-              if (!wide) {
-                return _compactLayout();
-              }
-              return Row(
-                children: [
-                  SizedBox(width: 252, child: _sidebar()),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: _marketPane(compact: false)),
-                ],
-              );
-            },
+    return Theme(
+      data: buildMarketTheme(),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          backgroundColor: MarketColors.background,
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 920;
+                if (!wide) {
+                  return _compactLayout();
+                }
+                return Row(
+                  children: [
+                    SizedBox(width: 252, child: _sidebar()),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: _marketPane(compact: false)),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -442,12 +445,23 @@ class _WatchScreenState extends State<WatchScreen> with WidgetsBindingObserver {
   }
 
   Widget _compactTopBar() {
+    final canGoBack = Navigator.of(context).canPop();
     return SizedBox(
       height: 52,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.only(
+          left: canGoBack ? 4 : 12,
+          right: 12,
+        ),
         child: Row(
           children: [
+            if (canGoBack)
+              IconButton(
+                tooltip: '返回',
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
+                color: MarketColors.textSecondary,
+              ),
             const MarketBrandLockup(compact: true),
             const Spacer(),
             _symbolSwitchButton(),
@@ -467,6 +481,22 @@ class _WatchScreenState extends State<WatchScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (Navigator.of(context).canPop())
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, top: 6),
+                child: IconButton(
+                  tooltip: '返回',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 19,
+                  ),
+                  color: MarketColors.textSecondary,
+                ),
+              ),
+            ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 18, 14, 16),
             child: MarketBrandLockup(),

@@ -31,9 +31,13 @@ class StrategyService {
 
   String _message(DioException e) {
     final data = e.response?.data;
-    if (data is Map && data['message'] is String) return data['message'] as String;
+    if (data is Map && data['message'] is String) {
+      return data['message'] as String;
+    }
     final code = e.response?.statusCode;
-    if (code == 401) return '登录已过期，请重新登录';
+    if (code == 401) {
+      return '登录已过期，请重新登录';
+    }
     return '策略数据获取失败，请稍后重试';
   }
 

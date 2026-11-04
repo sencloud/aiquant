@@ -722,8 +722,12 @@ class _Evaluator {
         return arr.map(str).join(sep);
       case 'contains':
         final x = args[0];
-        if (x is String) return args[1] is String && x.contains(args[1] as String);
-        if (x is List) return x.any((v) => _equal(v, args[1]));
+        if (x is String) {
+          return args[1] is String && x.contains(args[1] as String);
+        }
+        if (x is List) {
+          return x.any((v) => _equal(v, args[1]));
+        }
         return false;
       case 'fmt':
         final x = _num(args, 0);
