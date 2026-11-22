@@ -386,7 +386,7 @@ func defaultConfig() *Config {
 		},
 		Qwen: QwenConfig{
 			BaseURL:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
-			VisionModel: "qwen-vl-max",
+			VisionModel: "qwen3-vl-plus",
 			TimeoutSec:  60,
 		},
 		AI: AIConfig{

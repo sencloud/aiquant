@@ -258,7 +258,7 @@ func uniqueStrings(values []string) []string {
 	return out
 }
 
-// ParseHoldingsFromImage 调 qwen-vl-max 多模态接口，让它把图片里的持仓表
+// ParseHoldingsFromImage 调 qwen3-vl-plus 多模态接口，让它把图片里的持仓表
 // 抽成结构化 JSON。imageDataURL 必须是 `data:image/png;base64,...` 形态，
 // 客户端上传时已经按 image_picker 给出的字节做 base64。
 func (c *VisionClient) ParseHoldingsFromImage(

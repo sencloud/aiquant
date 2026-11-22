@@ -43,7 +43,7 @@ func mountPortfolioTradesPublic(r chi.Router, d *Deps) {
 	r.Post("/portfolio/parse-trades", handleParseTradesScreenshot(d))
 }
 
-// handleParseHoldingsScreenshot 调 qwen-vl-max 把券商截图解析成 JSON。
+// handleParseHoldingsScreenshot 调 qwen3-vl-plus 把券商截图解析成 JSON。
 //
 // 请求体（JSON）：
 //
