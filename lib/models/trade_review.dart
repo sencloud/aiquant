@@ -362,7 +362,7 @@ class TradeReviewReport {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'created_at': createdAt.toIso8601String(),
+        'created_at': createdAt.toUtc().toIso8601String(),
         'title': title,
         'broker_hint': brokerHint,
         'currency': currency,

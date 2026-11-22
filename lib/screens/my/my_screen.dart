@@ -1,28 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/api/auth_models.dart';
+import '../../core/auth/require_login.dart';
 import '../../models/trade_review.dart';
 import '../../services/trade_review_repository.dart';
+import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/legal_links.dart';
 import '../../widgets/wk_kit.dart';
-import '../trade_review/trade_desktop_connect_screen.dart';
+import '../settings/settings_screen.dart';
 import '../trade_review/trade_report_screen.dart';
 import '../trade_review/trade_review_history.dart';
 import '../trade_review/trade_review_widgets.dart';
 import '../watch/widgets/market_brand.dart';
 
-/// 微信式个人页：不包卡片、不投影，用整宽白面和发丝线组织入口。
+/// 微信式个人页。
+///
+/// 首屏只保留最近复盘、交易记录、看盘和设置；账号、隐私、协议与关于都进入
+/// 二级页面。顶部档案区使用纯白背景，列表分组横向铺满。
 class MyScreen extends StatefulWidget {
   const MyScreen({
     super.key,
     required this.watchPageBuilder,
-    this.desktopPageBuilder,
     this.historyPageBuilder,
   });
 
   final WidgetBuilder watchPageBuilder;
-  final WidgetBuilder? desktopPageBuilder;
   final WidgetBuilder? historyPageBuilder;
 
   @override
@@ -30,23 +33,6 @@ class MyScreen extends StatefulWidget {
 }
 
 class _MyScreenState extends State<MyScreen> {
-  String _version = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _version = 'v${info.version}');
-    } catch (_) {
-      // Package metadata is unavailable in some widget-test hosts.
-    }
-  }
-
   void _push(WidgetBuilder builder) {
     Navigator.of(context).push(MaterialPageRoute<void>(builder: builder));
   }
@@ -55,131 +41,32 @@ class _MyScreenState extends State<MyScreen> {
     _push(widget.historyPageBuilder ?? (_) => const TradeReviewHistoryScreen());
   }
 
-  void _openDesktop() {
-    _push(
-      widget.desktopPageBuilder ?? (_) => const TradeDesktopConnectScreen(),
-    );
-  }
-
   void _openReview(TradeReviewReport report) {
     _push((_) => TradeReportScreen(report: report));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppColors.bgBase,
-      child: SafeArea(
-        bottom: false,
-        child: AnimatedBuilder(
-          animation: TradeReviewStore.instance,
-          builder: (context, _) {
-            final reports = TradeReviewStore.instance.reports;
-            final latest = reports.isEmpty ? null : reports.first;
-            return ListView(
-              key: const ValueKey('my-page'),
-              padding: const EdgeInsets.only(bottom: AppSpace.xxl),
-              children: [
-                _ProfileHeader(
-                  reportCount: reports.length,
-                  onTap: () => _showProfile(reports.length, latest),
-                  onOpenDesktop: _openDesktop,
-                ),
-                const SizedBox(height: AppSpace.md),
-                _MyGroup(
-                  children: [
-                    _MyRow(
-                      key: const ValueKey('my-recent-review'),
-                      icon: Icons.auto_graph_rounded,
-                      iconColor: AppColors.amber,
-                      title: '最近复盘',
-                      value: latest?.title ?? '暂无',
-                      onTap: latest == null
-                          ? _openHistory
-                          : () => _openReview(latest),
-                    ),
-                    _MyRow(
-                      key: const ValueKey('my-trade-history'),
-                      icon: Icons.receipt_long_outlined,
-                      iconColor: const Color(0xFF576B95),
-                      title: '我的交易记录',
-                      value: reports.isEmpty ? null : '${reports.length} 份',
-                      onTap: _openHistory,
-                    ),
-                    _MyRow(
-                      key: const ValueKey('my-watch-app'),
-                      icon: Icons.candlestick_chart_rounded,
-                      iconColor: const Color(0xFF17864E),
-                      title: '看盘',
-                      value: '行情终端',
-                      onTap: () => _push(widget.watchPageBuilder),
-                    ),
-                    _MyRow(
-                      key: const ValueKey('my-desktop-connect'),
-                      icon: Icons.devices_rounded,
-                      iconColor: const Color(0xFFFA9D3B),
-                      title: '电脑连接',
-                      value: '局域网配对',
-                      onTap: _openDesktop,
-                    ),
-                  ],
-                ),
-                _MyGroup(
-                  children: [
-                    _MyRow(
-                      key: const ValueKey('my-data-privacy'),
-                      icon: Icons.shield_outlined,
-                      iconColor: const Color(0xFF4F86C6),
-                      title: '数据与隐私',
-                      value: '仅存本机',
-                      onTap: () => _showPrivacy(reports.length, latest),
-                    ),
-                    const LegalLinksRow(),
-                  ],
-                ),
-                _MyGroup(
-                  children: [
-                    _MyRow(
-                      key: const ValueKey('my-about'),
-                      icon: Icons.info_outline_rounded,
-                      iconColor: AppColors.textSecondary,
-                      title: '关于嘻，AI',
-                      value: _version.isEmpty ? null : _version,
-                      onTap: _showAbout,
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpace.lg,
-                    AppSpace.lg,
-                    AppSpace.lg,
-                    AppSpace.md,
-                  ),
-                  child: Text(
-                    '嘻，AI ${_version.isEmpty ? '' : _version}\n'
-                    '从成交本身复盘，不用猜测代替事实',
-                    textAlign: TextAlign.center,
-                    style: AppType.micro.copyWith(
-                      color: AppColors.textTertiary,
-                      height: 1.7,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+  void _openSettings(int reportCount, DateTime? lastSavedAt) {
+    _push(
+      (_) => SettingsScreen(
+        reportCount: reportCount,
+        lastSavedAt: lastSavedAt,
       ),
     );
   }
 
-  void _showProfile(int reportCount, TradeReviewReport? latest) {
-    showModalBottomSheet<void>(
+  Future<void> _openProfile() async {
+    final auth = context.read<AuthState>();
+    if (!auth.isAuthenticated) {
+      await requireLogin(context);
+      return;
+    }
+    if (!mounted) return;
+    final reports = TradeReviewStore.instance.reports;
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.bgSurface,
       showDragHandle: true,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpace.xl,
@@ -189,79 +76,48 @@ class _MyScreenState extends State<MyScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('本机档案', style: AppType.title),
-              const SizedBox(height: AppSpace.sm),
+              const Text('账号与同步', style: AppType.title),
+              const SizedBox(height: AppSpace.md),
+              const _InfoLine(label: '登录状态', value: '已登录'),
+              _InfoLine(label: '账号标识', value: _shortAccount(auth)),
+              _InfoLine(label: '复盘记录', value: '${reports.length} 份'),
+              _InfoLine(
+                label: '最近复盘',
+                value: reports.isEmpty
+                    ? '暂无'
+                    : formatTradeDate(reports.first.createdAt),
+              ),
+              const SizedBox(height: AppSpace.md),
               Text(
-                '当前不要求登录。成交复盘只保存在这台设备，'
-                '电脑连接也只在主动打开页面时接收数据。',
+                '登录同一账号后，手机和电脑看到的复盘报告保持一致。'
+                '上传的截图只用于当次识别，不会保存。',
                 style: AppType.caption.copyWith(
                   color: AppColors.textSecondary,
                   height: 1.65,
                 ),
               ),
               const SizedBox(height: AppSpace.lg),
-              _InfoLine(label: '复盘记录', value: '$reportCount 份'),
-              _InfoLine(
-                label: '最近复盘',
-                value: latest?.title ?? '还没有记录',
-              ),
-              _InfoLine(
-                label: '应用版本',
-                value: _version.isEmpty ? '读取中' : _version,
-              ),
-              const SizedBox(height: AppSpace.lg),
               WkPrimaryButton(
-                label: '连接电脑端',
-                icon: Icons.devices_rounded,
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _openDesktop();
+                label: '同步到云端',
+                icon: Icons.cloud_sync_outlined,
+                onPressed: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _syncNow();
                 },
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showPrivacy(int reportCount, TradeReviewReport? latest) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.bgSurface,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpace.xl,
-            0,
-            AppSpace.xl,
-            AppSpace.xl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('数据与隐私', style: AppType.title),
-              const SizedBox(height: AppSpace.md),
-              Text(
-                '截图只用于当次识别，不保存原图。分析结果保存在本机，'
-                '最多保留 20 份，可随时逐份删除。电脑连接只接收核对后的'
-                '日期、方向、数量、价格和手续费，不接收账户密码或截图。',
-                style: AppType.read.copyWith(
-                  color: AppColors.textSecondary,
-                  fontSize: 15,
-                  height: 1.75,
+              const SizedBox(height: AppSpace.sm),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  minimumSize: const Size.fromHeight(44),
                 ),
-              ),
-              const SizedBox(height: AppSpace.lg),
-              _InfoLine(label: '本机复盘', value: '$reportCount 份'),
-              _InfoLine(
-                label: '最近保存',
-                value:
-                    latest == null ? '暂无' : formatTradeDate(latest.createdAt),
+                onPressed: () async {
+                  Navigator.of(sheetContext).pop();
+                  await auth.logout();
+                },
+                child: const Text('退出登录'),
               ),
             ],
           ),
@@ -270,137 +126,207 @@ class _MyScreenState extends State<MyScreen> {
     );
   }
 
-  void _showAbout() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('关于嘻，AI'),
-        content: Text(
-          '嘻，AI 读取你的成交记录，按先进先出还原已平仓交易，'
-          '再用可以验证的数据说明交易逻辑、问题与改进措施。'
-          '\n\n它不判断账户总资金，不推测截图中没有出现的仓位、'
-          '止损金额、消息来源或临场情绪，也不提供交易指令或收益承诺。',
-          style: AppType.body.copyWith(
-            fontSize: 15,
-            color: AppColors.textSecondary,
-            height: 1.7,
+  Future<void> _syncNow() async {
+    try {
+      await TradeReviewStore.instance.syncNow();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('复盘已同步到账号。')),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    return ColoredBox(
+      key: const ValueKey('my-top-white'),
+      color: AppColors.bgSurface,
+      child: SafeArea(
+        bottom: false,
+        child: ColoredBox(
+          color: AppColors.bgBase,
+          child: AnimatedBuilder(
+            animation: TradeReviewStore.instance,
+            builder: (context, _) {
+              final store = TradeReviewStore.instance;
+              final reports = store.reports;
+              final latest = reports.isEmpty ? null : reports.first;
+              return ListView(
+                key: const ValueKey('my-page'),
+                padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+                children: [
+                  _ProfileHeader(
+                    signedIn: auth.isAuthenticated,
+                    displayName: _displayName(auth),
+                    accountCaption: _accountCaption(auth),
+                    reportCount: reports.length,
+                    syncing: store.syncing,
+                    syncError: store.syncError,
+                    onTap: _openProfile,
+                  ),
+                  const SizedBox(height: 12),
+                  _MyGroup(
+                    children: [
+                      _MyRow(
+                        key: const ValueKey('my-recent-review'),
+                        icon: Icons.auto_graph_rounded,
+                        iconColor: AppColors.amber,
+                        title: '最近复盘',
+                        value: latest?.title ?? '暂无',
+                        onTap: latest == null
+                            ? _openHistory
+                            : () => _openReview(latest),
+                      ),
+                      _MyRow(
+                        key: const ValueKey('my-trade-history'),
+                        icon: Icons.receipt_long_outlined,
+                        iconColor: const Color(0xFF576B95),
+                        title: '交易记录',
+                        value: reports.isEmpty ? '暂无' : '${reports.length} 份',
+                        onTap: _openHistory,
+                      ),
+                      _MyRow(
+                        key: const ValueKey('my-watch-app'),
+                        icon: Icons.candlestick_chart_rounded,
+                        iconColor: const Color(0xFF17864E),
+                        title: '看盘',
+                        value: '行情终端',
+                        onTap: () => _push(widget.watchPageBuilder),
+                      ),
+                    ],
+                  ),
+                  _MyGroup(
+                    children: [
+                      _MyRow(
+                        key: const ValueKey('my-settings'),
+                        icon: Icons.settings_outlined,
+                        iconColor: AppColors.textSecondary,
+                        title: '设置',
+                        onTap: () =>
+                            _openSettings(reports.length, latest?.createdAt),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('知道了'),
-          ),
-        ],
       ),
     );
+  }
+
+  static String _displayName(AuthState auth) {
+    final nickname = auth.currentUser?.nickname.trim() ?? '';
+    return nickname.isEmpty ? '喜爱用户' : nickname;
+  }
+
+  static String _shortAccount(AuthState auth) {
+    final uuid = auth.currentUser?.uuid ?? '';
+    if (uuid.length <= 8) return uuid;
+    return '…${uuid.substring(uuid.length - 6).toUpperCase()}';
+  }
+
+  static String _accountCaption(AuthState auth) {
+    if (!auth.isAuthenticated) return '未登录 · 点击登录后同步';
+    return '喜爱账号 ${_shortAccount(auth)} · 云端同步';
   }
 }
 
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
+    required this.signedIn,
+    required this.displayName,
+    required this.accountCaption,
     required this.reportCount,
+    required this.syncing,
+    required this.syncError,
     required this.onTap,
-    required this.onOpenDesktop,
   });
 
+  final bool signedIn;
+  final String displayName;
+  final String accountCaption;
   final int reportCount;
+  final bool syncing;
+  final String? syncError;
   final VoidCallback onTap;
-  final VoidCallback onOpenDesktop;
 
   @override
   Widget build(BuildContext context) {
+    final status = !signedIn
+        ? '登录后跨端同步'
+        : syncing
+            ? '正在同步'
+            : syncError != null
+                ? '等待同步'
+                : reportCount == 0
+                    ? '等待第一份复盘'
+                    : '已同步 · $reportCount 份复盘';
     return ColoredBox(
       color: AppColors.bgSurface,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.lg + AppSpace.xs,
-          AppSpace.xxl + AppSpace.xl,
-          AppSpace.sm,
-          AppSpace.xxl + AppSpace.sm,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  key: const ValueKey('my-profile'),
-                  onTap: onTap,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-                    child: Row(
-                      children: [
-                        const MarketBrandMark(size: 64),
-                        const SizedBox(width: AppSpace.lg),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '嘻，AI 用户',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamilyFallback: AppType.sansFallback,
-                                  color: AppColors.textPrimary,
-                                  fontSize: 24,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.4,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpace.sm),
-                              Text(
-                                '本机模式 · 记录仅存本机',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppType.caption.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpace.sm),
-                              Row(
-                                children: [
-                                  _StatusTag(
-                                    label: reportCount == 0
-                                        ? '等待第一份复盘'
-                                        : '已保存 $reportCount 份复盘',
-                                  ),
-                                  const SizedBox(width: AppSpace.sm),
-                                  Text(
-                                    '隐私可控',
-                                    style: AppType.micro.copyWith(
-                                      color: AppColors.textTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const ValueKey('my-profile'),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg + AppSpace.xs,
+              AppSpace.xxl + AppSpace.lg,
+              AppSpace.md,
+              AppSpace.xxl,
+            ),
+            child: Row(
+              children: [
+                const MarketBrandMark(size: 64),
+                const SizedBox(width: AppSpace.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamilyFallback: AppType.sansFallback,
+                          color: AppColors.textPrimary,
+                          fontSize: 24,
+                          height: 1.2,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.4,
                         ),
-                        const SizedBox(width: AppSpace.sm),
-                        IconButton(
-                          key: const ValueKey('my-qr-entry'),
-                          tooltip: '连接电脑端',
-                          onPressed: onOpenDesktop,
+                      ),
+                      const SizedBox(height: AppSpace.sm),
+                      Text(
+                        accountCaption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.caption.copyWith(
                           color: AppColors.textSecondary,
-                          icon: const Icon(Icons.qr_code_2_rounded, size: 21),
                         ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.textTertiary,
-                          size: 22,
-                        ),
-                        const SizedBox(width: AppSpace.xs),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: AppSpace.sm),
+                      _StatusTag(label: status, warning: syncError != null),
+                    ],
                   ),
                 ),
-              ),
+                const SizedBox(width: AppSpace.sm),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textTertiary,
+                  size: 22,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -408,24 +334,25 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _StatusTag extends StatelessWidget {
-  const _StatusTag({required this.label});
+  const _StatusTag({required this.label, required this.warning});
 
   final String label;
+  final bool warning;
 
   @override
   Widget build(BuildContext context) {
+    final color = warning ? AppColors.warning : AppColors.amberDim;
+    final background =
+        warning ? const Color(0xFFFFF1E1) : AppColors.accentSoft;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.accentSoft,
+        color: background,
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         label,
-        style: AppType.micro.copyWith(
-          color: AppColors.amberDim,
-          fontSize: 10.5,
-        ),
+        style: AppType.micro.copyWith(color: color, fontSize: 10.5),
       ),
     );
   }
@@ -453,7 +380,7 @@ class _MyGroup extends StatelessWidget {
       }
     }
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpace.md),
+      margin: const EdgeInsets.only(bottom: 12),
       color: AppColors.bgSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -507,9 +434,11 @@ class _MyRow extends StatelessWidget {
                   ),
                 ),
                 if (value != null)
-                  Flexible(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
                     child: Text(
                       value!,
+                      textAlign: TextAlign.right,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.caption.copyWith(

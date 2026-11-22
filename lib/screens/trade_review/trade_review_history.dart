@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/auth_models.dart';
 import '../../models/trade_review.dart';
 import '../../services/trade_review_repository.dart';
 import '../../theme/app_theme.dart';
@@ -23,7 +24,9 @@ class TradeReviewHistoryScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('删除这份复盘？'),
-        content: const Text('只会删除本机保存的分析结果，不会影响原始成交记录。'),
+        content: const Text(
+          '会从本机和你的喜爱账号中删除这份分析结果，不会影响券商里的原始成交记录。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -38,18 +41,25 @@ class TradeReviewHistoryScreen extends StatelessWidget {
       ),
     );
     if (confirmed != true) return;
-    await TradeReviewStore.instance.delete(report.id);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已删除这份本机复盘。')),
-    );
+    try {
+      await TradeReviewStore.instance.delete(report.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已从本机和账号云同步中删除这份复盘。')),
+      );
+    } on ApiException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgBase,
-      appBar: AppBar(title: const Text('我的交易记录')),
+      appBar: AppBar(title: const Text('交易记录')),
       body: AnimatedBuilder(
         animation: TradeReviewStore.instance,
         builder: (context, _) {
@@ -82,7 +92,8 @@ class TradeReviewHistoryScreen extends StatelessWidget {
                   AppSpace.xl,
                 ),
                 child: Text(
-                  '最多保留 20 份，只保存分析结果，不保存上传的截图。',
+                  '复盘按登录账号同步，手机和电脑查看同一份结果；'
+                  '最多保留 20 份，不保存上传的原图。',
                   textAlign: TextAlign.center,
                   style: AppType.micro.copyWith(
                     color: AppColors.textTertiary,

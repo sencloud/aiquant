@@ -438,6 +438,7 @@ func (s *Service) SoftDelete(ctx context.Context, userID int64) error {
 			"DELETE FROM fishing_catches WHERE user_id=?",
 			"DELETE FROM fishing_spots WHERE user_id=?",
 			"DELETE FROM fishing_identifications WHERE user_id=?",
+			"DELETE FROM trade_reviews WHERE user_id=?",
 		} {
 			if _, err := tx.ExecContext(ctx, q, userID); err != nil {
 				return fmt.Errorf("delete user content (%s): %w", q, err)

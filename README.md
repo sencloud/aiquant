@@ -12,24 +12,23 @@
 - 识别成交行并逐行核对，可修改、删除或撤销删除；
 - 输出已实现盈亏、胜率、盈亏比、持有时间、连续盈亏、手续费与集中度；
 - 报告固定包含交易逻辑、问题、改进措施和样本限制；
-- 复盘结果保存在本机，原截图不保存，默认最多保留 20 份；
-- “我的”按微信式白面分组组织最近复盘、交易记录、看盘、电脑连接与隐私设置；
+- 复盘结果同步到登录账号，原截图不保存，默认最多保留 20 份；
+- “我的”按微信式白面分组组织最近复盘、交易记录、看盘与设置；
 - “看盘”保留为“我的”里的二级工具，不占用一级页签。
 
-## 电脑端接入
+## 电脑端
 
 电脑端项目位于 `D:\workspaces\games\adb-desktop`。打开左侧“交易”分组里的
 “交易复盘”后，可以：
 
-1. 选择 PNG/JPEG 成交截图；
-2. 在电脑端调用已配置的识图模型提取成交行；
-3. 修改或删除识别错误的行；
-4. 填写手机“我的 → 电脑连接”显示的地址和六位配对码；
-5. 发送后，手机保存报告并自动打开。
+1. 使用邮箱验证码登录，选择已连接 ADB 的手机；
+2. 启动手机上的大智慧，并打开“我的 → 历史成交 / 成交查询”；
+3. 只截取当前可见页面并提取成交行，翻页后重新识别；
+4. 修改或删除识别错误的行；
+5. 生成并保存复盘，手机登录同一账号后即可查看。
 
-电脑与手机需要处于同一 Wi-Fi，或连接同一个手机热点。手机接收服务只在
-“电脑连接”页面打开期间运行。电脑端截图的识别请求会发往电脑上配置的识图
-模型；手机只接收核对后的日期、方向、数量、价格与手续费。
+电脑端不会读取或保存券商账户密码，不执行下单、撤单或转账。手机端不需要
+开启电脑连接、局域网服务，也不需要输入配对码。
 
 ## 报告口径
 
@@ -53,11 +52,10 @@ flutter test --no-pub test/trade_review_engine_test.dart test/trade_review_repor
 - `lib/screens/trade_review/trade_review_home.dart`：截图上传与最近复盘；
 - `lib/screens/trade_review/trade_confirm_screen.dart`：成交行核对；
 - `lib/screens/trade_review/trade_report_screen.dart`：复盘报告；
-- `lib/screens/trade_review/trade_desktop_connect_screen.dart`：局域网配对；
 - `lib/screens/my/my_screen.dart`：微信式“我的”；
+- `lib/screens/settings/settings_screen.dart`：隐私、协议与关于；
 - `lib/services/trade_review_engine.dart`：配对、指标与结论；
 - `lib/services/trade_screenshot_parser.dart`：手机识图接口；
-- `lib/services/trade_desktop_server.dart`：手机接收电脑成交行。
 
 产品和视觉规则见 [PRODUCT.md](PRODUCT.md) 与 [DESIGN.md](DESIGN.md)。
 

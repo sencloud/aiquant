@@ -32,6 +32,7 @@ class AuthState extends ChangeNotifier {
 
   UserPublic? _user;
   bool _bootstrapping = true;
+  bool _bootstrapStarted = false;
   String? _deviceId;
 
   UserPublic? get currentUser => _user;
@@ -41,7 +42,9 @@ class AuthState extends ChangeNotifier {
   String? get deviceId => _deviceId;
 
   Future<void> bootstrap() async {
-    _logoutSub = _api.onForcedLogout.listen((_) => _onForcedLogout());
+    if (_bootstrapStarted) return;
+    _bootstrapStarted = true;
+    _logoutSub ??= _api.onForcedLogout.listen((_) => _onForcedLogout());
     _deviceId = await _ensureDeviceId();
 
     final tokens = await _api.storage.loadTokens();

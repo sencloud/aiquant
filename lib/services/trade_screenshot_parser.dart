@@ -4,8 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../core/api/api_client.dart' show buildNoProxyAdapter;
-import '../core/config/app_config.dart';
+import '../core/api/api_client.dart';
 import '../models/trade_review.dart';
 
 enum TradeParseFailureKind {
@@ -91,24 +90,9 @@ class PickedTradeScreenshot {
 }
 
 class TradeScreenshotParser {
-  TradeScreenshotParser({Dio? dio}) : _dio = dio ?? _buildDio();
+  TradeScreenshotParser({Dio? dio}) : _dio = dio ?? ApiClient.instance.dio;
 
   final Dio _dio;
-
-  static Dio _buildDio() {
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: AppConfig.instance.apiBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 70),
-        receiveTimeout: const Duration(seconds: 70),
-        headers: const {'Content-Type': 'application/json'},
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
-    dio.httpClientAdapter = buildNoProxyAdapter();
-    return dio;
-  }
 
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
@@ -122,6 +106,10 @@ class TradeScreenshotParser {
           'image_base64': base64Encode(imageBytes),
           'mime_type': mimeType,
         },
+        options: Options(
+          sendTimeout: const Duration(seconds: 90),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
       );
     } on DioException catch (error) {
       throw _networkFailure(error);

@@ -75,6 +75,7 @@ type ParseHoldingsResult struct {
 // 只记录已经成交的买卖，不记录委托、撤单、持仓或资金余额。字段在返回客户端
 // 前会经过 normalizeTradeRows 校验和归一化。
 type ParsedTrade struct {
+	SourceIndex int     `json:"source_index"`
 	TradeDate string  `json:"trade_date"`
 	TradeTime string  `json:"trade_time,omitempty"`
 	Symbol    string  `json:"symbol"`
@@ -183,6 +184,7 @@ func normalizeTradeRows(rows []ParsedTrade) ([]ParsedTrade, []string, error) {
 		row.TradeDate = date
 		row.TradeTime = normalizeTradeTime(row.TradeTime)
 		row.Side = side
+		row.SourceIndex = len(normalized)
 		normalized = append(normalized, row)
 	}
 	if len(rows) > 0 && len(normalized) == 0 {

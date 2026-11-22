@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/api/auth_models.dart';
 import '../../models/trade_review.dart';
-import '../../services/trade_review_engine.dart';
 import '../../services/trade_review_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
@@ -63,24 +63,37 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
     if (_saving || _trades.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final report = const TradeReviewEngine().analyze(
+      final report = await TradeReviewStore.instance.analyze(
         trades: _trades,
         brokerHint: widget.parsed.brokerHint,
         currency: widget.parsed.currency,
-        parserWarnings: widget.parsed.warnings,
+        warnings: widget.parsed.warnings,
       );
-      await TradeReviewStore.instance.save(report);
+      var pendingSync = false;
+      try {
+        await TradeReviewStore.instance.save(report);
+      } on ApiException catch (error) {
+        if (error.code != 'TRADE_REVIEW.SYNC_FAILED') rethrow;
+        pendingSync = true;
+      }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => TradeReportScreen(report: report),
         ),
       );
-    } catch (_) {
+      if (pendingSync) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('报告已保存在本机；账号云端同步暂时失败，可稍后重试。'),
+          ),
+        );
+      }
+    } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('复盘保存失败，请重试。')),
+        SnackBar(content: Text(error.message)),
       );
     }
   }

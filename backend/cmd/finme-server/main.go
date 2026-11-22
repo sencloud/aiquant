@@ -52,6 +52,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/story"
 	"github.com/sencloud/finme-backend/internal/strategy"
+	"github.com/sencloud/finme-backend/internal/trade_review"
 	"github.com/sencloud/finme-backend/internal/users"
 
 	"time"
@@ -275,6 +276,7 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Fishing:       fishingSvc,
 		MiniApps:      buildMiniAppService(cfg, &l, st, fishingSvc),
 		Story:         buildStoryService(cfg, &l, st),
+		TradeReviews:  trade_review.NewService(st),
 	}
 	router := api.NewRouter(deps)
 

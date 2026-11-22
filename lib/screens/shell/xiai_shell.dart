@@ -15,12 +15,10 @@ class XiaiShell extends StatefulWidget {
   const XiaiShell({
     super.key,
     this.watchPageBuilder,
-    this.desktopPageBuilder,
     this.historyPageBuilder,
   });
 
   final WidgetBuilder? watchPageBuilder;
-  final WidgetBuilder? desktopPageBuilder;
   final WidgetBuilder? historyPageBuilder;
 
   @override
@@ -41,12 +39,9 @@ class _XiaiShellState extends State<XiaiShell> {
     final watchPageBuilder =
         widget.watchPageBuilder ?? (_) => const WatchScreen();
     final pages = <Widget>[
-      TradeReviewHomeScreen(
-        desktopPageBuilder: widget.desktopPageBuilder,
-      ),
+      const TradeReviewHomeScreen(),
       MyScreen(
         watchPageBuilder: watchPageBuilder,
-        desktopPageBuilder: widget.desktopPageBuilder,
         historyPageBuilder: widget.historyPageBuilder,
       ),
     ];

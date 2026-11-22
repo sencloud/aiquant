@@ -33,13 +33,6 @@ func decodeJSONLarge(r *http.Request, dst any, maxBytes int64) error {
 // 券商持仓截图，返回结构化 holdings JSON 让用户确认后批量导入。
 func mountPortfolioParse(r chi.Router, d *Deps) {
 	r.Post("/portfolio/parse-screenshot", handleParseHoldingsScreenshot(d))
-}
-
-// mountPortfolioTradesPublic 挂载无需登录的成交截图解析路由。
-//
-// App 的交易复盘不要求登录。图片只在内存中转发给视觉模型，解析完成后
-// 立即释放；这里不写数据库、不保存原图，也不把原图写入日志。
-func mountPortfolioTradesPublic(r chi.Router, d *Deps) {
 	r.Post("/portfolio/parse-trades", handleParseTradesScreenshot(d))
 }
 
@@ -119,6 +112,7 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 		MimeType    string `json:"mime_type,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		_ = MustUser(r)
 		if d.Qwen == nil || !d.Qwen.Configured() {
 			WriteError(w, r, platform.ErrUnavailable(
 				"PORTFOLIO.VISION_UNAVAILABLE",

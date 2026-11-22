@@ -21,6 +21,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/invite"
 	"github.com/sencloud/finme-backend/internal/platform"
 	"github.com/sencloud/finme-backend/internal/store"
+	"github.com/sencloud/finme-backend/internal/trade_review"
 	"github.com/sencloud/finme-backend/internal/users"
 )
 
@@ -60,7 +61,8 @@ func newTestEnvWith(t *testing.T, extra func(d *Deps)) *testEnv {
 	l := zerolog.Nop()
 	d := &Deps{
 		Config: cfg, Logger: l, Store: st, Auth: authSvc, Users: usersSvc,
-		Invite: invite.NewService(st, cfg.Credits.InviteReward),
+		Invite:       invite.NewService(st, cfg.Credits.InviteReward),
+		TradeReviews: trade_review.NewService(st),
 		Falsification: falsification.NewService(st, &l, falsification.Options{Prices: falsification.Prices{
 			Unlock: cfg.Credits.UnlockEntry, FalsifyDaily: cfg.Credits.FalsifyDaily, FalsifyMinute: cfg.Credits.FalsifyMinute,
 		}}),

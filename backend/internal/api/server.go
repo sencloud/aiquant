@@ -33,6 +33,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/store"
 	"github.com/sencloud/finme-backend/internal/story"
 	"github.com/sencloud/finme-backend/internal/strategy"
+	"github.com/sencloud/finme-backend/internal/trade_review"
 	"github.com/sencloud/finme-backend/internal/users"
 )
 
@@ -66,6 +67,8 @@ type Deps struct {
 	MiniApps *miniapp.Service
 	// Story 《天亮以前》试用版：进度 / 结局 / AI 自由聊天。
 	Story *story.Service
+	// TradeReviews 是登录用户的成交复盘历史与云端分析。
+	TradeReviews *trade_review.Service
 	// Ingest 是本机采集端推上来的行情缓存（补生产出口拿不到的内盘期货实时）。
 	Ingest *ingest.Registry
 	// Realtime 是行情首页使用的公开实时快照源；nil 时接口返回 503。
@@ -82,7 +85,7 @@ func NewRouter(d *Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"}, // 上线前替换为白名单
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		ExposedHeaders:   []string{"X-Request-Id"},
 		AllowCredentials: false,
@@ -140,8 +143,6 @@ func NewRouter(d *Deps) http.Handler {
 			mountMiniAppsPublic(r, d)
 			// 试用版开关：公开读取，客户端据此决定是否显示入口 / 分享。
 			mountStoryPublic(r, d)
-			// 成交截图解析：只转发图片并返回成交行，不保存原图或用户数据。
-			mountPortfolioTradesPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))
@@ -151,6 +152,7 @@ func NewRouter(d *Deps) http.Handler {
 				mountDing(r, d)
 				mountLive(r, d)
 				mountPortfolioParse(r, d)
+				mountTradeReview(r, d)
 				mountAIShare(r, d)
 				mountNautilus(r, d)
 				mountStrategy(r, d)
