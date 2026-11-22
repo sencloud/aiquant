@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -67,6 +68,194 @@ type ParseHoldingsResult struct {
 	BrokerHint string          `json:"broker_hint"`
 	Currency   string          `json:"currency"`
 	Holdings   []ParsedHolding `json:"holdings"`
+}
+
+// ParsedTrade 是成交记录截图里的一行成交。
+//
+// 只记录已经成交的买卖，不记录委托、撤单、持仓或资金余额。字段在返回客户端
+// 前会经过 normalizeTradeRows 校验和归一化。
+type ParsedTrade struct {
+	TradeDate string  `json:"trade_date"`
+	TradeTime string  `json:"trade_time,omitempty"`
+	Symbol    string  `json:"symbol"`
+	Name      string  `json:"name"`
+	Side      string  `json:"side"`
+	Quantity  float64 `json:"quantity"`
+	Price     float64 `json:"price"`
+	Fee       float64 `json:"fee"`
+}
+
+// ParseTradesResult 是成交记录截图的解析结果。
+type ParseTradesResult struct {
+	BrokerHint string        `json:"broker_hint"`
+	Currency   string        `json:"currency"`
+	Trades     []ParsedTrade `json:"trades"`
+	Warnings   []string      `json:"warnings"`
+}
+
+// ParseTradesFromImage 从券商成交记录截图中抽取实际成交行。
+//
+// 模型只负责识别，不负责评价交易。日期、方向、数量和价格会在 Go 侧再次校验，
+// 避免模型把委托价、成交额或持仓数量误当成一行成交。
+func (c *VisionClient) ParseTradesFromImage(
+	ctx context.Context, imageDataURL string,
+) (*ParseTradesResult, error) {
+	if !c.Configured() {
+		return nil, errors.New("qwen vision: api key not configured")
+	}
+	if imageDataURL == "" {
+		return nil, errors.New("qwen vision: empty image")
+	}
+
+	system := `你是券商成交记录截图解析助手。只抽取截图中已经实际成交的买卖记录，输出严格 JSON：
+{
+  "broker_hint": "可识别的券商或交易软件名，识别不到填空字符串",
+  "currency": "CNY|HKD|USD，默认 CNY",
+  "trades": [
+    {
+      "trade_date": "YYYY-MM-DD",
+      "trade_time": "HH:mm:ss 或空字符串",
+      "symbol": "证券代码；没有代码就留空",
+      "name": "证券名称；没有名称就留空",
+      "side": "buy|sell",
+      "quantity": 成交数量（正数）,
+      "price": 成交单价（正数）,
+      "fee": 该笔佣金、印花税、过户费等合计手续费；看不到则填 0
+    }
+  ],
+  "warnings": ["识别不确定处"]
+}
+
+规则：
+1. 只识别已成交、已成交明细、成交回报或历史成交；不要识别当前委托、撤单、持仓、资金流水、分红或申购。
+2. 买入 side=buy，卖出 side=sell；即使卖出数量带负号，quantity 也输出正数。
+3. 数量、价格和手续费必须是数字，不要带货币符号、百分号或千分位。
+4. 不要把成交金额当成成交单价。把截图里的列标题和数量关系一起核对。
+5. 日期必须归一化为 YYYY-MM-DD。日期缺失、代码和名称都缺失、数量或价格看不清的行不要猜测，放入 warnings。
+6. 最多返回 500 行。不要输出解释、Markdown 或 JSON 之外的任何文字。`
+
+	var out ParseTradesResult
+	if err := c.ImageJSON(ctx, system, "请解析这张交易记录截图。", imageDataURL, &out); err != nil {
+		return nil, err
+	}
+	normalized, warnings, err := normalizeTradeRows(out.Trades)
+	if err != nil {
+		return nil, err
+	}
+	out.Trades = normalized
+	out.Warnings = uniqueStrings(append(out.Warnings, warnings...))
+	out.BrokerHint = strings.TrimSpace(out.BrokerHint)
+	out.Currency = normalizeCurrency(out.Currency)
+	return &out, nil
+}
+
+func normalizeTradeRows(rows []ParsedTrade) ([]ParsedTrade, []string, error) {
+	if len(rows) > 500 {
+		return nil, nil, errors.New("qwen vision: too many trade rows")
+	}
+	normalized := make([]ParsedTrade, 0, len(rows))
+	warnings := make([]string, 0)
+	for i, row := range rows {
+		date, err := normalizeTradeDate(row.TradeDate)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("第 %d 行日期无法确认，已跳过", i+1))
+			continue
+		}
+		side := normalizeTradeSide(row.Side)
+		if side == "" {
+			warnings = append(warnings, fmt.Sprintf("第 %d 行买卖方向无法确认，已跳过", i+1))
+			continue
+		}
+		row.Symbol = strings.TrimSpace(row.Symbol)
+		row.Name = strings.TrimSpace(row.Name)
+		if row.Symbol == "" && row.Name == "" {
+			warnings = append(warnings, fmt.Sprintf("第 %d 行缺少证券代码和名称，已跳过", i+1))
+			continue
+		}
+		if row.Quantity <= 0 || row.Price <= 0 {
+			warnings = append(warnings, fmt.Sprintf("第 %d 行数量或价格无效，已跳过", i+1))
+			continue
+		}
+		if row.Fee < 0 {
+			warnings = append(warnings, fmt.Sprintf("第 %d 行手续费为负，已按 0 处理", i+1))
+			row.Fee = 0
+		}
+		row.TradeDate = date
+		row.TradeTime = normalizeTradeTime(row.TradeTime)
+		row.Side = side
+		normalized = append(normalized, row)
+	}
+	if len(rows) > 0 && len(normalized) == 0 {
+		return nil, warnings, errors.New("qwen vision: no valid trade rows")
+	}
+	return normalized, warnings, nil
+}
+
+func normalizeTradeDate(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	for _, layout := range []string{"2006-01-02", "2006/01/02", "2006.01.02", "20060102"} {
+		if parsed, err := time.ParseInLocation(layout, value, time.Local); err == nil {
+			return parsed.Format("2006-01-02"), nil
+		}
+	}
+	return "", fmt.Errorf("invalid trade date %q", value)
+}
+
+func normalizeTradeTime(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	for _, layout := range []string{"15:04:05", "15:04", "2006-01-02 15:04:05", "2006-01-02 15:04"} {
+		if parsed, err := time.ParseInLocation(layout, value, time.Local); err == nil {
+			if strings.Contains(value, "-") {
+				return parsed.Format("15:04:05")
+			}
+			if layout == "15:04" {
+				return parsed.Format("15:04:00")
+			}
+			return parsed.Format("15:04:05")
+		}
+	}
+	return ""
+}
+
+func normalizeTradeSide(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "buy", "b", "买入", "证券买入":
+		return "buy"
+	case "sell", "s", "卖出", "证券卖出":
+		return "sell"
+	default:
+		return ""
+	}
+}
+
+func normalizeCurrency(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "HKD", "USD", "CNY":
+		return strings.ToUpper(strings.TrimSpace(value))
+	default:
+		return "CNY"
+	}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ParseHoldingsFromImage 调 qwen-vl-max 多模态接口，让它把图片里的持仓表

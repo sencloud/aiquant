@@ -27,12 +27,20 @@ func decodeJSONLarge(r *http.Request, dst any, maxBytes int64) error {
 	return nil
 }
 
-// mountPortfolioParse 挂载组合相关的辅助路由。
+// mountPortfolioParse 挂载需要登录的组合辅助路由。
 //
 // 当前只一个：POST /v1/portfolio/parse-screenshot —— 给客户端上传一张
 // 券商持仓截图，返回结构化 holdings JSON 让用户确认后批量导入。
 func mountPortfolioParse(r chi.Router, d *Deps) {
 	r.Post("/portfolio/parse-screenshot", handleParseHoldingsScreenshot(d))
+}
+
+// mountPortfolioTradesPublic 挂载无需登录的成交截图解析路由。
+//
+// App 的交易复盘不要求登录。图片只在内存中转发给视觉模型，解析完成后
+// 立即释放；这里不写数据库、不保存原图，也不把原图写入日志。
+func mountPortfolioTradesPublic(r chi.Router, d *Deps) {
+	r.Post("/portfolio/parse-trades", handleParseTradesScreenshot(d))
 }
 
 // handleParseHoldingsScreenshot 调 qwen-vl-max 把券商截图解析成 JSON。
@@ -101,6 +109,73 @@ func handleParseHoldingsScreenshot(d *Deps) http.HandlerFunc {
 			"broker_hint": out.BrokerHint,
 			"currency":    out.Currency,
 			"holdings":    out.Holdings,
+		})
+	}
+}
+
+func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
+	type reqBody struct {
+		ImageBase64 string `json:"image_base64"`
+		MimeType    string `json:"mime_type,omitempty"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d.Qwen == nil || !d.Qwen.Configured() {
+			WriteError(w, r, platform.ErrUnavailable(
+				"PORTFOLIO.VISION_UNAVAILABLE",
+				errors.New("qwen vision not configured")))
+			return
+		}
+
+		var body reqBody
+		if err := decodeJSONLarge(r, &body, 8*1024*1024); err != nil {
+			WriteError(w, r, err)
+			return
+		}
+		raw := strings.TrimSpace(body.ImageBase64)
+		if raw == "" {
+			WriteError(w, r, platform.ErrBadRequest(
+				"PORTFOLIO.IMAGE_EMPTY", "image_base64 不能为空", nil))
+			return
+		}
+		if !strings.HasPrefix(raw, "data:") {
+			if _, err := base64.StdEncoding.DecodeString(raw); err != nil {
+				WriteError(w, r, platform.ErrBadRequest(
+					"PORTFOLIO.IMAGE_INVALID",
+					"image_base64 不是合法 base64", err))
+				return
+			}
+			mime := strings.TrimSpace(body.MimeType)
+			if !strings.HasPrefix(mime, "image/") {
+				mime = "image/png"
+			}
+			raw = "data:" + mime + ";base64," + raw
+		}
+
+		out, err := d.Qwen.ParseTradesFromImage(r.Context(), raw)
+		if err != nil {
+			message := err.Error()
+			if strings.Contains(message, "no valid trade rows") {
+				WriteError(w, r, platform.ErrBadRequest(
+					"PORTFOLIO.NO_TRADES",
+					"截图里没有找到可确认的成交行，请换一张清晰的成交记录截图", nil))
+				return
+			}
+			WriteError(w, r, platform.ErrInternal(
+				"PORTFOLIO.VISION_FAILED", err))
+			return
+		}
+		if len(out.Trades) == 0 {
+			WriteError(w, r, platform.ErrBadRequest(
+				"PORTFOLIO.NO_TRADES",
+				"截图里没有找到可确认的成交行，请换一张清晰的成交记录截图", nil))
+			return
+		}
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"source":      "qwen-vl",
+			"broker_hint": out.BrokerHint,
+			"currency":    out.Currency,
+			"trades":      out.Trades,
+			"warnings":    out.Warnings,
 		})
 	}
 }

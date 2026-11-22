@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>喜AI</string>
+	<string>嘻，AI</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>喜AI</string>
+	<string>嘻，AI</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,6 +45,8 @@
 	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>api.tushare.pro</key>
@@ -74,5 +76,7 @@
 	<string>仅在你主动保存图片或分享卡片时写入照片；不会在后台修改相册。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>仅在你主动使用附近行情或位置辅助功能时获取当前位置；不会在后台定位。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>仅在你主动连接同一 Wi-Fi 下的电脑端时，允许电脑发送结构化成交记录到本机分析；不会扫描或访问其他设备。</string>
 </dict>
 </plist>

@@ -140,6 +140,8 @@ func NewRouter(d *Deps) http.Handler {
 			mountMiniAppsPublic(r, d)
 			// 试用版开关：公开读取，客户端据此决定是否显示入口 / 分享。
 			mountStoryPublic(r, d)
+			// 成交截图解析：只转发图片并返回成交行，不保存原图或用户数据。
+			mountPortfolioTradesPublic(r, d)
 			r.Group(func(r chi.Router) {
 				r.Use(JWTMiddleware(d.Auth))
 				r.Use(auditMiddleware(d.Store))

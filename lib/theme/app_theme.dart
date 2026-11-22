@@ -252,7 +252,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         iconTheme: IconThemeData(color: AppColors.textPrimary, size: 22),
-        titleTextStyle: AppType.title,
+        titleTextStyle: AppType.title.copyWith(color: AppColors.textPrimary),
         shape:
             Border(bottom: BorderSide(color: AppColors.borderDim, width: 0.5)),
       ),

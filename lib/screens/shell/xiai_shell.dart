@@ -2,22 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
-import '../buddy/cloud_buddy_screen.dart';
-import '../buddy/work_buddy_screen.dart';
 import '../my/my_screen.dart';
+import '../trade_review/trade_review_home.dart';
 import '../watch/watch_screen.dart';
 
-/// Three-tab application shell: 搭子 / 云搭子 / 我的.
+/// Two-tab application shell: 嘻，AI / 我的.
 ///
-/// The former sole market terminal now lives under 我的 → 看盘. IndexedStack
-/// keeps the chart, picker state and buddy timers alive while switching tabs.
+/// Screenshot review is the primary job. The market terminal remains available
+/// as a secondary tool from 我的 → 看盘. IndexedStack keeps both pages warm while
+/// switching tabs.
 class XiaiShell extends StatefulWidget {
   const XiaiShell({
     super.key,
     this.watchPageBuilder,
+    this.desktopPageBuilder,
+    this.historyPageBuilder,
   });
 
   final WidgetBuilder? watchPageBuilder;
+  final WidgetBuilder? desktopPageBuilder;
+  final WidgetBuilder? historyPageBuilder;
 
   @override
   State<XiaiShell> createState() => _XiaiShellState();
@@ -37,15 +41,13 @@ class _XiaiShellState extends State<XiaiShell> {
     final watchPageBuilder =
         widget.watchPageBuilder ?? (_) => const WatchScreen();
     final pages = <Widget>[
-      WorkBuddyScreen(
-        active: _index == 0,
-        onCharacterChanged: (_) => setState(() {}),
+      TradeReviewHomeScreen(
+        desktopPageBuilder: widget.desktopPageBuilder,
       ),
-      const CloudBuddyScreen(),
       MyScreen(
-        onOpenBuddy: () => _select(0),
-        onOpenCloudBuddy: () => _select(1),
         watchPageBuilder: watchPageBuilder,
+        desktopPageBuilder: widget.desktopPageBuilder,
+        historyPageBuilder: widget.historyPageBuilder,
       ),
     ];
 
@@ -76,8 +78,7 @@ class _XiaiTabBar extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   static const _items = <(String, IconData, IconData)>[
-    ('搭子', Icons.people_outline_rounded, Icons.people_rounded),
-    ('云搭子', Icons.cloud_outlined, Icons.cloud_rounded),
+    ('嘻，AI', Icons.auto_awesome_outlined, Icons.auto_awesome_rounded),
     ('我的', Icons.person_outline_rounded, Icons.person_rounded),
   ];
 
@@ -129,11 +130,9 @@ class _TabButton extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
-  static const _accent = Color(0xFF1C49C9);
-
   @override
   Widget build(BuildContext context) {
-    final color = active ? _accent : AppColors.textSecondary;
+    final color = active ? AppColors.amber : AppColors.textSecondary;
     return Semantics(
       selected: active,
       button: true,
