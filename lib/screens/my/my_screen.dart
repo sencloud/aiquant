@@ -3,11 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/auth_models.dart';
 import '../../core/auth/require_login.dart';
+import '../../core/format/credit_fmt.dart';
 import '../../models/trade_review.dart';
 import '../../services/trade_review_repository.dart';
 import '../../state/auth_state.dart';
+import '../../state/billing_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
+import '../settings/account_kit.dart';
 import '../settings/settings_screen.dart';
 import '../trade_review/trade_report_screen.dart';
 import '../trade_review/trade_review_history.dart';
@@ -16,8 +19,8 @@ import '../watch/widgets/market_brand.dart';
 
 /// 微信式个人页。
 ///
-/// 首屏只保留最近复盘、交易记录、看盘和设置；账号、隐私、协议与关于都进入
-/// 二级页面。顶部档案区使用纯白背景，列表分组横向铺满。
+/// 首屏保留最近复盘、交易记录、看盘、付费会员和设置；账号、隐私、协议与
+/// 关于都进入二级页面。顶部档案区使用纯白背景，列表分组横向铺满。
 class MyScreen extends StatefulWidget {
   const MyScreen({
     super.key,
@@ -141,16 +144,30 @@ class _MyScreenState extends State<MyScreen> {
     }
   }
 
+  Future<void> _openMembership() async {
+    if (!await requireLogin(context) || !mounted) return;
+    final billing = context.read<BillingState>();
+    await billing.refreshAll();
+    if (!mounted) return;
+    if (rechargeAvailable) {
+      await showRechargeSheet(context);
+    } else {
+      showLedgerSheet(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
+    final billing = context.watch<BillingState>();
     return ColoredBox(
       key: const ValueKey('my-top-white'),
       color: AppColors.bgSurface,
       child: SafeArea(
         bottom: false,
         child: ColoredBox(
-          color: AppColors.bgBase,
+          key: const ValueKey('my-page-surface'),
+          color: AppColors.bgSurface,
           child: AnimatedBuilder(
             animation: TradeReviewStore.instance,
             builder: (context, _) {
@@ -170,7 +187,7 @@ class _MyScreenState extends State<MyScreen> {
                     syncError: store.syncError,
                     onTap: _openProfile,
                   ),
-                  const SizedBox(height: 12),
+                  const _MyGroupGap(),
                   _MyGroup(
                     children: [
                       _MyRow(
@@ -201,6 +218,22 @@ class _MyScreenState extends State<MyScreen> {
                       ),
                     ],
                   ),
+                  const _MyGroupGap(),
+                  _MyGroup(
+                    children: [
+                      _MyRow(
+                        key: const ValueKey('my-membership'),
+                        icon: Icons.workspace_premium_outlined,
+                        iconColor: const Color(0xFFC58A2B),
+                        title: '付费会员',
+                        value: auth.isAuthenticated
+                            ? '喜点 ${CreditFmt.balance(billing.balance)}'
+                            : '充值喜点',
+                        onTap: _openMembership,
+                      ),
+                    ],
+                  ),
+                  const _MyGroupGap(),
                   _MyGroup(
                     children: [
                       _MyRow(
@@ -342,8 +375,7 @@ class _StatusTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = warning ? AppColors.warning : AppColors.amberDim;
-    final background =
-        warning ? const Color(0xFFFFF1E1) : AppColors.accentSoft;
+    final background = warning ? const Color(0xFFFFF1E1) : AppColors.accentSoft;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
@@ -380,12 +412,23 @@ class _MyGroup extends StatelessWidget {
       }
     }
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       color: AppColors.bgSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: rows,
       ),
+    );
+  }
+}
+
+class _MyGroupGap extends StatelessWidget {
+  const _MyGroupGap();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 12,
+      child: ColoredBox(color: AppColors.bgBase),
     );
   }
 }

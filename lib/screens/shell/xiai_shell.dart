@@ -2,22 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
+import '../assistant/assistant_screen.dart';
 import '../my/my_screen.dart';
 import '../trade_review/trade_review_home.dart';
 import '../watch/watch_screen.dart';
 
-/// Two-tab application shell: 嘻，AI / 我的.
+/// Three-tab application shell: 嘻，AI / 对话 / 我的.
 ///
-/// Screenshot review is the primary job. The market terminal remains available
-/// as a secondary tool from 我的 → 看盘. IndexedStack keeps both pages warm while
+/// Screenshot review is the primary job. The restored AI conversation and the
+/// account tools remain one tap away. IndexedStack keeps every page warm while
 /// switching tabs.
 class XiaiShell extends StatefulWidget {
   const XiaiShell({
     super.key,
+    this.chatPageBuilder,
     this.watchPageBuilder,
     this.historyPageBuilder,
   });
 
+  final WidgetBuilder? chatPageBuilder;
   final WidgetBuilder? watchPageBuilder;
   final WidgetBuilder? historyPageBuilder;
 
@@ -40,6 +43,7 @@ class _XiaiShellState extends State<XiaiShell> {
         widget.watchPageBuilder ?? (_) => const WatchScreen();
     final pages = <Widget>[
       const TradeReviewHomeScreen(),
+      (widget.chatPageBuilder ?? (_) => const AssistantScreen())(context),
       MyScreen(
         watchPageBuilder: watchPageBuilder,
         historyPageBuilder: widget.historyPageBuilder,
@@ -47,7 +51,7 @@ class _XiaiShellState extends State<XiaiShell> {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.bgBase,
+      backgroundColor: AppColors.bgSurface,
       body: IndexedStack(
         index: _index,
         children: [
@@ -74,6 +78,7 @@ class _XiaiTabBar extends StatelessWidget {
 
   static const _items = <(String, IconData, IconData)>[
     ('嘻，AI', Icons.auto_awesome_outlined, Icons.auto_awesome_rounded),
+    ('对话', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded),
     ('我的', Icons.person_outline_rounded, Icons.person_rounded),
   ];
 

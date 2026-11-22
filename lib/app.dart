@@ -26,7 +26,17 @@ class _XiaiAppState extends State<XiaiApp> {
   @override
   void initState() {
     super.initState();
-    unawaited(_auth.bootstrap());
+    unawaited(_bootstrapStates());
+  }
+
+  Future<void> _bootstrapStates() async {
+    await Future.wait<void>([
+      _auth.bootstrap(),
+      _chat.bootstrap(),
+    ]);
+    if (_auth.isAuthenticated) {
+      await _billing.refreshAll();
+    }
   }
 
   @override

@@ -35,8 +35,8 @@ import 'widgets/persona_picker.dart';
 /// 聊天页。版式照微信：灰底、白牙栏居中写对方的名字、气泡左右分色、
 /// 底部一条输入栏，右边一个绿色「发送」。
 ///
-/// 一个会话 = 一段话题，跟哪一位助手聊写在标题上。会话列表在「消息」页签，
-/// 所以这一页是**二级页**（左上角是返回），不再是页签之一。
+/// 一个会话 = 一段话题，跟哪一位助手聊写在标题上。这一页作为一级「对话」
+/// 页签保留，用户也可以从右上角菜单发起新对话或切换助手。
 ///
 /// 逻辑（发送、流式、图片、余额不足、重新生成、推荐追问）与重构前一致，
 /// 这次只换了外观与入口。
@@ -278,8 +278,8 @@ class _AssistantScreenState extends State<AssistantScreen>
     if (!mounted) return;
     setState(() => _listening = ok);
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('没有拿到麦克风或语音识别权限，可以去系统设置里打开')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('没有拿到麦克风或语音识别权限，可以去系统设置里打开')));
     }
   }
 
@@ -314,14 +314,14 @@ class _AssistantScreenState extends State<AssistantScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.photo_camera_outlined,
-                  color: AppColors.amber),
+              leading:
+                  Icon(Icons.photo_camera_outlined, color: AppColors.amber),
               title: const Text('拍照', style: AppType.body),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: Icon(Icons.photo_library_outlined,
-                  color: AppColors.amber),
+              leading:
+                  Icon(Icons.photo_library_outlined, color: AppColors.amber),
               title: const Text('从相册选择', style: AppType.body),
               subtitle: const Text('最多 ${ImageAttachService.maxImages} 张',
                   style: AppType.caption),
@@ -408,10 +408,9 @@ class _AssistantScreenState extends State<AssistantScreen>
             const SizedBox(height: AppSpace.sm),
             ListTile(
               leading: const Icon(Icons.swap_horiz_rounded),
-              title: Text(social ? '换一个人' : '换个助手',
-                  style: AppType.body),
-              subtitle: Text('当前：${persona.displayName}',
-                  style: AppType.caption),
+              title: Text(social ? '换一个人' : '换个助手', style: AppType.body),
+              subtitle:
+                  Text('当前：${persona.displayName}', style: AppType.caption),
               onTap: () => Navigator.pop(ctx, 'persona'),
             ),
             ListTile(
@@ -434,8 +433,8 @@ class _AssistantScreenState extends State<AssistantScreen>
     if (!mounted || action == null) return;
     switch (action) {
       case 'persona':
-        final picked = await showPersonaSheet(context,
-            activeId: persona.id, topic: topic);
+        final picked =
+            await showPersonaSheet(context, activeId: persona.id, topic: topic);
         if (picked == null || !mounted) return;
         final empty = chat.active?.messages.isEmpty ?? true;
         if (empty) {
@@ -551,55 +550,57 @@ class _AssistantScreenState extends State<AssistantScreen>
                           AppSpace.sm, AppSpace.md, AppSpace.sm, AppSpace.lg),
                       itemCount: session.messages.length,
                       itemBuilder: (context, i) {
-                      final msg = session.messages[i];
-                      final prev = i == 0 ? null : session.messages[i - 1];
-                      final gap = prev == null
-                          ? null
-                          : msg.timestamp.difference(prev.timestamp);
-                      final showTime = gap == null ||
-                          gap.inMinutes.abs() >= 5 ||
-                          gap.isNegative;
-                      final isLatest = identical(msg, latest);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (showTime) WxTimeStamp(wxChatTime(msg.timestamp)),
-                          MessageBubble(
-                            message: msg,
-                            allMessages: session.messages,
-                            showReasoning: _showReasoning,
-                            isLatest: isLatest,
-                            selfName: selfName,
-                            assistantName: titleName,
-                            showActions: !isCompanion,
-                            assistantAvatar: session.topic == 'companion'
-                                ? GestureDetector(
-                                    onTap: () => Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                          builder: (_) => const HerScreen()),
-                                    ),
-                                    child: AnimatedSwitcher(
-                                      duration:
-                                          const Duration(milliseconds: 220),
-                                      child: LiveAvatar(
-                                        key: ValueKey(companion!.look.id),
-                                        look: companion.look,
-                                        mood: companionMood,
-                                        width: 40,
-                                        height: 40,
-                                        radius: 6,
-                                        glow: false,
+                        final msg = session.messages[i];
+                        final prev = i == 0 ? null : session.messages[i - 1];
+                        final gap = prev == null
+                            ? null
+                            : msg.timestamp.difference(prev.timestamp);
+                        final showTime = gap == null ||
+                            gap.inMinutes.abs() >= 5 ||
+                            gap.isNegative;
+                        final isLatest = identical(msg, latest);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (showTime)
+                              WxTimeStamp(wxChatTime(msg.timestamp)),
+                            MessageBubble(
+                              message: msg,
+                              allMessages: session.messages,
+                              showReasoning: _showReasoning,
+                              isLatest: isLatest,
+                              selfName: selfName,
+                              assistantName: titleName,
+                              showActions: !isCompanion,
+                              assistantAvatar: session.topic == 'companion'
+                                  ? GestureDetector(
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                            builder: (_) => const HerScreen()),
                                       ),
-                                    ),
-                                  )
-                                : null,
-                            onSuggestion: isLatest ? _sendSuggestion : null,
-                            onRegenerate:
-                                isLatest ? () => _regenerate(chat, msg) : null,
-                            onFeedback: (r) => chat.setFeedback(msg, r),
-                          ),
-                        ],
-                      );
+                                      child: AnimatedSwitcher(
+                                        duration:
+                                            const Duration(milliseconds: 220),
+                                        child: LiveAvatar(
+                                          key: ValueKey(companion!.look.id),
+                                          look: companion.look,
+                                          mood: companionMood,
+                                          width: 40,
+                                          height: 40,
+                                          radius: 6,
+                                          glow: false,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                              onSuggestion: isLatest ? _sendSuggestion : null,
+                              onRegenerate: isLatest
+                                  ? () => _regenerate(chat, msg)
+                                  : null,
+                              onFeedback: (r) => chat.setFeedback(msg, r),
+                            ),
+                          ],
+                        );
                       },
                     ),
                   ),
@@ -677,8 +678,8 @@ class _AssistantScreenState extends State<AssistantScreen>
             builder: (_) => const CompanionMomentsScreen()));
         break;
       case 'memory':
-        await Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => const MemoryScreen()));
+        await Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const MemoryScreen()));
         break;
       case 'voice':
         final on = !companion.voiceEnabled;
@@ -724,8 +725,7 @@ class _AssistantScreenState extends State<AssistantScreen>
         if (id != null) await chat.deleteSession(id);
         await chat.newSession(
             topic: 'companion', personaId: 'xiai', title: companion.name);
-        await chat.addLocalMessage(
-            '我是${companion.name}。\n陪着你，是长情的告白。');
+        await chat.addLocalMessage('我是${companion.name}。\n陪着你，是长情的告白。');
         break;
       case 'about':
         await showDialog<void>(
@@ -750,8 +750,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     }
   }
 
-  PopupMenuItem<String> _wxMenuItem(
-      String value, IconData icon, String label) {
+  PopupMenuItem<String> _wxMenuItem(String value, IconData icon, String label) {
     return PopupMenuItem<String>(
       value: value,
       height: 46,
@@ -868,8 +867,8 @@ class _AssistantScreenState extends State<AssistantScreen>
               slot++,
               Text('陪着你，是长情的告白。',
                   textAlign: TextAlign.center,
-                  style: AppType.read.copyWith(
-                      fontSize: 15, color: AppColors.textSecondary))),
+                  style: AppType.read
+                      .copyWith(fontSize: 15, color: AppColors.textSecondary))),
         ],
       ),
     );
@@ -951,10 +950,7 @@ class _AssistantScreenState extends State<AssistantScreen>
         color: AppColors.bgRaised,
         border: Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
       ),
-      padding: EdgeInsets.fromLTRB(
-          AppSpace.sm,
-          AppSpace.sm,
-          AppSpace.sm,
+      padding: EdgeInsets.fromLTRB(AppSpace.sm, AppSpace.sm, AppSpace.sm,
           AppSpace.sm + MediaQuery.of(context).padding.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -966,8 +962,8 @@ class _AssistantScreenState extends State<AssistantScreen>
               padding: const EdgeInsets.only(bottom: 6),
               child: Text('正在听……说完会自动发出去',
                   textAlign: TextAlign.center,
-                  style: AppType.caption
-                      .copyWith(color: AppColors.textSecondary)),
+                  style:
+                      AppType.caption.copyWith(color: AppColors.textSecondary)),
             ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -996,10 +992,9 @@ class _AssistantScreenState extends State<AssistantScreen>
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 10),
-                      hintStyle: AppType.body
-                          .copyWith(fontSize: 16, color: AppColors.textTertiary),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      hintStyle: AppType.body.copyWith(
+                          fontSize: 16, color: AppColors.textTertiary),
                     ),
                     onTapOutside: (_) => _focus.unfocus(),
                     onSubmitted: (_) => _send(),

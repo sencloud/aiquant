@@ -4,6 +4,7 @@ import 'package:fincept_app/core/storage/hive_setup.dart';
 import 'package:fincept_app/screens/shell/xiai_shell.dart';
 import 'package:fincept_app/services/trade_review_repository.dart';
 import 'package:fincept_app/state/auth_state.dart';
+import 'package:fincept_app/state/billing_state.dart';
 import 'package:fincept_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -39,9 +40,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.build(),
-        home: ChangeNotifierProvider<AuthState>(
-          create: (_) => AuthState(),
+        home: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthState>(create: (_) => AuthState()),
+            ChangeNotifierProvider<BillingState>(create: (_) => BillingState()),
+          ],
           child: XiaiShell(
+            chatPageBuilder: (_) => const Scaffold(
+              body: Center(child: Text('对话测试页')),
+            ),
             watchPageBuilder: watchPageBuilder ??
                 (_) => const Scaffold(
                       body: Center(child: Text('看盘测试页')),
@@ -53,15 +60,20 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('只保留嘻，AI 与我的两个页签', (tester) async {
+  testWidgets('保留嘻，AI、对话与我的三个页签', (tester) async {
     await pumpShell(tester);
 
     expect(find.text('嘻，AI'), findsWidgets);
+    expect(find.text('对话'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
     expect(find.text('搭子'), findsNothing);
     expect(find.text('云搭子'), findsNothing);
     expect(find.text('我的搭子'), findsNothing);
     expect(find.text('选择成交截图（可多选）'), findsOneWidget);
+
+    await tester.tap(find.text('对话'));
+    await tester.pump();
+    expect(find.text('对话测试页'), findsOneWidget);
 
     await tester.tap(find.text('我的'));
     await tester.pump();
@@ -70,6 +82,7 @@ void main() {
     expect(find.text('最近复盘'), findsOneWidget);
     expect(find.text('交易记录'), findsOneWidget);
     expect(find.text('看盘'), findsOneWidget);
+    expect(find.text('付费会员'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('电脑连接'), findsNothing);
     expect(find.text('数据与隐私'), findsNothing);
@@ -83,6 +96,10 @@ void main() {
       find.byKey(const ValueKey('my-top-white')),
     );
     expect(top.color, AppColors.bgSurface);
+    final surface = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey('my-page-surface')),
+    );
+    expect(surface.color, AppColors.bgSurface);
     expect(
       tester.getCenter(find.text('行情终端')).dx,
       greaterThan(tester.getCenter(find.text('看盘')).dx),
@@ -112,6 +129,18 @@ void main() {
     expect(find.text('用户协议'), findsOneWidget);
     expect(find.text('隐私政策'), findsOneWidget);
     expect(find.text('关于喜爱'), findsOneWidget);
+  });
+
+  testWidgets('付费会员入口沿用登录与充值流程', (tester) async {
+    await pumpShell(tester);
+
+    await tester.tap(find.text('我的'));
+    await tester.pump();
+    await tester.tap(find.text('付费会员'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('请输入邮箱地址'), findsOneWidget);
+    expect(find.text('获取验证码'), findsOneWidget);
   });
 
   testWidgets('未登录时可从首页进入邮箱验证码登录', (tester) async {
