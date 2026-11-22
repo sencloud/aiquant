@@ -32,50 +32,81 @@ class TradeScreenshotPicker {
 
   final ImagePicker _picker;
 
+  static const maxGalleryImages = 20;
   static const _maxWidth = 1800.0;
   static const _maxHeight = 3600.0;
-  static const _quality = 92;
+  static const _quality = 88;
 
-  Future<PickedTradeScreenshot?> fromGallery() => _pick(ImageSource.gallery);
+  Future<List<PickedTradeScreenshot>> fromGallery() async {
+    try {
+      final files = await _picker.pickMultiImage(
+        maxWidth: _maxWidth,
+        maxHeight: _maxHeight,
+        imageQuality: _quality,
+        limit: maxGalleryImages,
+        requestFullMetadata: false,
+      );
+      if (files.isEmpty) return const [];
+      if (files.length > maxGalleryImages) {
+        throw const TradeParseException(
+          TradeParseFailureKind.invalidRequest,
+          '一次最多选择 $maxGalleryImages 张成交截图，请分批上传。',
+        );
+      }
+      return [
+        for (final file in files) await _read(file),
+      ];
+    } on TradeParseException {
+      rethrow;
+    } catch (error) {
+      throw _pickerFailure(error);
+    }
+  }
 
-  Future<PickedTradeScreenshot?> fromCamera() => _pick(ImageSource.camera);
-
-  Future<PickedTradeScreenshot?> _pick(ImageSource source) async {
+  Future<PickedTradeScreenshot?> fromCamera() async {
     try {
       final file = await _picker.pickImage(
-        source: source,
+        source: ImageSource.camera,
         maxWidth: _maxWidth,
         maxHeight: _maxHeight,
         imageQuality: _quality,
       );
       if (file == null) return null;
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        throw const TradeParseException(
-          TradeParseFailureKind.invalidRequest,
-          '这张图片没有可读取的内容，请重新选择。',
-        );
-      }
-      return PickedTradeScreenshot(
-        bytes: bytes,
-        mimeType: sniffImageMime(bytes, file.path),
-      );
+      return await _read(file);
     } on TradeParseException {
       rethrow;
     } catch (error) {
-      final text = error.toString().toLowerCase();
-      if (text.contains('camera_access_denied') ||
-          text.contains('photo_access_denied')) {
-        throw const TradeParseException(
-          TradeParseFailureKind.cancelled,
-          '没有获得相机或相册权限。请到系统设置中允许「嘻，AI」访问后重试。',
-        );
-      }
+      throw _pickerFailure(error);
+    }
+  }
+
+  Future<PickedTradeScreenshot> _read(XFile file) async {
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) {
       throw const TradeParseException(
         TradeParseFailureKind.invalidRequest,
-        '无法读取这张图片，请重新选择一张清晰的成交记录截图。',
+        '有一张图片没有可读取的内容，请重新选择。',
       );
     }
+    return PickedTradeScreenshot(
+      bytes: bytes,
+      mimeType: sniffImageMime(bytes, file.path),
+    );
+  }
+
+  TradeParseException _pickerFailure(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('camera_access_denied') ||
+        text.contains('photo_access_denied')) {
+      return const TradeParseException(
+        TradeParseFailureKind.cancelled,
+        '没有获得相机或相册权限。请到系统设置中允许「嘻，AI」访问后重试。',
+      );
+    }
+    return const TradeParseException(
+      TradeParseFailureKind.invalidRequest,
+      '无法读取所选截图，请重新选择清晰的成交记录截图。',
+    );
   }
 }
 
@@ -93,6 +124,84 @@ class TradeScreenshotParser {
   TradeScreenshotParser({Dio? dio}) : _dio = dio ?? ApiClient.instance.dio;
 
   final Dio _dio;
+
+  static const defaultConcurrency = 3;
+
+  /// 相册多选后按小并发批次识别。服务端仍是一图一请求，这样既能缩短等待，
+  /// 也能给视觉模型留下稳定的限流余量。
+  Future<ParsedTradesResult> parseBatch(
+    List<PickedTradeScreenshot> screenshots, {
+    int concurrency = defaultConcurrency,
+    void Function(int completed, int total)? onProgress,
+  }) async {
+    if (screenshots.isEmpty) {
+      throw const TradeParseException(
+        TradeParseFailureKind.noTrades,
+        '还没有选择成交截图。',
+      );
+    }
+
+    final total = screenshots.length;
+    final results = List<ParsedTradesResult?>.filled(total, null);
+    final failures = List<TradeParseException?>.filled(total, null);
+    var nextIndex = 0;
+    var completed = 0;
+    var workerCount = concurrency < 1 ? 1 : concurrency;
+    if (workerCount > total) workerCount = total;
+    onProgress?.call(0, total);
+
+    Future<void> worker() async {
+      while (true) {
+        final index = nextIndex++;
+        if (index >= total) return;
+        try {
+          final screenshot = screenshots[index];
+          results[index] = await parse(
+            imageBytes: screenshot.bytes,
+            mimeType: screenshot.mimeType,
+          );
+        } catch (error) {
+          failures[index] = error is TradeParseException
+              ? error
+              : const TradeParseException(
+                  TradeParseFailureKind.server,
+                  '识别服务遇到问题，请稍后重试。',
+                );
+        } finally {
+          completed++;
+          onProgress?.call(completed, total);
+        }
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+
+    final successful = [
+      for (final result in results)
+        if (result != null) result,
+    ];
+    if (successful.isEmpty) {
+      final firstFailure = failures.firstWhere((failure) => failure != null)!;
+      final allNoTrades = failures
+          .every((failure) => failure?.kind == TradeParseFailureKind.noTrades);
+      throw TradeParseException(
+        allNoTrades ? TradeParseFailureKind.noTrades : firstFailure.kind,
+        total == 1
+            ? firstFailure.message
+            : '$total 张截图都没有识别成功。${firstFailure.message}',
+      );
+    }
+
+    return mergeParsedTradeResults(
+      successful,
+      screenshotCount: total,
+      failureWarnings: [
+        for (var i = 0; i < failures.length; i++)
+          if (failures[i] case final failure?)
+            '第 ${i + 1} 张未识别：${failure.message}',
+      ],
+    );
+  }
 
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,

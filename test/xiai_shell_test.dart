@@ -61,7 +61,7 @@ void main() {
     expect(find.text('搭子'), findsNothing);
     expect(find.text('云搭子'), findsNothing);
     expect(find.text('我的搭子'), findsNothing);
-    expect(find.text('从相册选择成交截图'), findsOneWidget);
+    expect(find.text('选择成交截图（可多选）'), findsOneWidget);
 
     await tester.tap(find.text('我的'));
     await tester.pump();

@@ -40,6 +40,7 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
 
   bool _busy = false;
   String? _error;
+  String? _parseProgress;
 
   Future<void> _pickAndParse({required bool camera}) async {
     if (_busy) return;
@@ -47,21 +48,36 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _parseProgress = null;
     });
     try {
-      final screenshot =
-          camera ? await _picker.fromCamera() : await _picker.fromGallery();
-      if (screenshot == null) return;
-      final parsed = await _parser.parse(
-        imageBytes: screenshot.bytes,
-        mimeType: screenshot.mimeType,
+      final screenshots = camera
+          ? [
+              if (await _picker.fromCamera() case final screenshot?) screenshot,
+            ]
+          : await _picker.fromGallery();
+      if (screenshots.isEmpty || !mounted) return;
+      setState(() {
+        _parseProgress = screenshots.length == 1
+            ? '正在识别成交记录…'
+            : '正在识别 0/${screenshots.length} 张截图…';
+      });
+      final parsed = await _parser.parseBatch(
+        screenshots,
+        onProgress: (completed, total) {
+          if (!mounted || total <= 1) return;
+          setState(() {
+            _parseProgress = '正在识别 $completed/$total 张截图…';
+          });
+        },
       );
       if (!mounted) return;
-      await Navigator.of(context).push(
+      final coverImage = screenshots.first.bytes;
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => TradeConfirmScreen(
             parsed: parsed,
-            imageBytes: screenshot.bytes,
+            imageBytes: coverImage,
           ),
         ),
       );
@@ -72,7 +88,12 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
         setState(() => _error = '识别时遇到问题，请重新上传一次。');
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _parseProgress = null;
+        });
+      }
     }
   }
 
@@ -133,8 +154,8 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                     ),
                   ),
                   if (_busy)
-                    const SliverToBoxAdapter(
-                      child: LinearProgressIndicator(minHeight: 2),
+                    SliverToBoxAdapter(
+                      child: _parseStatus(),
                     ),
                   if (_error != null)
                     SliverToBoxAdapter(child: _errorBanner(_error!)),
@@ -150,12 +171,10 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                       child: _LatestReportHero(
                         report: latest,
                         onOpen: () => _openReport(latest),
-                        onUpload: _busy
-                            ? null
-                            : () => _pickAndParse(camera: false),
-                        onCamera: _busy
-                            ? null
-                            : () => _pickAndParse(camera: true),
+                        onUpload:
+                            _busy ? null : () => _pickAndParse(camera: false),
+                        onCamera:
+                            _busy ? null : () => _pickAndParse(camera: true),
                       ),
                     ),
                     if (store.syncError != null)
@@ -242,9 +261,9 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                   const SizedBox(height: AppSpace.sm),
                   Text(
                     signedIn
-                        ? '上传一张「历史成交」截图。核对成交后，'
+                        ? '一次选择多张「历史成交」截图。核对成交后，'
                             '嘻，AI 会说明你的交易逻辑、主要问题和下一步改进。'
-                        : '登录后上传一张「历史成交」截图。复盘结果会保存到账号，'
+                        : '登录后选择一组「历史成交」截图。复盘结果会保存到账号，'
                             '在手机和电脑都能查看。',
                     style: AppType.read.copyWith(
                       color: AppColors.textSecondary,
@@ -262,7 +281,8 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                 children: [
                   WkPrimaryButton(
                     key: const ValueKey('trade-upload-gallery'),
-                    label: _busy ? '正在识别成交记录…' : '从相册选择成交截图',
+                    label:
+                        _busy ? (_parseProgress ?? '正在准备截图…') : '选择成交截图（可多选）',
                     icon: Icons.add_photo_alternate_outlined,
                     busy: _busy,
                     onPressed: () => _pickAndParse(camera: false),
@@ -299,8 +319,9 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                       const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Text(
-                          '原图只用于本次识别，不会保存；成交字段和复盘报告'
-                          '按登录账号同步。',
+                          '一次最多 ${TradeScreenshotPicker.maxGalleryImages} 张；'
+                          '相邻页重叠的成交会自动合并。原图只用于本次识别，'
+                          '不会保存。',
                           style: AppType.micro.copyWith(
                             color: AppColors.textSecondary,
                             height: 1.55,
@@ -314,6 +335,30 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _parseStatus() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        AppSpace.sm,
+        AppSpace.md,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const LinearProgressIndicator(minHeight: 2),
+          if (_parseProgress != null) ...[
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              _parseProgress!,
+              style: AppType.micro.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -445,9 +490,7 @@ class _PageHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpace.xs),
                   Text(
-                    hasReport
-                        ? '你的最近一次复盘，已经可以回看。'
-                        : '从成交记录里，看见你的交易逻辑。',
+                    hasReport ? '你的最近一次复盘，已经可以回看。' : '从成交记录里，看见你的交易逻辑。',
                     style: AppType.caption.copyWith(
                       color: AppColors.textSecondary,
                       height: 1.5,
@@ -460,9 +503,7 @@ class _PageHeader extends StatelessWidget {
             Material(
               color: Colors.transparent,
               child: InkWell(
-                key: signedIn
-                    ? null
-                    : const ValueKey('trade-review-login'),
+                key: signedIn ? null : const ValueKey('trade-review-login'),
                 onTap: signedIn ? null : onLogin,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
                 child: Container(
@@ -656,7 +697,7 @@ class _LatestReportHero extends StatelessWidget {
                 children: [
                   WkPrimaryButton(
                     key: const ValueKey('trade-review-again'),
-                    label: '复盘另一张截图',
+                    label: '复盘另一组截图',
                     icon: Icons.add_rounded,
                     onPressed: onUpload,
                   ),
@@ -702,7 +743,8 @@ class _LatestReportHero extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpace.md),
                   Text(
-                    '原图只用于本次识别；成交字段和报告保存在你的账号。',
+                    '可一次选择多张截图，重叠成交会自动合并；'
+                    '原图只用于本次识别。',
                     textAlign: TextAlign.center,
                     style: AppType.micro.copyWith(
                       color: AppColors.textTertiary,

@@ -122,7 +122,7 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
                     child: WkEmpty(
                       icon: Icons.playlist_remove_rounded,
                       title: '成交行已全部移除',
-                      hint: '返回上一页重新选择一张成交记录截图。',
+                      hint: '返回上一页重新选择成交记录截图。',
                     ),
                   )
                 else
@@ -197,6 +197,7 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
+                  '${widget.parsed.screenshotCount} 张截图 · '
                   '识别到 ${_trades.length} 笔 · '
                   '${_trades.where((trade) => trade.side == TradeSide.buy).length} 买 '
                   '${_trades.where((trade) => trade.side == TradeSide.sell).length} 卖',
@@ -205,7 +206,21 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
                   ),
                 ),
                 const SizedBox(height: 7),
-                const WkTag('图片仅用于本次识别'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (widget.parsed.successfulScreenshotCount <
+                        widget.parsed.screenshotCount)
+                      WkTag(
+                        '成功 ${widget.parsed.successfulScreenshotCount}/'
+                        '${widget.parsed.screenshotCount} 张',
+                      ),
+                    if (widget.parsed.duplicateTradeCount > 0)
+                      WkTag('已合并 ${widget.parsed.duplicateTradeCount} 笔重叠'),
+                    const WkTag('图片仅用于本次识别'),
+                  ],
+                ),
               ],
             ),
           ),

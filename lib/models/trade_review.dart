@@ -116,12 +116,118 @@ class ParsedTradesResult {
     required this.currency,
     required this.trades,
     required this.warnings,
+    this.screenshotCount = 1,
+    this.successfulScreenshotCount = 1,
+    this.duplicateTradeCount = 0,
   });
 
   final String brokerHint;
   final String currency;
   final List<ParsedTrade> trades;
   final List<String> warnings;
+  final int screenshotCount;
+  final int successfulScreenshotCount;
+  final int duplicateTradeCount;
+}
+
+/// 合并一组截图的识别结果。
+///
+/// 相邻两页截图经常包含同一笔成交。这里以“每张截图内出现的最大次数”合并，
+/// 而不是简单按指纹去重：同一张截图里两笔字段完全相同的真实成交仍会保留，
+/// 重叠页带来的重复则会消失。
+ParsedTradesResult mergeParsedTradeResults(
+  List<ParsedTradesResult> results, {
+  required int screenshotCount,
+  List<String> failureWarnings = const [],
+}) {
+  if (results.isEmpty) {
+    throw ArgumentError.value(results, 'results', '至少需要一张成功识别的截图');
+  }
+
+  final mergedByFingerprint = <String, ({ParsedTrade trade, int count})>{};
+  final warnings = <String>[];
+  final brokers = <String>[];
+  final currencies = <String>[];
+  var inputTradeCount = 0;
+
+  void addUnique(List<String> target, String value) {
+    if (value.isEmpty || target.contains(value)) return;
+    target.add(value);
+  }
+
+  for (final result in results) {
+    addUnique(brokers, result.brokerHint.trim());
+    addUnique(currencies, result.currency.trim());
+    for (final warning in result.warnings) {
+      addUnique(warnings, warning.trim());
+    }
+    final localCounts = <String, int>{};
+    final localTrades = <String, ParsedTrade>{};
+    for (final trade in result.trades) {
+      final fingerprint = tradeFingerprint(trade);
+      localTrades.putIfAbsent(fingerprint, () => trade);
+      localCounts.update(fingerprint, (count) => count + 1, ifAbsent: () => 1);
+      inputTradeCount++;
+    }
+    for (final entry in localCounts.entries) {
+      final previous = mergedByFingerprint[entry.key];
+      if (previous == null || entry.value > previous.count) {
+        mergedByFingerprint[entry.key] = (
+          trade: localTrades[entry.key]!,
+          count: entry.value,
+        );
+      }
+    }
+  }
+
+  final trades = [
+    for (final entry in mergedByFingerprint.values) ...[
+      for (var i = 0; i < entry.count; i++) entry.trade,
+    ],
+  ]..sort((a, b) {
+      final byTime = a.occurredAt.compareTo(b.occurredAt);
+      if (byTime != 0) return byTime;
+      final byInstrument = a.instrumentKey.compareTo(b.instrumentKey);
+      if (byInstrument != 0) return byInstrument;
+      return a.sourceIndex.compareTo(b.sourceIndex);
+    });
+  final duplicateCount = inputTradeCount - trades.length;
+
+  for (final warning in failureWarnings) {
+    addUnique(warnings, warning.trim());
+  }
+  if (duplicateCount > 0) {
+    addUnique(warnings, '多张截图有 $duplicateCount 笔重叠成交，已自动合并。');
+  }
+  if (currencies.length > 1) {
+    addUnique(warnings, '截图里出现了多种币种，请逐笔核对币种口径。');
+  }
+
+  return ParsedTradesResult(
+    brokerHint: brokers.join('、'),
+    currency: currencies.isEmpty ? 'CNY' : currencies.first,
+    trades: trades,
+    warnings: warnings,
+    screenshotCount: screenshotCount,
+    successfulScreenshotCount: results.length,
+    duplicateTradeCount: duplicateCount,
+  );
+}
+
+String tradeFingerprint(ParsedTrade trade) {
+  final time = trade.occurredAt;
+  String two(int value) => value.toString().padLeft(2, '0');
+  String amount(double value) => (value * 10000).round().toString();
+  final instrument = trade.instrumentKey;
+  return [
+    '${time.year}-${two(time.month)}-${two(time.day)}',
+    '${two(time.hour)}:${two(time.minute)}',
+    instrument,
+    trade.side.apiValue,
+    amount(trade.quantity),
+    amount(trade.price),
+    (trade.fee * 100).round().toString(),
+  ].join('|');
 }
 
 class TradeMetrics {
