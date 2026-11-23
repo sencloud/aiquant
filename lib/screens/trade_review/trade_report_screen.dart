@@ -47,6 +47,44 @@ class TradeReportScreen extends StatelessWidget {
               ),
             ),
             SliverToBoxAdapter(child: _Metrics(report: report)),
+            if (report.perspectives.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: TradeSectionTitle(
+                  title: '多角度复盘',
+                  caption: '分别看价格位置、国内环境、国际环境、热点叙事和执行行为；'
+                      '事实、时间关联与数据缺口会严格区分。',
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _PerspectiveList(items: report.perspectives),
+              ),
+            ],
+            if (report.marketContext.events.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: TradeSectionTitle(
+                  title: '下单日前后',
+                  caption: '只保留能核验发布时间或交易日期的记录，'
+                      '并标出它与成交日的前后关系。',
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _ContextTimeline(
+                  events: report.marketContext.events,
+                ),
+              ),
+            ],
+            if (report.marketContext.coverage.isNotEmpty ||
+                report.marketContext.gaps.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: TradeSectionTitle(
+                  title: '数据覆盖与缺口',
+                  caption: '数据源没有拿到的部分会明确保留为空，不用模型记忆补造。',
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _CoverageAndGaps(context: report.marketContext),
+              ),
+            ],
             const SliverToBoxAdapter(
               child: TradeSectionTitle(
                 title: '你的交易逻辑',
@@ -107,6 +145,443 @@ class TradeReportScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PerspectiveList extends StatelessWidget {
+  const _PerspectiveList({required this.items});
+
+  final List<TradePerspective> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.bgSurface,
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            _PerspectiveCard(item: items[i]),
+            if (i != items.length - 1)
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                indent: AppSpace.lg,
+                color: AppColors.borderDim,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PerspectiveCard extends StatelessWidget {
+  const _PerspectiveCard({required this.item});
+
+  final TradePerspective item;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (item.dimension) {
+      'price' => const Color(0xFF2C5AA0),
+      'domestic' => const Color(0xFFB36A24),
+      'international' => const Color(0xFF52698F),
+      'hotspots' => const Color(0xFFA64D45),
+      _ => AppColors.positive,
+    };
+    final icon = switch (item.dimension) {
+      'price' => Icons.show_chart_rounded,
+      'domestic' => Icons.account_balance_outlined,
+      'international' => Icons.public_rounded,
+      'hotspots' => Icons.local_fire_department_outlined,
+      _ => Icons.route_outlined,
+    };
+    return Padding(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Icon(icon, size: 20, color: tone),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.xs,
+                  children: [
+                    if (item.basis.isNotEmpty)
+                      _ContextBadge(
+                        label: item.basis,
+                        tone: item.basis.contains('缺口')
+                            ? AppColors.textTertiary
+                            : tone,
+                      ),
+                    if (item.confidence.isNotEmpty)
+                      _ContextBadge(
+                        label: '置信度 ${item.confidence}',
+                        tone: AppColors.textSecondary,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  item.title,
+                  style: AppType.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  item.body,
+                  style: AppType.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.72,
+                  ),
+                ),
+                if (item.evidence.isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.md),
+                  for (final line in item.evidence)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.xs),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 4,
+                            margin: const EdgeInsets.only(top: 7, right: 7),
+                            decoration: BoxDecoration(
+                              color: tone.withValues(alpha: 0.72),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              line,
+                              style: AppType.micro.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.58,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContextBadge extends StatelessWidget {
+  const _ContextBadge({required this.label, required this.tone});
+
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Text(
+        label,
+        style: AppType.micro.copyWith(color: tone, fontSize: 10.5),
+      ),
+    );
+  }
+}
+
+class _ContextTimeline extends StatelessWidget {
+  const _ContextTimeline({required this.events});
+
+  final List<TradeContextEvent> events;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.bgSurface,
+      child: Column(
+        children: [
+          for (var i = 0; i < events.length; i++) ...[
+            _ContextEventRow(event: events[i]),
+            if (i != events.length - 1)
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                indent: 78,
+                color: AppColors.borderDim,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ContextEventRow extends StatelessWidget {
+  const _ContextEventRow({required this.event});
+
+  final TradeContextEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (event.scope) {
+      'domestic' => const Color(0xFFB36A24),
+      'global' => const Color(0xFF52698F),
+      _ => const Color(0xFF2C5AA0),
+    };
+    final scopeLabel = switch (event.scope) {
+      'domestic' => '国内',
+      'global' => '国际',
+      _ => '行情',
+    };
+    final date = event.date.split('-');
+    final dateLabel = date.length == 3 ? '${date[1]}/${date[2]}' : event.date;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.md,
+        AppSpace.lg,
+        AppSpace.md,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 48,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateLabel,
+                  style: AppType.micro.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (event.time.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    event.time,
+                    style: AppType.micro.copyWith(
+                      color: AppColors.textTertiary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 5,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _ContextBadge(label: scopeLabel, tone: tone),
+                    if (event.timing.isNotEmpty)
+                      Text(
+                        event.timing,
+                        style: AppType.micro.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  event.title,
+                  style: AppType.caption.copyWith(
+                    color: AppColors.textPrimary,
+                    height: 1.55,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (event.summary.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    event.summary,
+                    style: AppType.micro.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.58,
+                    ),
+                  ),
+                ],
+                if (event.source.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    event.source,
+                    style: AppType.micro.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverageAndGaps extends StatelessWidget {
+  const _CoverageAndGaps({required this.context});
+
+  final TradeMarketContext context;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.bgSurface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.xs,
+        AppSpace.lg,
+        AppSpace.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < this.context.coverage.length; i++) ...[
+            _CoverageRow(item: this.context.coverage[i]),
+            if (i != this.context.coverage.length - 1)
+              Divider(
+                height: AppSpace.lg,
+                thickness: 0.5,
+                color: AppColors.borderDim,
+              ),
+          ],
+          if (this.context.gaps.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpace.md),
+              decoration: BoxDecoration(
+                color: AppColors.bgRaised,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '这次没有覆盖到的部分',
+                    style: AppType.caption.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  for (final gap in this.context.gaps)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.xs),
+                      child: Text(
+                        '· $gap',
+                        style: AppType.micro.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.6,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverageRow extends StatelessWidget {
+  const _CoverageRow({required this.item});
+
+  final TradeContextCoverage item;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (item.status) {
+      'ok' => AppColors.positive,
+      'partial' => AppColors.amber,
+      'error' => AppColors.negative,
+      _ => AppColors.textTertiary,
+    };
+    final status = switch (item.status) {
+      'ok' => '完整',
+      'partial' => '部分',
+      'error' => '失败',
+      'empty' => '无记录',
+      _ => item.status,
+    };
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          margin: const EdgeInsets.only(top: 7),
+          decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.source,
+                      style: AppType.caption.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$status${item.count > 0 ? ' · ${item.count} 条' : ''}',
+                    style: AppType.micro.copyWith(color: tone),
+                  ),
+                ],
+              ),
+              if (item.detail.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  item.detail,
+                  style: AppType.micro.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

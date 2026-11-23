@@ -276,7 +276,14 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 		Fishing:       fishingSvc,
 		MiniApps:      buildMiniAppService(cfg, &l, st, fishingSvc),
 		Story:         buildStoryService(cfg, &l, st),
-		TradeReviews:  trade_review.NewService(st),
+		TradeReviews: trade_review.NewService(
+			st,
+			trade_review.NewMarketContextEnricher(
+				tushare.New(cfg.Tushare),
+				calendar.New(cfg.News.TimeoutSec),
+				cnnews.New(cfg.News.TimeoutSec),
+			),
+		),
 	}
 	router := api.NewRouter(deps)
 

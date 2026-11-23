@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 enum TradeSide { buy, sell }
 
 extension TradeSideLabel on TradeSide {
@@ -139,12 +141,21 @@ ParsedTradesResult mergeParsedTradeResults(
   List<ParsedTradesResult> results, {
   required int screenshotCount,
   List<String> failureWarnings = const [],
+  List<int>? sourceScreenshotIndices,
 }) {
   if (results.isEmpty) {
     throw ArgumentError.value(results, 'results', '至少需要一张成功识别的截图');
   }
+  final screenshotIndices = sourceScreenshotIndices ??
+      [for (var index = 0; index < results.length; index++) index];
+  if (screenshotIndices.length != results.length) {
+    throw ArgumentError.value(
+      sourceScreenshotIndices,
+      'sourceScreenshotIndices',
+      '截图索引数量必须与识别结果数量一致',
+    );
+  }
 
-  final mergedByFingerprint = <String, ({ParsedTrade trade, int count})>{};
   final warnings = <String>[];
   final brokers = <String>[];
   final currencies = <String>[];
@@ -155,42 +166,41 @@ ParsedTradesResult mergeParsedTradeResults(
     target.add(value);
   }
 
+  final screenshotTrades = <List<ParsedTrade>>[];
   for (final result in results) {
     addUnique(brokers, result.brokerHint.trim());
     addUnique(currencies, result.currency.trim());
     for (final warning in result.warnings) {
       addUnique(warnings, warning.trim());
     }
-    final localCounts = <String, int>{};
-    final localTrades = <String, ParsedTrade>{};
-    for (final trade in result.trades) {
-      final fingerprint = tradeFingerprint(trade);
-      localTrades.putIfAbsent(fingerprint, () => trade);
-      localCounts.update(fingerprint, (count) => count + 1, ifAbsent: () => 1);
-      inputTradeCount++;
-    }
-    for (final entry in localCounts.entries) {
-      final previous = mergedByFingerprint[entry.key];
-      if (previous == null || entry.value > previous.count) {
-        mergedByFingerprint[entry.key] = (
-          trade: localTrades[entry.key]!,
-          count: entry.value,
-        );
-      }
-    }
+    screenshotTrades.add(result.trades);
+    inputTradeCount += result.trades.length;
   }
 
-  final trades = [
-    for (final entry in mergedByFingerprint.values) ...[
-      for (var i = 0; i < entry.count; i++) entry.trade,
-    ],
-  ]..sort((a, b) {
-      final byTime = a.occurredAt.compareTo(b.occurredAt);
-      if (byTime != 0) return byTime;
-      final byInstrument = a.instrumentKey.compareTo(b.instrumentKey);
-      if (byInstrument != 0) return byInstrument;
-      return a.sourceIndex.compareTo(b.sourceIndex);
-    });
+  // 相邻截图可能来自滑动列表的同一页片段。只允许和上一张截图中的记录
+  // 相连，且必须与已有簇内每一条都匹配，避免 A≈B、B≈C 链式误合并，
+  // 也避免同一成交在不相邻页面重复出现时被删掉。
+  final clusters = _ClusterTrades(
+    screenshotTrades,
+    sourceScreenshotIndices: screenshotIndices,
+  );
+  final trades = <ParsedTrade>[];
+  for (final cluster in clusters.clusters) {
+    var bestGroup = cluster.groups.first;
+    for (final group in cluster.groups.skip(1)) {
+      if (group.trades.length > bestGroup.trades.length) {
+        bestGroup = group;
+      }
+    }
+    trades.addAll(bestGroup.trades);
+  }
+  trades.sort((a, b) {
+    final byTime = a.occurredAt.compareTo(b.occurredAt);
+    if (byTime != 0) return byTime;
+    final byInstrument = a.instrumentKey.compareTo(b.instrumentKey);
+    if (byInstrument != 0) return byInstrument;
+    return a.sourceIndex.compareTo(b.sourceIndex);
+  });
   final duplicateCount = inputTradeCount - trades.length;
 
   for (final warning in failureWarnings) {
@@ -212,6 +222,174 @@ ParsedTradesResult mergeParsedTradeResults(
     successfulScreenshotCount: results.length,
     duplicateTradeCount: duplicateCount,
   );
+}
+
+bool _isSameOverlappingTrade(ParsedTrade a, ParsedTrade b) {
+  if (a.side != b.side) return false;
+  final aDay =
+      DateTime(a.occurredAt.year, a.occurredAt.month, a.occurredAt.day);
+  final bDay =
+      DateTime(b.occurredAt.year, b.occurredAt.month, b.occurredAt.day);
+  if (aDay != bDay) return false;
+  if (!_instrumentIdentitiesMatch(a, b)) return false;
+  if ((a.quantity - b.quantity).abs() > 0.01) return false;
+
+  final priceTolerance = math.max(
+    0.0011,
+    math.min(0.01, a.price.abs() * 0.00001),
+  );
+  if ((a.price - b.price).abs() > priceTolerance) return false;
+
+  final aHasClock = _hasTime(a.occurredAt);
+  final bHasClock = _hasTime(b.occurredAt);
+  if (aHasClock && bHasClock) {
+    return a.occurredAt.difference(b.occurredAt).inSeconds.abs() <= 90;
+  }
+  // 只有一侧识别出时间时，同一天的相同成交仍视为疑似重叠页。
+  return true;
+}
+
+bool _instrumentIdentitiesMatch(ParsedTrade a, ParsedTrade b) {
+  final aSymbol = a.symbol.trim().toUpperCase();
+  final bSymbol = b.symbol.trim().toUpperCase();
+  if (aSymbol.isNotEmpty && bSymbol.isNotEmpty) {
+    return aSymbol == bSymbol;
+  }
+  final aName = _normalizedInstrumentName(a.name);
+  final bName = _normalizedInstrumentName(b.name);
+  if (aName.isNotEmpty && bName.isNotEmpty) {
+    return aName == bName;
+  }
+  return a.instrumentKey == b.instrumentKey;
+}
+
+String _normalizedInstrumentName(String value) {
+  return value
+      .replaceAll(RegExp(r'[\s·•・\-—]'), '')
+      .replaceAll('股份有限公司', '')
+      .trim()
+      .toUpperCase();
+}
+
+class _ClusterTrades {
+  _ClusterTrades(
+    List<List<ParsedTrade>> screenshots, {
+    required List<int> sourceScreenshotIndices,
+  }) {
+    final localGroups = <_TradeGroup>[];
+    for (var screenshotIndex = 0;
+        screenshotIndex < screenshots.length;
+        screenshotIndex++) {
+      localGroups.addAll(_groupScreenshotTrades(
+        screenshots[screenshotIndex],
+        sourceScreenshotIndices[screenshotIndex],
+      ));
+    }
+
+    for (final group in localGroups) {
+      _TradeCluster? best;
+      var bestScore = double.infinity;
+      for (final cluster in clusters) {
+        if (cluster.hasScreenshot(group.screenshotIndex) ||
+            !cluster.hasScreenshot(group.screenshotIndex - 1) ||
+            !cluster.groups.every((prior) => _groupsOverlap(prior, group))) {
+          continue;
+        }
+        final score = cluster.groups
+            .map((prior) => _groupOverlapScore(prior, group))
+            .reduce(math.min);
+        if (score < bestScore) {
+          best = cluster;
+          bestScore = score;
+        }
+      }
+      if (best == null) {
+        clusters.add(_TradeCluster([group]));
+      } else {
+        best.groups.add(group);
+      }
+    }
+  }
+
+  final List<_TradeCluster> clusters = [];
+}
+
+List<_TradeGroup> _groupScreenshotTrades(
+  List<ParsedTrade> trades,
+  int screenshotIndex,
+) {
+  final groups = <_TradeGroup>[];
+  for (final trade in trades) {
+    _TradeGroup? target;
+    for (final group in groups) {
+      if (group.trades.every(
+        (existing) => _isSameFillWithinScreenshot(existing, trade),
+      )) {
+        target = group;
+        break;
+      }
+    }
+    if (target == null) {
+      groups.add(_TradeGroup(screenshotIndex, [trade]));
+    } else {
+      target.trades.add(trade);
+    }
+  }
+  return groups;
+}
+
+bool _isSameFillWithinScreenshot(ParsedTrade a, ParsedTrade b) {
+  if (!_isSameOverlappingTrade(a, b)) return false;
+  if (!_hasTime(a.occurredAt) || !_hasTime(b.occurredAt)) return true;
+  return a.occurredAt.difference(b.occurredAt).inSeconds.abs() <= 5;
+}
+
+bool _groupsOverlap(_TradeGroup a, _TradeGroup b) {
+  for (final left in a.trades) {
+    for (final right in b.trades) {
+      if (!_isSameOverlappingTrade(left, right)) return false;
+    }
+  }
+  return true;
+}
+
+double _groupOverlapScore(_TradeGroup a, _TradeGroup b) {
+  var score = 0.0;
+  for (final left in a.trades) {
+    for (final right in b.trades) {
+      score = math.max(score, _overlapScore(left, right));
+    }
+  }
+  return score;
+}
+
+class _TradeGroup {
+  _TradeGroup(
+    this.screenshotIndex,
+    this.trades,
+  );
+
+  final int screenshotIndex;
+  final List<ParsedTrade> trades;
+}
+
+class _TradeCluster {
+  _TradeCluster(this.groups);
+
+  final List<_TradeGroup> groups;
+
+  bool hasScreenshot(int screenshotIndex) {
+    return groups.any((group) => group.screenshotIndex == screenshotIndex);
+  }
+}
+
+double _overlapScore(ParsedTrade a, ParsedTrade b) {
+  final seconds = _hasTime(a.occurredAt) && _hasTime(b.occurredAt)
+      ? a.occurredAt.difference(b.occurredAt).inSeconds.abs().toDouble()
+      : 0;
+  return seconds +
+      (a.price - b.price).abs() * 100000 +
+      (a.quantity - b.quantity).abs() * 1000;
 }
 
 String tradeFingerprint(ParsedTrade trade) {
@@ -404,6 +582,178 @@ class TradeInsight {
       };
 }
 
+class TradeContextEvent {
+  const TradeContextEvent({
+    required this.date,
+    required this.scope,
+    required this.category,
+    required this.title,
+    this.time = '',
+    this.summary = '',
+    this.source = '',
+    this.url = '',
+    this.importance = 0,
+    this.timing = '',
+    this.relatedTradeDates = const [],
+  });
+
+  factory TradeContextEvent.fromJson(Map<String, dynamic> json) {
+    return TradeContextEvent(
+      date: (json['date'] ?? '').toString(),
+      time: (json['time'] ?? '').toString(),
+      scope: (json['scope'] ?? '').toString(),
+      category: (json['category'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      source: (json['source'] ?? '').toString(),
+      url: (json['url'] ?? '').toString(),
+      importance: _integer(json['importance']),
+      timing: (json['timing'] ?? '').toString(),
+      relatedTradeDates: [
+        for (final row in (json['related_trade_dates'] as List? ?? const []))
+          if (row != null) row.toString(),
+      ],
+    );
+  }
+
+  final String date;
+  final String time;
+  final String scope;
+  final String category;
+  final String title;
+  final String summary;
+  final String source;
+  final String url;
+  final int importance;
+  final String timing;
+  final List<String> relatedTradeDates;
+
+  Map<String, dynamic> toJson() => {
+        'date': date,
+        if (time.isNotEmpty) 'time': time,
+        'scope': scope,
+        'category': category,
+        'title': title,
+        if (summary.isNotEmpty) 'summary': summary,
+        if (source.isNotEmpty) 'source': source,
+        if (url.isNotEmpty) 'url': url,
+        if (importance > 0) 'importance': importance,
+        if (timing.isNotEmpty) 'timing': timing,
+        if (relatedTradeDates.isNotEmpty)
+          'related_trade_dates': relatedTradeDates,
+      };
+}
+
+class TradeContextCoverage {
+  const TradeContextCoverage({
+    required this.source,
+    required this.status,
+    required this.count,
+    this.detail = '',
+  });
+
+  factory TradeContextCoverage.fromJson(Map<String, dynamic> json) {
+    return TradeContextCoverage(
+      source: (json['source'] ?? '').toString(),
+      status: (json['status'] ?? '').toString(),
+      count: _integer(json['count']),
+      detail: (json['detail'] ?? '').toString(),
+    );
+  }
+
+  final String source;
+  final String status;
+  final int count;
+  final String detail;
+
+  Map<String, dynamic> toJson() => {
+        'source': source,
+        'status': status,
+        'count': count,
+        if (detail.isNotEmpty) 'detail': detail,
+      };
+}
+
+class TradeMarketContext {
+  const TradeMarketContext({
+    this.events = const [],
+    this.coverage = const [],
+    this.gaps = const [],
+  });
+
+  factory TradeMarketContext.fromJson(Map<String, dynamic> json) {
+    return TradeMarketContext(
+      events: [
+        for (final row in (json['events'] as List? ?? const []))
+          if (row is Map)
+            TradeContextEvent.fromJson(Map<String, dynamic>.from(row)),
+      ],
+      coverage: [
+        for (final row in (json['coverage'] as List? ?? const []))
+          if (row is Map)
+            TradeContextCoverage.fromJson(Map<String, dynamic>.from(row)),
+      ],
+      gaps: [
+        for (final row in (json['gaps'] as List? ?? const []))
+          if (row != null) row.toString(),
+      ],
+    );
+  }
+
+  final List<TradeContextEvent> events;
+  final List<TradeContextCoverage> coverage;
+  final List<String> gaps;
+
+  bool get isEmpty => events.isEmpty && coverage.isEmpty && gaps.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'events': events.map((event) => event.toJson()).toList(),
+        'coverage': coverage.map((item) => item.toJson()).toList(),
+        'gaps': gaps,
+      };
+}
+
+class TradePerspective {
+  const TradePerspective({
+    required this.dimension,
+    required this.title,
+    required this.body,
+    required this.basis,
+    this.evidence = const [],
+    this.confidence = '',
+  });
+
+  factory TradePerspective.fromJson(Map<String, dynamic> json) {
+    return TradePerspective(
+      dimension: (json['dimension'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      body: (json['body'] ?? '').toString(),
+      basis: (json['basis'] ?? '').toString(),
+      evidence: [
+        for (final row in (json['evidence'] as List? ?? const []))
+          if (row != null) row.toString(),
+      ],
+      confidence: (json['confidence'] ?? '').toString(),
+    );
+  }
+
+  final String dimension;
+  final String title;
+  final String body;
+  final String basis;
+  final List<String> evidence;
+  final String confidence;
+
+  Map<String, dynamic> toJson() => {
+        'dimension': dimension,
+        'title': title,
+        'body': body,
+        'basis': basis,
+        'evidence': evidence,
+        'confidence': confidence,
+      };
+}
+
 class TradeReviewReport {
   const TradeReviewReport({
     required this.id,
@@ -417,6 +767,8 @@ class TradeReviewReport {
     required this.problems,
     required this.improvements,
     required this.warnings,
+    this.marketContext = const TradeMarketContext(),
+    this.perspectives = const [],
   });
 
   factory TradeReviewReport.fromJson(Map<String, dynamic> json) {
@@ -444,6 +796,16 @@ class TradeReviewReport {
       logic: insights('logic'),
       problems: insights('problems'),
       improvements: insights('improvements'),
+      marketContext: TradeMarketContext.fromJson(
+        Map<String, dynamic>.from(
+          json['market_context'] as Map? ?? const <String, dynamic>{},
+        ),
+      ),
+      perspectives: [
+        for (final row in (json['perspectives'] as List? ?? const []))
+          if (row is Map)
+            TradePerspective.fromJson(Map<String, dynamic>.from(row)),
+      ],
       warnings: [
         for (final row in (json['warnings'] as List? ?? const []))
           if (row != null) row.toString(),
@@ -462,6 +824,8 @@ class TradeReviewReport {
   final List<TradeInsight> problems;
   final List<TradeInsight> improvements;
   final List<String> warnings;
+  final TradeMarketContext marketContext;
+  final List<TradePerspective> perspectives;
 
   int get buyCount => trades.where((t) => t.side == TradeSide.buy).length;
   int get sellCount => trades.where((t) => t.side == TradeSide.sell).length;
@@ -477,6 +841,8 @@ class TradeReviewReport {
         'logic': logic.map((item) => item.toJson()).toList(),
         'problems': problems.map((item) => item.toJson()).toList(),
         'improvements': improvements.map((item) => item.toJson()).toList(),
+        'market_context': marketContext.toJson(),
+        'perspectives': perspectives.map((item) => item.toJson()).toList(),
         'warnings': warnings,
       };
 }

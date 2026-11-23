@@ -107,7 +107,7 @@ func handleAnalyzeTradeReview(d *Deps) http.HandlerFunc {
 				"TRADE_REVIEW.TOO_MANY_TRADES", "一次最多分析 500 笔成交", nil))
 			return
 		}
-		report := trade_review.Analyze(body, time.Now())
+		report := d.TradeReviews.Analyze(r.Context(), body, time.Now())
 		WriteJSON(w, http.StatusOK, map[string]any{"report": report})
 	}
 }

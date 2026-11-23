@@ -69,18 +69,60 @@ type Insight struct {
 	Evidence []string `json:"evidence"`
 }
 
+// MarketContext 是成交日前后可核验的市场背景。事件只表示时间相邻，
+// 不表示用户当时看到了这条消息，也不把相关性包装成因果。
+type MarketContext struct {
+	Events   []ContextEvent    `json:"events"`
+	Coverage []ContextCoverage `json:"coverage"`
+	Gaps     []string          `json:"gaps"`
+}
+
+type ContextEvent struct {
+	Date              string   `json:"date"`
+	Time              string   `json:"time,omitempty"`
+	Scope             string   `json:"scope"`
+	Category          string   `json:"category"`
+	Title             string   `json:"title"`
+	Summary           string   `json:"summary,omitempty"`
+	Source            string   `json:"source,omitempty"`
+	URL               string   `json:"url,omitempty"`
+	Importance        int      `json:"importance,omitempty"`
+	Timing            string   `json:"timing,omitempty"`
+	RelatedTradeDates []string `json:"related_trade_dates,omitempty"`
+}
+
+type ContextCoverage struct {
+	Source string `json:"source"`
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// Perspective 是从不同分析维度给出的复盘结论。
+// Basis 明确区分“事实”“时间关联”和“数据缺口”。
+type Perspective struct {
+	Dimension  string   `json:"dimension"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body"`
+	Basis      string   `json:"basis"`
+	Evidence   []string `json:"evidence"`
+	Confidence string   `json:"confidence"`
+}
+
 type Report struct {
-	ID           string    `json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	Title        string    `json:"title"`
-	BrokerHint   string    `json:"broker_hint"`
-	Currency     string    `json:"currency"`
-	Trades       []Trade   `json:"trades"`
-	Metrics      Metrics   `json:"metrics"`
-	Logic        []Insight `json:"logic"`
-	Problems     []Insight `json:"problems"`
-	Improvements []Insight `json:"improvements"`
-	Warnings     []string  `json:"warnings"`
+	ID            string        `json:"id"`
+	CreatedAt     time.Time     `json:"created_at"`
+	Title         string        `json:"title"`
+	BrokerHint    string        `json:"broker_hint"`
+	Currency      string        `json:"currency"`
+	Trades        []Trade       `json:"trades"`
+	Metrics       Metrics       `json:"metrics"`
+	Logic         []Insight     `json:"logic"`
+	Problems      []Insight     `json:"problems"`
+	Improvements  []Insight     `json:"improvements"`
+	MarketContext MarketContext `json:"market_context"`
+	Perspectives  []Perspective `json:"perspectives"`
+	Warnings      []string      `json:"warnings"`
 }
 
 type lot struct {
@@ -364,17 +406,68 @@ func Analyze(in AnalyzeInput, now time.Time) Report {
 		title += fmt.Sprintf(" · %d 笔成交", len(valid))
 	}
 	return Report{
-		ID:           fmt.Sprintf("review-%d", now.UnixMicro()),
-		CreatedAt:    now,
-		Title:        title,
-		BrokerHint:   strings.TrimSpace(in.BrokerHint),
-		Currency:     currency,
-		Trades:       valid,
-		Metrics:      metrics,
-		Logic:        buildLogic(metrics, len(valid), turnoverBySymbol),
-		Problems:     buildProblems(metrics),
+		ID:         fmt.Sprintf("review-%d", now.UnixMicro()),
+		CreatedAt:  now,
+		Title:      title,
+		BrokerHint: strings.TrimSpace(in.BrokerHint),
+		Currency:   currency,
+		Trades:     valid,
+		Metrics:    metrics,
+		Logic:      buildLogic(metrics, len(valid), turnoverBySymbol),
+		Problems:   buildProblems(metrics),
 		Improvements: buildImprovements(metrics),
+		MarketContext: MarketContext{
+			Events:   []ContextEvent{},
+			Coverage: []ContextCoverage{},
+			Gaps:     []string{},
+		},
+		Perspectives: []Perspective{},
 		Warnings:     unique(warnings),
+	}
+}
+
+func buildBehaviorPerspective(report Report) Perspective {
+	m := report.Metrics
+	if m.MatchedSellCount == 0 {
+		return Perspective{
+			Dimension:  "execution",
+			Title:      "执行行为：成交样本还没有形成完整的卖出闭环",
+			Body:       "当前记录只能确认买入和卖出动作，尚不能计算已实现结果。先补齐与卖出对应的买入记录，再判断持仓节奏和退出质量。",
+			Basis:      "事实",
+			Confidence: "高",
+			Evidence: []string{
+				fmt.Sprintf("共 %d 个交易日、%d 笔成交", m.TradingDayCount, len(report.Trades)),
+				fmt.Sprintf("仍有 %d 批买入未平仓", m.OpenLotCount),
+			},
+		}
+	}
+	direction := "接近打平"
+	if m.RealizedPnl > 0 {
+		direction = "整体盈利"
+	} else if m.RealizedPnl < 0 {
+		direction = "整体亏损"
+	}
+	holdStyle := "短线"
+	if m.AverageHoldingHours > 24*5 {
+		holdStyle = "波段"
+	} else if m.AverageHoldingHours > 24 {
+		holdStyle = "数日"
+	}
+	return Perspective{
+		Dimension:  "execution",
+		Title:      "执行行为：" + direction + "，持有节奏偏" + holdStyle,
+		Body: fmt.Sprintf(
+			"按先进先出配对后，胜率 %s，盈亏比 %s，单笔期望 %.2f。交易节奏是行为结果，不能单独解释为行情判断正确或错误。",
+			percent(m.WinRate), ratio(m.ProfitLossRatio), m.Expectancy),
+		Basis:      "事实",
+		Confidence: "高",
+		Evidence: []string{
+			fmt.Sprintf("平均持有 %s，盈利单 %s，亏损单 %s",
+				hours(m.AverageHoldingHours),
+				hours(m.AverageWinningHoldHours),
+				hours(m.AverageLosingHoldHours)),
+			fmt.Sprintf("累计手续费 %.2f，成交金额 %.2f", m.TotalFees, m.Turnover),
+		},
 	}
 }
 

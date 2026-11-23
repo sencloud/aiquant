@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   ParsedTrade trade({
     required int minute,
+    DateTime? at,
     String symbol = '600519',
     String name = '贵州茅台',
     TradeSide side = TradeSide.buy,
@@ -16,7 +17,7 @@ void main() {
     double fee = 5,
   }) {
     return ParsedTrade(
-      occurredAt: DateTime(2026, 11, 20, 9, minute),
+      occurredAt: at ?? DateTime(2026, 11, 20, 9, minute),
       symbol: symbol,
       name: name,
       side: side,
@@ -150,6 +151,232 @@ void main() {
     );
   });
 
+  test('两张滑动截图识别 4+7 笔后保留 9 笔并合并 2 笔页间重叠', () {
+    final trades = [
+      trade(
+        at: DateTime(2026, 11, 20, 10, 30, 36),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 2400,
+        price: 4.171,
+        fee: 2.50,
+      ),
+      trade(
+        at: DateTime(2026, 11, 17, 9, 30, 4),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 2400,
+        price: 4.217,
+        fee: 2.53,
+      ),
+      trade(
+        at: DateTime(2026, 10, 30, 11, 26, 7),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 1200,
+        price: 4.274,
+        fee: 1.28,
+      ),
+      trade(
+        at: DateTime(2026, 10, 30, 9, 55, 7),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 1200,
+        price: 4.244,
+        fee: 1.27,
+      ),
+      trade(
+        at: DateTime(2026, 10, 23, 14, 39, 4),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        side: TradeSide.sell,
+        quantity: 2300,
+        price: 4.364,
+        fee: 2.51,
+      ),
+      trade(
+        at: DateTime(2026, 10, 23, 9, 32, 42),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 2300,
+        price: 4.240,
+        fee: 2.44,
+      ),
+      trade(
+        at: DateTime(2026, 10, 22, 13, 59, 13),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 2400,
+        price: 4.306,
+        fee: 2.58,
+      ),
+      trade(
+        at: DateTime(2026, 9, 17, 10, 11, 3),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 1000,
+        price: 4.730,
+        fee: 1.18,
+      ),
+      trade(
+        at: DateTime(2026, 8, 21, 13, 27, 46),
+        minute: 0,
+        symbol: '159919',
+        name: '沪深300ETF嘉实',
+        quantity: 1000,
+        price: 4.885,
+        fee: 1.22,
+      ),
+    ];
+
+    final merged = mergeParsedTradeResults(
+      [
+        result(trades.sublist(0, 4)),
+        result(trades.sublist(2)),
+      ],
+      screenshotCount: 2,
+    );
+
+    expect(merged.trades, hasLength(9));
+    expect(
+      merged.trades.where((item) => item.side == TradeSide.buy),
+      hasLength(8),
+    );
+    expect(
+      merged.trades.where((item) => item.side == TradeSide.sell),
+      hasLength(1),
+    );
+    expect(merged.successfulScreenshotCount, 2);
+    expect(merged.duplicateTradeCount, 2);
+  });
+
+  test('重叠成交容忍 OCR 的秒级时间差、名称空格和价格误差', () {
+    final first = trade(
+      at: DateTime(2026, 11, 20, 9, 30, 4),
+      minute: 0,
+      symbol: '',
+      name: '沪深 300 ETF 嘉实',
+      quantity: 2400,
+      price: 4.171,
+      fee: 2.50,
+    );
+    final second = trade(
+      at: DateTime(2026, 11, 20, 9, 30, 49),
+      minute: 0,
+      symbol: '159919',
+      name: '沪深300ETF嘉实股份有限公司',
+      quantity: 2400,
+      price: 4.1713,
+      fee: 2.53,
+    );
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([first]),
+        result([second]),
+      ],
+      screenshotCount: 2,
+    );
+
+    expect(merged.trades, hasLength(1));
+    expect(merged.duplicateTradeCount, 1);
+  });
+
+  test('容差链 A≈B、B≈C 不会误把 A 与 C 合并', () {
+    final a = trade(
+      at: DateTime(2026, 11, 20, 9, 30, 0),
+      minute: 0,
+    );
+    final b = trade(
+      at: DateTime(2026, 11, 20, 9, 31, 0),
+      minute: 1,
+    );
+    final c = trade(
+      at: DateTime(2026, 11, 20, 9, 32, 0),
+      minute: 2,
+    );
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([a]),
+        result([b]),
+        result([c]),
+      ],
+      screenshotCount: 3,
+    );
+
+    expect(merged.trades, hasLength(2));
+    expect(merged.duplicateTradeCount, 1);
+  });
+
+  test('同一成交在不相邻截图中再次出现时不会误删', () {
+    final repeated = trade(minute: 5);
+    final middle = trade(minute: 6, symbol: '510300', name: '沪深300ETF');
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([repeated]),
+        result([middle]),
+        result([repeated]),
+      ],
+      screenshotCount: 3,
+    );
+
+    expect(merged.trades, hasLength(3));
+    expect(merged.duplicateTradeCount, 0);
+  });
+
+  test('中间截图识别失败时，不跨未知页面合并相同成交', () {
+    final repeated = trade(minute: 5);
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([repeated]),
+        result([repeated]),
+      ],
+      screenshotCount: 3,
+      sourceScreenshotIndices: const [0, 2],
+    );
+
+    expect(merged.trades, hasLength(2));
+    expect(merged.duplicateTradeCount, 0);
+  });
+
+  test('批量识别遇到网络错误时自动重试并保留成功结果', () async {
+    final parser = _RetryingTradeParser();
+
+    final merged = await parser.parseBatch(
+      [_screenshot('retry'), _screenshot('ok')],
+    );
+
+    expect(parser.attempts['retry'], 2);
+    expect(merged.successfulScreenshotCount, 2);
+    expect(merged.trades, hasLength(2));
+  });
+
+  test('可重试错误最终失败时在提示里说明重试次数', () async {
+    final parser = _AlwaysNetworkFailTradeParser();
+
+    await expectLater(
+      parser.parseBatch([_screenshot('network')]),
+      throwsA(
+        isA<TradeParseException>().having(
+          (error) => error.message,
+          'message',
+          contains('已自动重试 2 次'),
+        ),
+      ),
+    );
+  });
+
   test('全部截图失败时返回可展示的批量错误', () async {
     final parser = _FakeTradeParser();
 
@@ -219,5 +446,57 @@ class _FakeTradeParser extends TradeScreenshotParser {
     } finally {
       _active--;
     }
+  }
+}
+
+class _RetryingTradeParser extends TradeScreenshotParser {
+  _RetryingTradeParser() : super(dio: Dio(), retryDelay: Duration.zero);
+
+  final attempts = <String, int>{};
+
+  @override
+  Future<ParsedTradesResult> parse({
+    required List<int> imageBytes,
+    required String mimeType,
+  }) async {
+    final attempt = (attempts[mimeType] ?? 0) + 1;
+    attempts[mimeType] = attempt;
+    if (mimeType == 'retry' && attempt == 1) {
+      throw const TradeParseException(
+        TradeParseFailureKind.network,
+        '网络连接失败。',
+      );
+    }
+    return ParsedTradesResult(
+      brokerHint: '测试券商',
+      currency: 'CNY',
+      trades: [
+        ParsedTrade(
+          occurredAt: DateTime(2026, 11, 20, 9, mimeType == 'retry' ? 30 : 31),
+          symbol: mimeType == 'retry' ? '159919' : '000001',
+          name: mimeType == 'retry' ? '沪深300ETF嘉实' : '平安银行',
+          side: TradeSide.buy,
+          quantity: 100,
+          price: 10,
+        ),
+      ],
+      warnings: const [],
+    );
+  }
+}
+
+class _AlwaysNetworkFailTradeParser extends TradeScreenshotParser {
+  _AlwaysNetworkFailTradeParser()
+      : super(dio: Dio(), retryDelay: Duration.zero);
+
+  @override
+  Future<ParsedTradesResult> parse({
+    required List<int> imageBytes,
+    required String mimeType,
+  }) async {
+    throw const TradeParseException(
+      TradeParseFailureKind.network,
+      '网络连接失败。',
+    );
   }
 }

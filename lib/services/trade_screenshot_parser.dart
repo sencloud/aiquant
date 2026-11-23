@@ -121,9 +121,15 @@ class PickedTradeScreenshot {
 }
 
 class TradeScreenshotParser {
-  TradeScreenshotParser({Dio? dio}) : _dio = dio ?? ApiClient.instance.dio;
+  TradeScreenshotParser({
+    Dio? dio,
+    this.maxAttempts = 3,
+    this.retryDelay = const Duration(milliseconds: 450),
+  }) : _dio = dio ?? ApiClient.instance.dio;
 
   final Dio _dio;
+  final int maxAttempts;
+  final Duration retryDelay;
 
   static const defaultConcurrency = 3;
 
@@ -156,7 +162,7 @@ class TradeScreenshotParser {
         if (index >= total) return;
         try {
           final screenshot = screenshots[index];
-          results[index] = await parse(
+          results[index] = await _parseWithRetry(
             imageBytes: screenshot.bytes,
             mimeType: screenshot.mimeType,
           );
@@ -176,9 +182,12 @@ class TradeScreenshotParser {
 
     await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
 
+    final successfulIndices = [
+      for (var index = 0; index < results.length; index++)
+        if (results[index] != null) index,
+    ];
     final successful = [
-      for (final result in results)
-        if (result != null) result,
+      for (final index in successfulIndices) results[index]!,
     ];
     if (successful.isEmpty) {
       final firstFailure = failures.firstWhere((failure) => failure != null)!;
@@ -195,6 +204,7 @@ class TradeScreenshotParser {
     return mergeParsedTradeResults(
       successful,
       screenshotCount: total,
+      sourceScreenshotIndices: successfulIndices,
       failureWarnings: [
         for (var i = 0; i < failures.length; i++)
           if (failures[i] case final failure?)
@@ -202,6 +212,40 @@ class TradeScreenshotParser {
       ],
     );
   }
+
+  Future<ParsedTradesResult> _parseWithRetry({
+    required List<int> imageBytes,
+    required String mimeType,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        return await parse(imageBytes: imageBytes, mimeType: mimeType);
+      } on TradeParseException catch (error) {
+        final canRetry = _isRetryable(error.kind) && attempt < maxAttempts;
+        if (!canRetry) {
+          if (attempt > 1 && _isRetryable(error.kind)) {
+            throw TradeParseException(
+              error.kind,
+              '${error.message} 已自动重试 ${attempt - 1} 次。',
+            );
+          }
+          rethrow;
+        }
+        final multiplier = 1 << (attempt - 1);
+        await Future<void>.delayed(retryDelay * multiplier);
+      }
+    }
+  }
+
+  bool _isRetryable(TradeParseFailureKind kind) => switch (kind) {
+        TradeParseFailureKind.network ||
+        TradeParseFailureKind.unavailable ||
+        TradeParseFailureKind.server =>
+          true,
+        _ => false,
+      };
 
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
