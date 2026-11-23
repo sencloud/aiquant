@@ -8,6 +8,8 @@ import 'services/trade_review_repository.dart';
 import 'state/auth_state.dart';
 import 'state/billing_state.dart';
 import 'state/chat_state.dart';
+import 'state/companion_state.dart';
+import 'state/portfolio_state.dart';
 import 'theme/app_theme.dart';
 
 /// 嘻，AI：从成交记录里复盘交易逻辑、问题与改进措施。
@@ -23,19 +25,39 @@ class _XiaiAppState extends State<XiaiApp> {
   late final BillingState _billing = BillingState();
   late final ChatState _chat = ChatState();
 
+  /// 对话页的伴侣会话会读它（头像 / 名字 / 记忆）。缺了它整页会抛
+  /// ProviderNotFoundException，在 release 里就是白屏 —— 见
+  /// test/xiai_chat_tab_test.dart。
+  late final CompanionState _companion = CompanionState();
+
+  /// 对话页发送「带上我的组合」时要读组合快照。这里只装配、不拉行情：
+  /// 用户没进组合页就不发网络请求，发送时读不到持仓会提示忽略。
+  late final PortfolioState _portfolio = PortfolioState();
+
   @override
   void initState() {
     super.initState();
     unawaited(_bootstrapStates());
   }
 
+  /// 启动状态一律兜住异常：任何一步失败都只记日志，不能让 App 卡在
+  /// 「bootstrapping」里变成一块白屏。
   Future<void> _bootstrapStates() async {
     await Future.wait<void>([
-      _auth.bootstrap(),
-      _chat.bootstrap(),
+      _guard('auth', _auth.bootstrap()),
+      _guard('chat', _chat.bootstrap()),
+      _guard('companion', _companion.load()),
     ]);
     if (_auth.isAuthenticated) {
-      await _billing.refreshAll();
+      await _guard('billing', _billing.refreshAll());
+    }
+  }
+
+  Future<void> _guard(String name, Future<void> future) async {
+    try {
+      await future;
+    } catch (error, stack) {
+      debugPrint('$name bootstrap failed: $error\n$stack');
     }
   }
 
@@ -44,6 +66,8 @@ class _XiaiAppState extends State<XiaiApp> {
     _auth.dispose();
     _billing.dispose();
     _chat.dispose();
+    _companion.dispose();
+    _portfolio.dispose();
     super.dispose();
   }
 
@@ -59,6 +83,8 @@ class _XiaiAppState extends State<XiaiApp> {
           ChangeNotifierProvider<AuthState>.value(value: _auth),
           ChangeNotifierProvider<BillingState>.value(value: _billing),
           ChangeNotifierProvider<ChatState>.value(value: _chat),
+          ChangeNotifierProvider<CompanionState>.value(value: _companion),
+          ChangeNotifierProvider<PortfolioState>.value(value: _portfolio),
         ],
         child: const _XiaiRoot(),
       ),

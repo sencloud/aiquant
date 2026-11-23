@@ -511,47 +511,45 @@ class _PageHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpace.md),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                key: signedIn ? null : const ValueKey('trade-review-login'),
-                onTap: signedIn ? null : onLogin,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.sm,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgRaised,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        signedIn
-                            ? Icons.cloud_done_outlined
-                            : Icons.person_outline_rounded,
-                        size: 14,
-                        color: signedIn
-                            ? AppColors.amber
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        signedIn ? '账号同步' : '登录',
-                        style: AppType.micro.copyWith(
-                          color: signedIn
-                              ? AppColors.amberDim
-                              : AppColors.textSecondary,
+            // 已登录时不再放「账号同步」胶囊：复盘在保存时就自动同步，
+            // 这里只是个状态角标，点不动、也容易让人以为要手动同步。
+            // 未登录时保留「登录」入口，这是首页唯一的登录入口。
+            if (!signedIn)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('trade-review-login'),
+                  onTap: onLogin,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.sm,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgRaised,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.person_outline_rounded,
+                          size: 14,
+                          color: AppColors.textSecondary,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          '登录',
+                          style: AppType.micro.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

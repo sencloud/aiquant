@@ -379,7 +379,8 @@ class _ClusterTrades {
   _ClusterTrades(
     List<List<ParsedTrade>> screenshots, {
     required List<int> sourceScreenshotIndices,
-  }) {
+  }) : _screenshots = screenshots,
+       _indices = sourceScreenshotIndices {
     final localGroups = <_TradeGroup>[];
     for (var screenshotIndex = 0;
         screenshotIndex < screenshots.length;
@@ -393,9 +394,11 @@ class _ClusterTrades {
     for (final group in localGroups) {
       _TradeCluster? best;
       var bestScore = double.infinity;
+      final predecessor = _predecessorPosition(group.screenshotIndex);
       for (final cluster in clusters) {
-        if (cluster.hasScreenshot(group.screenshotIndex) ||
-            !cluster.hasScreenshot(group.screenshotIndex - 1) ||
+        if (predecessor == null ||
+            cluster.hasScreenshot(group.screenshotIndex) ||
+            !cluster.hasScreenshot(predecessor) ||
             !cluster.groups.every((prior) => _groupsOverlap(prior, group))) {
           continue;
         }
@@ -415,7 +418,33 @@ class _ClusterTrades {
     }
   }
 
+  final List<List<ParsedTrade>> _screenshots;
+  final List<int> _indices;
+
   final List<_TradeCluster> clusters = [];
+
+  /// 允许与哪一张截图合并。
+  ///
+  /// 默认只和「上一张」合并，避免 A≈B、B≈C 链式误合并。但滑动截图里经常
+  /// 有一页全是上一页的重叠区（服务端返回 0 行，状态仍是成功），这时下一页
+  /// 的重叠成交其实落在更早那一页上 —— 只和「上一张」比，重复行就留在
+  /// 待核对列表里。所以这里跨过连续的空页，找到真正有成交的上一页；
+  /// 中间夹着识别失败（未知内容）的截图时不跨，宁可多留一行也不误删。
+  int? _predecessorPosition(int position) {
+    final index = _indices.indexOf(position);
+    if (index < 0) return null;
+    var previous = index - 1;
+    var expected = position - 1;
+    while (previous >= 0 &&
+        _indices[previous] == expected &&
+        _screenshots[previous].isEmpty) {
+      previous--;
+      expected--;
+    }
+    if (previous < 0) return null;
+    if (_indices[previous] != expected) return null;
+    return _indices[previous];
+  }
 }
 
 List<_TradeGroup> _groupScreenshotTrades(

@@ -351,6 +351,59 @@ void main() {
     expect(merged.duplicateTradeCount, 0);
   });
 
+  test('中间一页全是重叠区（返回 0 行）时，下一页仍与更早的成交页合并', () {
+    final overlap = trade(minute: 5);
+    final older = trade(minute: 4, symbol: '510300', name: '沪深300ETF');
+    final newer = trade(minute: 6, symbol: '000001', name: '平安银行');
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([older, overlap]),
+        result(const []),
+        result([overlap, newer]),
+      ],
+      screenshotCount: 3,
+    );
+
+    expect(merged.trades, hasLength(3));
+    expect(merged.duplicateTradeCount, 1);
+    expect(merged.successfulScreenshotCount, 3);
+  });
+
+  test('跨过空页合并时，中间夹着识别失败的截图就不跨', () {
+    final overlap = trade(minute: 5);
+
+    final merged = mergeParsedTradeResults(
+      [
+        result([overlap]),
+        result(const []),
+        result([overlap]),
+      ],
+      screenshotCount: 4,
+      sourceScreenshotIndices: const [0, 1, 3],
+    );
+
+    expect(merged.trades, hasLength(2));
+    expect(merged.duplicateTradeCount, 0);
+  });
+
+  test('批量识别里有一页重叠空白页时，整批仍成功且不产生重复行', () async {
+    final parser = _FakeTradeParser();
+
+    final merged = await parser.parseBatch([
+      _screenshot('first'),
+      _screenshot('empty'),
+      _screenshot('first'),
+    ]);
+
+    expect(merged.trades, hasLength(1));
+    expect(merged.duplicateTradeCount, 1);
+    expect(merged.successfulScreenshotCount, 3);
+    expect(
+      merged.warnings,
+      contains(contains('第 2 张没有发现新的成交行')),
+    );
+  });
   test('批量识别遇到网络错误时自动重试并保留成功结果', () async {
     final parser = _RetryingTradeParser();
 
@@ -449,6 +502,16 @@ class _FakeTradeParser extends TradeScreenshotParser {
         throw const TradeParseException(
           TradeParseFailureKind.noTrades,
           '没有识别到成交。',
+        );
+      }
+      if (mimeType == 'empty') {
+        // 新版服务端对「整页都是上一页的重叠区」返回 200 + 0 行：
+        // 这是成功的空页，不应该让整批多图识别失败。
+        return const ParsedTradesResult(
+          brokerHint: '测试券商',
+          currency: 'CNY',
+          trades: [],
+          warnings: [],
         );
       }
       final isNext = mimeType == 'next';

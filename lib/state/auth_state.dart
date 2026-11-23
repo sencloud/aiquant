@@ -44,34 +44,42 @@ class AuthState extends ChangeNotifier {
   Future<void> bootstrap() async {
     if (_bootstrapStarted) return;
     _bootstrapStarted = true;
-    _logoutSub ??= _api.onForcedLogout.listen((_) => _onForcedLogout());
-    _deviceId = await _ensureDeviceId();
-
-    final tokens = await _api.storage.loadTokens();
-    final cached = await _api.storage.loadUser();
-    if (tokens == null || tokens.refreshExpired) {
-      _user = null;
-      _bootstrapping = false;
-      notifyListeners();
-      return;
-    }
-    _user = cached;
-    notifyListeners();
-
     try {
-      final fresh = await _svc.me();
-      _user = fresh;
-      await _api.storage.saveUser(fresh);
-      await _registerDevice();
-    } on ApiException catch (e) {
-      if (e.isUnauthorized) {
-        await _onForcedLogout();
+      _logoutSub ??= _api.onForcedLogout.listen((_) => _onForcedLogout());
+      _deviceId = await _ensureDeviceId();
+
+      final tokens = await _api.storage.loadTokens();
+      final cached = await _api.storage.loadUser();
+      if (tokens == null || tokens.refreshExpired) {
+        _user = null;
+        _bootstrapping = false;
+        notifyListeners();
+        return;
       }
-    } catch (_) {
-      // 网络抖动：保留本地缓存进入 App，下次启动再拉
+      _user = cached;
+      notifyListeners();
+
+      try {
+        final fresh = await _svc.me();
+        _user = fresh;
+        await _api.storage.saveUser(fresh);
+        await _registerDevice();
+      } on ApiException catch (e) {
+        if (e.isUnauthorized) {
+          await _onForcedLogout();
+        }
+      } catch (_) {
+        // 网络抖动：保留本地缓存进入 App，下次启动再拉
+      }
+    } finally {
+      // 读 token / 设备号也可能抛（安全存储损坏、平台通道缺失）。无论哪种，
+      // 都必须结束启动态：_XiaiRoot 在 bootstrapping 期间只渲染一块空壳，
+      // 抛出去不清标记，用户看到的就是永久白屏。
+      if (_bootstrapping) {
+        _bootstrapping = false;
+        notifyListeners();
+      }
     }
-    _bootstrapping = false;
-    notifyListeners();
   }
 
   Future<void> sendSMS(String phone) async {
