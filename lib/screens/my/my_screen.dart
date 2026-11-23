@@ -144,6 +144,11 @@ class _MyScreenState extends State<MyScreen> {
     }
   }
 
+  Future<void> _refresh() async {
+    if (!context.read<AuthState>().isAuthenticated) return;
+    await TradeReviewStore.instance.refresh();
+  }
+
   Future<void> _openMembership() async {
     if (!await requireLogin(context) || !mounted) return;
     final billing = context.read<BillingState>();
@@ -174,79 +179,85 @@ class _MyScreenState extends State<MyScreen> {
               final store = TradeReviewStore.instance;
               final reports = store.reports;
               final latest = reports.isEmpty ? null : reports.first;
-              return ListView(
-                key: const ValueKey('my-page'),
-                padding: const EdgeInsets.only(bottom: AppSpace.xxl),
-                children: [
-                  _ProfileHeader(
-                    signedIn: auth.isAuthenticated,
-                    displayName: _displayName(auth),
-                    accountCaption: _accountCaption(auth),
-                    reportCount: reports.length,
-                    syncing: store.syncing,
-                    syncError: store.syncError,
-                    onTap: _openProfile,
-                  ),
-                  const _MyGroupGap(),
-                  _MyGroup(
-                    children: [
-                      _MyRow(
-                        key: const ValueKey('my-recent-review'),
-                        icon: Icons.auto_graph_rounded,
-                        iconColor: AppColors.amber,
-                        title: '最近复盘',
-                        value: latest?.title ?? '暂无',
-                        onTap: latest == null
-                            ? _openHistory
-                            : () => _openReview(latest),
-                      ),
-                      _MyRow(
-                        key: const ValueKey('my-trade-history'),
-                        icon: Icons.receipt_long_outlined,
-                        iconColor: const Color(0xFF576B95),
-                        title: '交易记录',
-                        value: reports.isEmpty ? '暂无' : '${reports.length} 份',
-                        onTap: _openHistory,
-                      ),
-                      _MyRow(
-                        key: const ValueKey('my-watch-app'),
-                        icon: Icons.candlestick_chart_rounded,
-                        iconColor: const Color(0xFF17864E),
-                        title: '看盘',
-                        value: '行情终端',
-                        onTap: () => _push(widget.watchPageBuilder),
-                      ),
-                    ],
-                  ),
-                  const _MyGroupGap(),
-                  _MyGroup(
-                    children: [
-                      _MyRow(
-                        key: const ValueKey('my-membership'),
-                        icon: Icons.workspace_premium_outlined,
-                        iconColor: const Color(0xFFC58A2B),
-                        title: '付费会员',
-                        value: auth.isAuthenticated
-                            ? '喜点 ${CreditFmt.balance(billing.balance)}'
-                            : '充值喜点',
-                        onTap: _openMembership,
-                      ),
-                    ],
-                  ),
-                  const _MyGroupGap(),
-                  _MyGroup(
-                    children: [
-                      _MyRow(
-                        key: const ValueKey('my-settings'),
-                        icon: Icons.settings_outlined,
-                        iconColor: AppColors.textSecondary,
-                        title: '设置',
-                        onTap: () =>
-                            _openSettings(reports.length, latest?.createdAt),
-                      ),
-                    ],
-                  ),
-                ],
+              return RefreshIndicator(
+                color: AppColors.amber,
+                backgroundColor: AppColors.bgSurface,
+                onRefresh: _refresh,
+                child: ListView(
+                  key: const ValueKey('my-page'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+                  children: [
+                    _ProfileHeader(
+                      signedIn: auth.isAuthenticated,
+                      displayName: _displayName(auth),
+                      accountCaption: _accountCaption(auth),
+                      reportCount: reports.length,
+                      syncing: store.syncing,
+                      syncError: store.syncError,
+                      onTap: _openProfile,
+                    ),
+                    const _MyGroupGap(),
+                    _MyGroup(
+                      children: [
+                        _MyRow(
+                          key: const ValueKey('my-recent-review'),
+                          icon: Icons.auto_graph_rounded,
+                          iconColor: AppColors.amber,
+                          title: '最近复盘',
+                          value: latest?.title ?? '暂无',
+                          onTap: latest == null
+                              ? _openHistory
+                              : () => _openReview(latest),
+                        ),
+                        _MyRow(
+                          key: const ValueKey('my-trade-history'),
+                          icon: Icons.receipt_long_outlined,
+                          iconColor: const Color(0xFF576B95),
+                          title: '交易记录',
+                          value: reports.isEmpty ? '暂无' : '${reports.length} 份',
+                          onTap: _openHistory,
+                        ),
+                        _MyRow(
+                          key: const ValueKey('my-watch-app'),
+                          icon: Icons.candlestick_chart_rounded,
+                          iconColor: const Color(0xFF17864E),
+                          title: '看盘',
+                          value: '行情终端',
+                          onTap: () => _push(widget.watchPageBuilder),
+                        ),
+                      ],
+                    ),
+                    const _MyGroupGap(),
+                    _MyGroup(
+                      children: [
+                        _MyRow(
+                          key: const ValueKey('my-membership'),
+                          icon: Icons.workspace_premium_outlined,
+                          iconColor: const Color(0xFFC58A2B),
+                          title: '付费会员',
+                          value: auth.isAuthenticated
+                              ? '喜点 ${CreditFmt.balance(billing.balance)}'
+                              : '充值喜点',
+                          onTap: _openMembership,
+                        ),
+                      ],
+                    ),
+                    const _MyGroupGap(),
+                    _MyGroup(
+                      children: [
+                        _MyRow(
+                          key: const ValueKey('my-settings'),
+                          icon: Icons.settings_outlined,
+                          iconColor: AppColors.textSecondary,
+                          title: '设置',
+                          onTap: () =>
+                              _openSettings(reports.length, latest?.createdAt),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               );
             },
           ),
