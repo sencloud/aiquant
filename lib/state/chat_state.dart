@@ -83,8 +83,6 @@ class ChatState extends ChangeNotifier {
   Persona get currentPersona =>
       Personas.byId(active?.personaId, topic: active?.topic ?? 'money');
 
-  ChatSession? _mostRecent() => _sessions.isEmpty ? null : _sessions.first;
-
   /// 本机往当前会话里插一条 assistant 消息（伴侣主动开口用）。
   ///
   /// 不走 /v1/ai/chat、不扣喜点；只是把她说的话放进本地会话。
@@ -99,7 +97,7 @@ class ChatState extends ChangeNotifier {
   Future<void> bootstrap() async {
     _sessions = List<ChatSession>.from(_store.load())
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    final first = _mostRecent();
+    final first = _mostRecentInvestment();
     if (first == null) {
       await newSession();
     } else {
@@ -114,6 +112,35 @@ class ChatState extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// 「对话」页签只跟投资助理聊。
+  ///
+  /// 伴侣主题（`companion`）是上一个产品方向留下的会话：它有自己的页面与
+  /// 入口，**不能**因为 updatedAt 最新就把「对话」页签变成和虚拟人聊天。
+  /// 这里只做选择逻辑，历史会话一条都不会删。
+  static const companionTopic = 'companion';
+
+  bool get activeIsInvestment => (active?.topic ?? 'money') != companionTopic;
+
+  ChatSession? _mostRecentInvestment() {
+    for (final s in _sessions) {
+      if (s.topic != companionTopic) return s;
+    }
+    return null;
+  }
+
+  /// 确保当前会话是投资助理：没有就复用最近一段投资对话，再没有才新建。
+  Future<ChatSession> ensureInvestmentSession() async {
+    final current = active;
+    if (current != null && current.topic != companionTopic) return current;
+    final existing = _mostRecentInvestment();
+    if (existing != null) {
+      _activeId = existing.id;
+      notifyListeners();
+      return existing;
+    }
+    return newSession(topic: 'money', personaId: Personas.defaultIdFor('money'));
   }
 
   Future<ChatSession> newSession({
@@ -149,7 +176,7 @@ class ChatState extends ChangeNotifier {
     _serverIdMap.remove(id);
     _sessions = _sessions.where((s) => s.id != id).toList();
     if (_activeId == id) {
-      _activeId = _mostRecent()?.id;
+      _activeId = _mostRecentInvestment()?.id;
       if (_activeId == null) await newSession();
     }
     notifyListeners();

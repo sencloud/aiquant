@@ -11,10 +11,13 @@ import 'package:hive/hive.dart';
 
 /// 「对话」页签的回归测试。
 ///
-/// 曾经整页空白：对话页在伴侣会话下会读 CompanionState，而 App 根部只挂了
-/// Auth / Billing / Chat 三个 Provider，`watch<CompanionState>()` 直接抛
-/// ProviderNotFoundException —— release 包里就是一个没有任何内容的页签。
-/// 这里用真实 XiaiApp + 真实 Hive 会话，确认点进对话页能看到内容、能发消息。
+/// 这个页签是**和投资助理聊**的地方：
+///  * 它曾经整页空白 —— 伴侣会话下会读 CompanionState，而 App 根部只挂了
+///    Auth / Billing / Chat，`watch<CompanionState>()` 直接抛
+///    ProviderNotFoundException，release 包里就是一个没有任何内容的页签。
+///  * 它也曾经被伴侣会话劫持 —— 旧版本留下的 `companion` 会话 updatedAt
+///    最新，bootstrap 就把它选中，页签变成和虚拟人聊天。
+/// 这里用真实 XiaiApp + 真实 Hive 会话，确认页签是投资助理、能看能打字。
 void main() {
   late Directory tempDir;
 
@@ -52,8 +55,17 @@ void main() {
     }
   }
 
-  testWidgets('伴侣会话下对话页不是空白，且能正常打字', (tester) async {
-    final session = ChatSession(
+  Future<void> openChatTab(WidgetTester tester) async {
+    expect(find.text('对话'), findsWidgets, reason: '底部页签要在');
+    await tester.tap(find.text('对话'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+  }
+
+  testWidgets('伴侣会话比投资会话更新时，对话页仍是投资助理', (tester) async {
+    // 旧版本留下的伴侣会话 updatedAt 最新：以前 bootstrap 会选中它，
+    // 「对话」页签就变成和虚拟人聊天。
+    final companion = ChatSession(
       id: 'companion-1',
       title: '喜爱',
       topic: 'companion',
@@ -61,29 +73,30 @@ void main() {
     )
       ..messages.add(ChatMessage(role: 'assistant', content: '我在。'))
       ..updatedAt = DateTime.now();
+    final money = ChatSession(
+      id: 'money-1',
+      title: '沪深300 这周怎么看',
+      updatedAt: DateTime.now().subtract(const Duration(days: 2)),
+    );
     // Hive 落盘是真实 I/O，必须放在 runAsync 里；testWidgets 默认的假时钟
     // 不会推进文件系统 future，直接 await 会一直挂着。
-    await tester.runAsync(() => chatSessionsBox.put(session.id, session));
+    await tester.runAsync(() async {
+      await chatSessionsBox.put(companion.id, companion);
+      await chatSessionsBox.put(money.id, money);
+    });
 
     await pumpApp(tester);
-
-    expect(find.text('对话'), findsWidgets, reason: '底部页签要在');
-    await tester.tap(find.text('对话'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
+    await openChatTab(tester);
 
     expect(tester.takeException(), isNull);
-    // 伴侣会话的标题就是她的名字，正文里能看到她说过的话。
-    expect(find.text('我在。'), findsOneWidget);
+    // 投资助理的空会话欢迎页 + 发送按钮（不是虚拟人的聊天记录）。
+    expect(find.textContaining('Hi，'), findsOneWidget);
+    expect(find.text('我在。'), findsNothing);
+    expect(find.text('研究助理'), findsWidgets);
     expect(find.byKey(const ValueKey('chat-send')), findsOneWidget);
-
-    // 输入框可用：打字后发送按钮变成可点状态。
-    await tester.enterText(find.byType(TextField).first, '今天怎么样');
-    await tester.pump();
-    expect(find.text('今天怎么样'), findsOneWidget);
   });
 
-  testWidgets('普通会话下对话页显示欢迎语与快捷提问', (tester) async {
+  testWidgets('投资会话下对话页显示欢迎语，并且能打字发送', (tester) async {
     await tester.runAsync(
       () => chatSessionsBox.put(
         'money-1',
@@ -93,12 +106,15 @@ void main() {
     );
 
     await pumpApp(tester);
-    await tester.tap(find.text('对话'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
+    await openChatTab(tester);
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Hi，'), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-send')), findsOneWidget);
+
+    // 输入框可用：打字后发送按钮变亮（onPressed 非空）。
+    await tester.enterText(find.byType(TextField).first, '今天大盘怎么看');
+    await tester.pump();
+    expect(find.text('今天大盘怎么看'), findsOneWidget);
   });
 }

@@ -46,6 +46,63 @@ void main() {
     expect(state.active?.messages.last.content, contains('行情正在震荡'));
     expect(store.saveCount, greaterThanOrEqualTo(2));
   });
+  test('bootstrap 优先投资会话：伴侣会话再新也不会被选中', () async {
+    final money = ChatSession(
+      id: 'money-1',
+      title: '沪深300 这周怎么看',
+      updatedAt: DateTime(2026, 11, 20),
+    );
+    final companion = ChatSession(
+      id: 'companion-1',
+      title: '喜爱',
+      topic: 'companion',
+      updatedAt: DateTime(2026, 11, 23),
+    );
+    final state = ChatState(
+      service: _SuccessfulChatService(),
+      store: _UnmodifiableSessionStore([companion, money]),
+    );
+
+    await state.bootstrap();
+
+    expect(state.activeId, 'money-1');
+    expect(state.active?.topic, 'money');
+    // 历史不删：伴侣会话仍留在列表里，只是不进「对话」页签。
+    expect(state.sessions.map((s) => s.id), contains('companion-1'));
+  });
+
+  test('只有伴侣会话时 bootstrap 会新建一段投资对话', () async {
+    final state = ChatState(
+      service: _SuccessfulChatService(),
+      store: _UnmodifiableSessionStore([
+        ChatSession(id: 'companion-1', title: '喜爱', topic: 'companion'),
+      ]),
+    );
+
+    await state.bootstrap();
+
+    expect(state.active?.topic, 'money');
+    expect(state.sessions.map((s) => s.id), contains('companion-1'));
+  });
+
+  test('ensureInvestmentSession 把伴侣会话切回投资会话', () async {
+    final state = ChatState(
+      service: _SuccessfulChatService(),
+      store: _UnmodifiableSessionStore([
+        ChatSession(id: 'money-1', title: '投资对话'),
+        ChatSession(id: 'companion-1', title: '喜爱', topic: 'companion'),
+      ]),
+    );
+    await state.bootstrap();
+    state.selectSession('companion-1');
+    expect(state.active?.topic, 'companion');
+
+    final session = await state.ensureInvestmentSession();
+
+    expect(session.id, 'money-1');
+    expect(state.activeId, 'money-1');
+    expect(state.active?.topic, 'money');
+  });
 }
 
 class _UnmodifiableSessionStore implements ChatSessionStore {

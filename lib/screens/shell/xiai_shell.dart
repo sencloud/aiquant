@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../../state/chat_state.dart';
 import '../../theme/app_theme.dart';
 import '../assistant/assistant_screen.dart';
 import '../my/my_screen.dart';
@@ -33,6 +35,12 @@ class _XiaiShellState extends State<XiaiShell> {
 
   void _select(int index) {
     if (_index == index) return;
+    // 「对话」页签只跟投资助理聊：伴侣会话（旧产品方向留下的）不能被选中。
+    // 测试里 shell 可能没有 ChatState（用 chatPageBuilder 注入假页面），
+    // 所以按可空类型读取。
+    if (index == 1) {
+      context.read<ChatState?>()?.ensureInvestmentSession();
+    }
     HapticFeedback.selectionClick();
     setState(() => _index = index);
   }
