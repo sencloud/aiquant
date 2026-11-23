@@ -73,7 +73,6 @@ func (t *searchWebTool) Run(ctx context.Context, args json.RawMessage) (string, 
 		Original:    in.Original,
 		Count:       in.Count,
 		NeedContent: in.NeedContent,
-		Localize:    "zh-CN",
 	})
 	if err != nil {
 		return "", err

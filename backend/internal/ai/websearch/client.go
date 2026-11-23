@@ -32,7 +32,6 @@ type Query struct {
 	Original    string
 	Count       int
 	NeedContent bool
-	Localize    string
 }
 
 // Client 是 DeepSeek 搜索服务客户端。
@@ -87,11 +86,10 @@ func (c *Client) Search(ctx context.Context, q Query) ([]Result, error) {
 		count = 20
 	}
 	payload, err := json.Marshal(map[string]any{
-		"query":         query,
-		"count":         count,
-		"ori_question":  strings.TrimSpace(q.Original),
-		"localization":  strings.TrimSpace(q.Localize),
-		"need_content":  q.NeedContent,
+		"query":        query,
+		"count":        count,
+		"ori_question": strings.TrimSpace(q.Original),
+		"need_content": q.NeedContent,
 	})
 	if err != nil {
 		return nil, err

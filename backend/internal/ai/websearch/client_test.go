@@ -35,17 +35,20 @@ func TestSearchUsesDeepSeekContract(t *testing.T) {
 						t.Errorf("authorization = %q", got)
 					}
 					var body struct {
-						Query        string `json:"query"`
-						Count        int    `json:"count"`
-						Original     string `json:"ori_question"`
-						Localization string `json:"localization"`
+						Query        string  `json:"query"`
+						Count        int     `json:"count"`
+						Original     string  `json:"ori_question"`
+						Localization *string `json:"localization"`
 					}
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 						t.Errorf("decode request: %v", err)
 					}
 					if body.Query != "周末政策" || body.Count != 7 ||
-						body.Original != "周末有什么政策" || body.Localization != "zh-CN" {
+						body.Original != "周末有什么政策" {
 						t.Errorf("request body = %+v", body)
+					}
+					if body.Localization != nil {
+						t.Errorf("localization must be omitted, got %q", *body.Localization)
 					}
 					w.Header().Set("Content-Type", "application/json")
 					_, _ = w.Write([]byte(`{"results":[{"title":"政策发布",` +
@@ -59,7 +62,6 @@ func TestSearchUsesDeepSeekContract(t *testing.T) {
 				Query:    "周末政策",
 				Original: "周末有什么政策",
 				Count:    7,
-				Localize: "zh-CN",
 			})
 			if err != nil {
 				t.Fatalf("Search: %v", err)
