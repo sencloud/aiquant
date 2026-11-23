@@ -31,7 +31,8 @@ Future<void> _bootstrap() async {
   installNoProxyHttpOverrides();
   await loadEnv();
   await Hive.initFlutter();
-  await openMarketBox();
+  await registerHiveAdapters();
+  await openAppBoxes();
   await AppConfig.instance.load();
 
   // 埋点：未在 .env 里配 UMAMI_WEBSITE_ID 时整个服务是 no-op。

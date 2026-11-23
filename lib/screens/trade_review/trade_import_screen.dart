@@ -129,7 +129,7 @@ class _TradeImportScreenState extends State<TradeImportScreen> {
           dateFilteredOutTradeCount: filtered.dateFilteredOutTradeCount,
           duplicateTradeCount: filtered.duplicateTradeCount,
         ),
-        screenshots.first.bytes,
+        [for (final screenshot in screenshots) screenshot.bytes],
       );
     } on TradeParseException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -161,7 +161,7 @@ class _TradeImportScreenState extends State<TradeImportScreen> {
         periodEnd: _end,
       );
       if (!mounted) return;
-      _openConfirm(parsed, null);
+      _openConfirm(parsed, const <Uint8List>[]);
     } on TradeParseException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
@@ -176,7 +176,7 @@ class _TradeImportScreenState extends State<TradeImportScreen> {
     }
   }
 
-  void _openConfirm(ParsedTradesResult parsed, Uint8List? imageBytes) {
+  void _openConfirm(ParsedTradesResult parsed, List<Uint8List> imageBytes) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TradeConfirmScreen(
@@ -352,7 +352,7 @@ class _StepLabel extends StatelessWidget {
           width: 22,
           height: 22,
           alignment: Alignment.center,
-              decoration: BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.textPrimary,
             shape: BoxShape.circle,
           ),
@@ -439,4 +439,3 @@ class _ImportOption extends StatelessWidget {
     );
   }
 }
-

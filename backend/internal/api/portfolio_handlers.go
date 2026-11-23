@@ -149,6 +149,11 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 		if err != nil {
 			message := err.Error()
 			if strings.Contains(message, "no valid trade rows") {
+				platform.LoggerFrom(r.Context()).Info().
+					Str("mime_type", safeVisionMime(body.MimeType)).
+					Int("image_base64_chars", len(body.ImageBase64)).
+					Bool("no_new_rows", true).
+					Msg("trade screenshot contained no new rows")
 				// 滚动截图的重叠页、页尾空白或已被上一张覆盖的区域，
 				// 视觉模型可能正确返回“没有可确认的成交行”。这是成功的
 				// 空页，不应让整批多图导入失败，更不应显示成网络错误。
@@ -164,6 +169,12 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 				})
 				return
 			}
+			platform.LoggerFrom(r.Context()).Warn().
+				Err(err).
+				Str("mime_type", safeVisionMime(body.MimeType)).
+				Int("image_base64_chars", len(body.ImageBase64)).
+				Bool("no_new_rows", false).
+				Msg("trade screenshot parse failed")
 			WriteError(w, r, platform.ErrInternal(
 				"PORTFOLIO.VISION_FAILED", err))
 			return
@@ -189,4 +200,12 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 			"no_new_rows": false,
 		})
 	}
+}
+
+func safeVisionMime(raw string) string {
+	mime := strings.ToLower(strings.TrimSpace(raw))
+	if len(mime) > 64 || !strings.HasPrefix(mime, "image/") {
+		return "unknown"
+	}
+	return mime
 }

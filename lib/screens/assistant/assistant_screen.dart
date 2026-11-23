@@ -230,13 +230,23 @@ class _AssistantScreenState extends State<AssistantScreen>
     final prefs = companion?.interests;
     companion?.setMood(AvatarMood.listening);
     await companion?.rememberFrom(text);
-    await chat.sendMessage(text,
-        portfolioContext: ctxJson,
-        imageDataUrls: images,
-        preferences: prefs,
-        companionName: companion?.name,
-        companionStyle: companion?.look.style,
-        memories: companion?.memories);
+    try {
+      await chat.sendMessage(text,
+          portfolioContext: ctxJson,
+          imageDataUrls: images,
+          preferences: prefs,
+          companionName: companion?.name,
+          companionStyle: companion?.look.style,
+          memories: companion?.memories);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('消息发送失败，请稍后重试。')),
+        );
+      return;
+    }
     final reply = chat.latestAssistant?.content ?? '';
     companion?.setMood(
       reply.contains('哈哈') || reply.contains('开心') || reply.contains('喜欢')
@@ -617,8 +627,7 @@ class _AssistantScreenState extends State<AssistantScreen>
                                         ),
                                       )
                                     : null,
-                                onSuggestion:
-                                    isLatest ? _sendSuggestion : null,
+                                onSuggestion: isLatest ? _sendSuggestion : null,
                                 onRegenerate: isLatest
                                     ? () => _regenerate(chat, msg)
                                     : null,
@@ -938,8 +947,7 @@ class _AssistantScreenState extends State<AssistantScreen>
           borderRadius: BorderRadius.circular(18),
           onTap: () => _send(text),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Expanded(
@@ -1033,8 +1041,7 @@ class _AssistantScreenState extends State<AssistantScreen>
                             contentPadding:
                                 const EdgeInsets.symmetric(vertical: 14),
                             hintStyle: AppType.body.copyWith(
-                                fontSize: 16,
-                                color: AppColors.textTertiary),
+                                fontSize: 16, color: AppColors.textTertiary),
                           ),
                           onTapOutside: (_) => _focus.unfocus(),
                           onSubmitted: (_) => _send(),

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:fincept_app/core/api/auth_models.dart';
 import 'package:fincept_app/models/trade_review.dart';
 import 'package:fincept_app/services/trade_screenshot_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -397,6 +398,29 @@ void main() {
       ),
     );
   });
+
+  test('服务端业务错误不会被误报成网络错误', () async {
+    final parser = TradeScreenshotParser(
+      dio: Dio()..httpClientAdapter = _ApiErrorAdapter(),
+    );
+
+    await expectLater(
+      parser.parse(imageBytes: const [1, 2, 3], mimeType: 'image/jpeg'),
+      throwsA(
+        isA<TradeParseException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              TradeParseFailureKind.server,
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              allOf(contains('视觉服务繁忙'), contains('req-123')),
+            ),
+      ),
+    );
+  });
 }
 
 PickedTradeScreenshot _screenshot(String key) {
@@ -499,4 +523,27 @@ class _AlwaysNetworkFailTradeParser extends TradeScreenshotParser {
       '网络连接失败。',
     );
   }
+}
+
+class _ApiErrorAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    throw DioException(
+      requestOptions: options,
+      type: DioExceptionType.unknown,
+      error: ApiException(
+        code: 'PORTFOLIO.VISION_FAILED',
+        message: '视觉服务繁忙',
+        statusCode: 500,
+        requestId: 'req-123',
+      ),
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

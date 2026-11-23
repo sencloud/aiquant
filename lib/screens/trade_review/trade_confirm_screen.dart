@@ -17,7 +17,7 @@ class TradeConfirmScreen extends StatefulWidget {
   });
 
   final ParsedTradesResult parsed;
-  final Uint8List? imageBytes;
+  final List<Uint8List> imageBytes;
 
   @override
   State<TradeConfirmScreen> createState() => _TradeConfirmScreenState();
@@ -163,89 +163,151 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
         AppSpace.lg,
         AppSpace.lg,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            child: widget.imageBytes == null
-                ? Container(
-                    width: 62,
-                    height: 78,
-                    color: AppColors.bgRaised,
-                    child: Icon(
-                      widget.parsed.importSource == 'Excel'
-                          ? Icons.table_chart_outlined
-                          : Icons.description_outlined,
-                      color: AppColors.textTertiary,
-                    ),
-                  )
-                : Image.memory(
-                    widget.imageBytes!,
-                    width: 62,
-                    height: 78,
-                    fit: BoxFit.cover,
-                    cacheWidth: 186,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 62,
-                      height: 78,
-                      color: AppColors.bgRaised,
-                      child: Icon(
-                        Icons.receipt_long_outlined,
-                        color: AppColors.textTertiary,
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: widget.imageBytes.isEmpty
+                    ? Container(
+                        width: 62,
+                        height: 78,
+                        color: AppColors.bgRaised,
+                        child: Icon(
+                          widget.parsed.importSource == 'Excel'
+                              ? Icons.table_chart_outlined
+                              : Icons.description_outlined,
+                          color: AppColors.textTertiary,
+                        ),
+                      )
+                    : _thumbnail(
+                        widget.imageBytes.first,
+                        width: 62,
+                        height: 78,
                       ),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: AppSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.parsed.brokerHint.isEmpty
-                      ? '已导入成交记录'
-                      : widget.parsed.brokerHint,
-                  style: AppType.title,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${widget.parsed.importSource} · '
-                  '${_periodLabel(widget.parsed)} · '
-                  '确认 ${_trades.length} 笔 · '
-                  '${_trades.where((trade) => trade.side == TradeSide.buy).length} 买 '
-                  '${_trades.where((trade) => trade.side == TradeSide.sell).length} 卖',
-                  style: AppType.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (widget.parsed.screenshotCount > 0 &&
-                        widget.parsed.successfulScreenshotCount <
-                        widget.parsed.screenshotCount)
-                      WkTag(
-                        '成功 ${widget.parsed.successfulScreenshotCount}/'
-                        '${widget.parsed.screenshotCount} 张',
+                    Text(
+                      widget.parsed.brokerHint.isEmpty
+                          ? '已导入成交记录'
+                          : widget.parsed.brokerHint,
+                      style: AppType.title,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${widget.parsed.importSource} · '
+                      '${_periodLabel(widget.parsed)} · '
+                      '确认 ${_trades.length} 笔 · '
+                      '${_trades.where((trade) => trade.side == TradeSide.buy).length} 买 '
+                      '${_trades.where((trade) => trade.side == TradeSide.sell).length} 卖',
+                      style: AppType.caption.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.5,
                       ),
-                    if (widget.parsed.invalidRowCount > 0)
-                      WkTag('跳过 ${widget.parsed.invalidRowCount} 行无效数据'),
-                    if (widget.parsed.dateFilteredOutTradeCount > 0)
-                      WkTag('过滤 ${widget.parsed.dateFilteredOutTradeCount} 笔'),
-                    if (widget.parsed.duplicateTradeCount > 0)
-                      WkTag('已合并 ${widget.parsed.duplicateTradeCount} 笔重叠'),
-                    WkTag(
-                      widget.imageBytes == null ? '结构化数据导入' : '图片仅用于本次识别',
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (widget.parsed.screenshotCount > 0)
+                          WkTag(
+                            '成功 ${widget.parsed.successfulScreenshotCount}/'
+                            '${widget.parsed.screenshotCount} 张',
+                          ),
+                        if (widget.parsed.invalidRowCount > 0)
+                          WkTag('跳过 ${widget.parsed.invalidRowCount} 行无效数据'),
+                        if (widget.parsed.dateFilteredOutTradeCount > 0)
+                          WkTag(
+                              '过滤 ${widget.parsed.dateFilteredOutTradeCount} 笔'),
+                        if (widget.parsed.duplicateTradeCount > 0)
+                          WkTag('已合并 ${widget.parsed.duplicateTradeCount} 笔重叠'),
+                        WkTag(
+                          widget.imageBytes.isEmpty ? '结构化数据导入' : '图片仅用于本次识别',
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (widget.imageBytes.length > 1) ...[
+            const SizedBox(height: AppSpace.md),
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                key: const ValueKey('trade-screenshot-strip'),
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.imageBytes.length,
+                separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
+                itemBuilder: (context, index) {
+                  return Stack(
+                    children: [
+                      _thumbnail(
+                        widget.imageBytes[index],
+                        width: 54,
+                        height: 72,
+                      ),
+                      Positioned(
+                        left: 4,
+                        top: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.62),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${index + 1}',
+                            style: AppType.micro.copyWith(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  static Widget _thumbnail(
+    Uint8List bytes, {
+    required double width,
+    required double height,
+  }) {
+    return Image.memory(
+      bytes,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      cacheWidth: 186,
+      errorBuilder: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: AppColors.bgRaised,
+        child: Icon(
+          Icons.receipt_long_outlined,
+          size: 18,
+          color: AppColors.textTertiary,
+        ),
       ),
     );
   }

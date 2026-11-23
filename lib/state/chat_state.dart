@@ -78,8 +78,7 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  ChatSession? get active =>
-      _activeId == null ? null : _byId(_activeId!);
+  ChatSession? get active => _activeId == null ? null : _byId(_activeId!);
   List<ChatMessage> get messages => active?.messages ?? const [];
   Persona get currentPersona =>
       Personas.byId(active?.personaId, topic: active?.topic ?? 'money');
@@ -98,7 +97,7 @@ class ChatState extends ChangeNotifier {
   }
 
   Future<void> bootstrap() async {
-    _sessions = _store.load()
+    _sessions = List<ChatSession>.from(_store.load())
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final first = _mostRecent();
     if (first == null) {
@@ -125,9 +124,9 @@ class ChatState extends ChangeNotifier {
     final t = topic ?? active?.topic ?? 'money';
     final s = ChatSession(
       title: title,
-      personaId:
-          personaId ?? (topic == null ? active?.personaId : null) ??
-              Personas.defaultIdFor(t),
+      personaId: personaId ??
+          (topic == null ? active?.personaId : null) ??
+          Personas.defaultIdFor(t),
       toolsEnabled: active?.toolsEnabled ?? true,
       topic: t,
     );
@@ -142,7 +141,11 @@ class ChatState extends ChangeNotifier {
 
   Future<void> deleteSession(String id) async {
     _store.remove(id);
-    await prefsBox.delete('$_kServerIdPrefix$id');
+    try {
+      await prefsBox.delete('$_kServerIdPrefix$id');
+    } catch (_) {
+      // 单测或存储初始化异常不应阻止内存中的会话删除。
+    }
     _serverIdMap.remove(id);
     _sessions = _sessions.where((s) => s.id != id).toList();
     if (_activeId == id) {
@@ -157,7 +160,7 @@ class ChatState extends ChangeNotifier {
     if (s == null) return;
     s.title = title;
     s.updatedAt = DateTime.now();
-    await s.save();
+    _store.save(s);
     notifyListeners();
   }
 
@@ -171,7 +174,7 @@ class ChatState extends ChangeNotifier {
     if (s == null) return;
     s.personaId = personaId;
     s.updatedAt = DateTime.now();
-    await s.save();
+    _store.save(s);
     notifyListeners();
   }
 
@@ -180,7 +183,7 @@ class ChatState extends ChangeNotifier {
     if (s == null) return;
     s.toolsEnabled = on;
     s.updatedAt = DateTime.now();
-    await s.save();
+    _store.save(s);
     notifyListeners();
   }
 
@@ -196,8 +199,7 @@ class ChatState extends ChangeNotifier {
     final activeSession = active;
     if (assistant != null && activeSession != null) {
       _finishTurn(activeSession, assistant);
-      // ignore: unawaited_futures
-      activeSession.save();
+      _store.save(activeSession);
     }
     _sendSeq++;
     await _activeStream?.cancel();
@@ -225,12 +227,21 @@ class ChatState extends ChangeNotifier {
 
     _store.clear();
 
-    final keys = prefsBox.keys
-        .whereType<String>()
-        .where((k) => k.startsWith(_kServerIdPrefix))
-        .toList();
+    List<String> keys;
+    try {
+      keys = prefsBox.keys
+          .whereType<String>()
+          .where((k) => k.startsWith(_kServerIdPrefix))
+          .toList();
+    } catch (_) {
+      keys = const [];
+    }
     for (final k in keys) {
-      await prefsBox.delete(k);
+      try {
+        await prefsBox.delete(k);
+      } catch (_) {
+        // 内存态仍要清空，不能因为本地偏好盒不可用而中断重置。
+      }
     }
 
     _sessions = const [];
@@ -285,7 +296,7 @@ class ChatState extends ChangeNotifier {
       session.title = text.trim().isEmpty ? '图片提问' : _summarizeForTitle(text);
     }
     session.updatedAt = DateTime.now();
-    await session.save();
+    _store.save(session);
 
     final assistant = ChatMessage(
       role: 'assistant',
@@ -322,8 +333,7 @@ class ChatState extends ChangeNotifier {
       assistant.durationMs ??=
           DateTime.now().difference(turnStartedAt).inMilliseconds;
       if (!terminal && assistant.content.trim().isEmpty) {
-        assistant.content = fallbackMessage ??
-            '连接提前结束，服务端没有返回内容。请稍后重试。';
+        assistant.content = fallbackMessage ?? '连接提前结束，服务端没有返回内容。请稍后重试。';
       }
       if (seq == _sendSeq) {
         _finishTurn(session, assistant);
@@ -332,8 +342,7 @@ class ChatState extends ChangeNotifier {
         assistant.streaming = false;
       }
       completeLocalTurn();
-      // ignore: unawaited_futures
-      session.save();
+      _store.save(session);
       notifyListeners();
     }
 
@@ -360,9 +369,7 @@ class ChatState extends ChangeNotifier {
       switch (ev.kind) {
         case AiChatEventKind.session:
           if (ev.sessionId != null) {
-            _serverIdMap[session.id] = ev.sessionId!;
-            await prefsBox.put(
-                '$_kServerIdPrefix${session.id}', ev.sessionId);
+            await _rememberServerId(session.id, ev.sessionId!);
           }
           if (ev.balance != null) _lastBalance = ev.balance;
           break;
@@ -412,8 +419,7 @@ class ChatState extends ChangeNotifier {
           final qs = ev.suggestions ?? const <String>[];
           if (qs.isNotEmpty) {
             assistant.suggestions = qs.take(3).toList();
-            // ignore: unawaited_futures
-            session.save();
+            _store.save(session);
           }
           break;
         case AiChatEventKind.error:
@@ -466,7 +472,7 @@ class ChatState extends ChangeNotifier {
         _activeCompleter = null;
       }
       session.updatedAt = DateTime.now();
-      await session.save();
+      _store.save(session);
       notifyListeners();
     }
   }
@@ -521,7 +527,7 @@ class ChatState extends ChangeNotifier {
     final next = assistant.feedback == rating ? 0 : rating;
     assistant.feedback = next;
     notifyListeners();
-    if (session != null) await session.save();
+    if (session != null) _store.save(session);
     String? question;
     if (session != null) {
       final idx = session.messages.indexOf(assistant);
@@ -564,6 +570,15 @@ class ChatState extends ChangeNotifier {
       if (s.id == id) return s;
     }
     return null;
+  }
+
+  Future<void> _rememberServerId(String localId, String serverId) async {
+    _serverIdMap[localId] = serverId;
+    try {
+      await prefsBox.put('$_kServerIdPrefix$localId', serverId);
+    } catch (_) {
+      // 服务端会话映射只是上下文优化；本地偏好盒异常不能打断流式回答。
+    }
   }
 
   @override

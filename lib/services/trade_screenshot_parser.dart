@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/api/api_client.dart';
+import '../core/api/auth_models.dart';
 import '../models/trade_review.dart';
 
 enum TradeParseFailureKind {
@@ -224,7 +225,7 @@ class TradeScreenshotParser {
       throw TradeParseException(
         TradeParseFailureKind.noTrades,
         '$total 张截图都没有识别到成交行。请确认包含「成交记录」或'
-            '「历史成交」列表，并保留日期、方向、数量、价格这几列。',
+        '「历史成交」列表，并保留日期、方向、数量、价格这几列。',
       );
     }
     return ParsedTradesResult(
@@ -332,6 +333,23 @@ class TradeScreenshotParser {
   }
 
   TradeParseException _networkFailure(DioException error) {
+    final apiError = error.error;
+    if (apiError is ApiException) {
+      final mapped = _responseFailure(apiError.statusCode, {
+        'code': apiError.code,
+        'message': apiError.message,
+      });
+      final requestId = apiError.requestId?.trim() ?? '';
+      if (requestId.isEmpty ||
+          mapped.kind == TradeParseFailureKind.unauthorized ||
+          mapped.kind == TradeParseFailureKind.noTrades) {
+        return mapped;
+      }
+      return TradeParseException(
+        mapped.kind,
+        '${mapped.message}（请求号 $requestId）',
+      );
+    }
     return switch (error.type) {
       DioExceptionType.cancel => const TradeParseException(
           TradeParseFailureKind.cancelled,
