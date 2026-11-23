@@ -83,17 +83,6 @@ class ChatState extends ChangeNotifier {
   Persona get currentPersona =>
       Personas.byId(active?.personaId, topic: active?.topic ?? 'money');
 
-  /// 本机往当前会话里插一条 assistant 消息（伴侣主动开口用）。
-  ///
-  /// 不走 /v1/ai/chat、不扣喜点；只是把她说的话放进本地会话。
-  Future<void> addLocalMessage(String text) async {
-    final session = active ?? await newSession();
-    session.messages.add(ChatMessage(role: 'assistant', content: text));
-    session.updatedAt = DateTime.now();
-    _store.save(session);
-    notifyListeners();
-  }
-
   Future<void> bootstrap() async {
     _sessions = List<ChatSession>.from(_store.load())
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -116,12 +105,10 @@ class ChatState extends ChangeNotifier {
 
   /// 「对话」页签只跟投资助理聊。
   ///
-  /// 伴侣主题（`companion`）是上一个产品方向留下的会话：它有自己的页面与
-  /// 入口，**不能**因为 updatedAt 最新就把「对话」页签变成和虚拟人聊天。
-  /// 这里只做选择逻辑，历史会话一条都不会删。
+  /// 老版本（虚拟人伴侣）留下的会话 topic 是 `companion`：它们不能再因为
+  /// updatedAt 最新就被选中，否则页签会变成和虚拟人聊天。这里只做选择逻辑，
+  /// 历史会话一条都不会删。
   static const companionTopic = 'companion';
-
-  bool get activeIsInvestment => (active?.topic ?? 'money') != companionTopic;
 
   ChatSession? _mostRecentInvestment() {
     for (final s in _sessions) {

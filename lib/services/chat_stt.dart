@@ -1,11 +1,11 @@
 import 'package:speech_to_text/speech_to_text.dart';
 
-/// 你的声音：系统中文语音识别（iOS / Android 自带，不上传第三方服务）。
+/// 对话页的语音输入：系统中文语音识别（iOS / Android 自带，不上传第三方服务）。
 ///
 /// 点击麦克风开始，识别到一句完整的话就停；再说一次再点。
-class CompanionStt {
-  CompanionStt._();
-  static final CompanionStt instance = CompanionStt._();
+class ChatStt {
+  ChatStt._();
+  static final ChatStt instance = ChatStt._();
 
   final SpeechToText _stt = SpeechToText();
   bool _ready = false;

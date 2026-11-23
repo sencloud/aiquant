@@ -13,7 +13,6 @@ import '../../../services/invite_service.dart';
 import '../../../services/share_service.dart';
 import '../../../state/chat_state.dart';
 import '../../../theme/app_theme.dart';
-import '../../../wx/wx_kit.dart';
 import 'reasoning_block.dart';
 import 'share_card_screen.dart';
 import 'tool_call_card.dart';
@@ -54,8 +53,6 @@ class MessageBubble extends StatelessWidget {
     this.assistantName = '',
     this.assistantIcon,
     this.assistantColor,
-    this.assistantAvatar,
-    this.showActions = true,
   });
 
   final ChatMessage message;
@@ -82,12 +79,6 @@ class MessageBubble extends StatelessWidget {
   final IconData? assistantIcon;
   final Color? assistantColor;
 
-  /// 对面这位的自定义头像（广场居民用插画头像，钱主题用图标方块）。
-  final Widget? assistantAvatar;
-
-  /// 伴侣页按微信的样子：气泡下面不放操作栏与追问。
-  final bool showActions;
-
   /// 桌面端传 false 隐藏「长图/链接/推广文案」分享类按钮——
   /// share_plus 在 Windows 上能力有限（无系统分享面板），只保留复制。
   final bool showShareActions;
@@ -108,12 +99,10 @@ class MessageBubble extends StatelessWidget {
     final hasImages = imageUrls.isNotEmpty;
 
     // 普通问答走豆包式结构：用户消息右侧浅蓝气泡，AI 回答左侧浅灰通栏
-    // 卡片，双方都不显示头像。伴侣会话仍保留角色头像与微信式气泡。
-    final isCompanion = assistantAvatar != null;
+    // 卡片，双方都不显示头像。
     final fg = isUser ? const Color(0xFF1F2329) : AppColors.textPrimary;
     final width = MediaQuery.of(context).size.width;
-    final maxWidth =
-        width * (isCompanion ? 0.74 : (isUser ? 0.78 : 0.94));
+    final maxWidth = width * (isUser ? 0.78 : 0.94);
 
     // 时间顺序：推理 → 工具调用 → 正文。AI 通常先「调用工具拿数据」，再
     // 「基于数据写正文」，UI 顺序按真实时序展示更直观。
@@ -147,46 +136,32 @@ class MessageBubble extends StatelessWidget {
         if (hasContent)
           Padding(
             padding: EdgeInsets.only(top: (hasToolCalls || hasImages) ? 6 : 0),
-            child: isCompanion
-                ? WxBubble(
-                    isSelf: isUser,
-                    maxWidth: maxWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isUser && message.portfolioAttached)
-                          _PortfolioBadge(name: message.portfolioName),
-                        _content(context, fg),
-                      ],
-                    ),
-                  )
-                : Container(
-                    width: isUser ? null : double.infinity,
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 11),
-                    decoration: BoxDecoration(
-                      color: isUser
-                          ? const Color(0xFFE8F1FF)
-                          : const Color(0xFFF5F6F7),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(18),
-                        topRight: Radius.circular(isUser ? 5 : 18),
-                        bottomLeft: const Radius.circular(18),
-                        bottomRight: const Radius.circular(18),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isUser && message.portfolioAttached)
-                          _PortfolioBadge(name: message.portfolioName),
-                        _content(context, fg),
-                      ],
-                    ),
-                  ),
+            child: Container(
+              width: isUser ? null : double.infinity,
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? const Color(0xFFE8F1FF)
+                    : const Color(0xFFF5F6F7),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: Radius.circular(isUser ? 5 : 18),
+                  bottomLeft: const Radius.circular(18),
+                  bottomRight: const Radius.circular(18),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isUser && message.portfolioAttached)
+                    _PortfolioBadge(name: message.portfolioName),
+                  _content(context, fg),
+                ],
+              ),
+            ),
           ),
-        if (showActions && !isUser && hasContent && !message.streaming)
+        if (!isUser && hasContent && !message.streaming)
           Padding(
             padding: const EdgeInsets.only(top: 2, left: 2),
             child: _MessageActionsBar(
@@ -204,8 +179,7 @@ class MessageBubble extends StatelessWidget {
                   : const [],
             ),
           ),
-        if (showActions &&
-            !isUser &&
+        if (!isUser &&
             isLatest &&
             !message.streaming &&
             onSuggestion != null &&
@@ -217,7 +191,7 @@ class MessageBubble extends StatelessWidget {
               onTap: onSuggestion!,
             ),
           ),
-        if (showActions && isUser && hasContent)
+        if (isUser && hasContent)
           Padding(
             padding: const EdgeInsets.only(top: 4, right: 8),
             child: _UserActionsBar(text: message.content),
@@ -246,36 +220,7 @@ class MessageBubble extends StatelessWidget {
                 ),
               ],
             )
-          : isCompanion
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _avatar(isUser: false),
-                    const SizedBox(width: AppSpace.sm),
-                    Flexible(child: body),
-                  ],
-                )
-              : body,
-    );
-  }
-
-  /// 伴侣会话保留头像；普通问答不再显示双方头像。
-  Widget _avatar({required bool isUser}) {
-    if (isUser) {
-      return WxAvatar(
-        text: selfName.trim().isEmpty ? '我' : selfName.trim(),
-        size: 40,
-        background: AppColors.amber,
-      );
-    }
-    if (assistantAvatar != null) {
-      return SizedBox(width: 40, height: 40, child: assistantAvatar);
-    }
-    return WxAvatar(
-      text: assistantName.trim().isEmpty ? '喜' : assistantName.trim(),
-      icon: assistantIcon,
-      size: 40,
-      background: assistantColor ?? AppColors.amber,
+          : body,
     );
   }
 

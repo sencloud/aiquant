@@ -57,8 +57,6 @@ class Personas {
   static const String campingDefaultId = 'camp_gear';
   static const String hanfuDefaultId = 'hanfu_history';
 
-  /// 伴侣主线的默认人设（喜爱）。
-  static const String companionDefaultId = 'xiai';
 
   /// 某主题的人设列表。
   static List<Persona> forTopic(String topic) {
@@ -73,8 +71,6 @@ class Personas {
         return camping;
       case 'hanfu':
         return hanfu;
-      case 'companion':
-        return companion;
       default:
         return all;
     }
@@ -93,8 +89,6 @@ class Personas {
         return campingDefaultId;
       case 'hanfu':
         return hanfuDefaultId;
-      case 'companion':
-        return companionDefaultId;
       default:
         return defaultId;
     }
@@ -113,22 +107,6 @@ class Personas {
     _commodityFutures,
     _finFutures,
     _optionStrategist,
-  ];
-
-  /// 唯一的伴侣：喜爱（prompt 在服务端 topic=companion）。
-  static final List<Persona> companion = [
-    const Persona(
-      id: 'xiai',
-      displayName: '喜爱',
-      title: 'AI 伴侣',
-      icon: Icons.favorite_rounded,
-      topic: 'companion',
-      welcomeSuggestions: [
-        '今天有点累，陪我说会儿话吧',
-        '收盘了，想跟你聊聊今天',
-        '周末想去钓鱼，你陪我挑个地方？',
-      ],
-    ),
   ];
 
   /// 按 id 找人设；[topic] 给定时只在该主题里找，找不到回落到该主题默认人设。

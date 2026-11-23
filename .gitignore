@@ -96,3 +96,6 @@ id_ed25519*
 
 # flutter golden test failure diff images
 test/failures/
+
+# MemSearch 本地索引与记忆（插件生成的运行时数据，不入库）
+.memsearch/

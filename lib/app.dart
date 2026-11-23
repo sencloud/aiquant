@@ -8,7 +8,6 @@ import 'services/trade_review_repository.dart';
 import 'state/auth_state.dart';
 import 'state/billing_state.dart';
 import 'state/chat_state.dart';
-import 'state/companion_state.dart';
 import 'state/portfolio_state.dart';
 import 'theme/app_theme.dart';
 
@@ -24,11 +23,6 @@ class _XiaiAppState extends State<XiaiApp> {
   late final AuthState _auth = AuthState();
   late final BillingState _billing = BillingState();
   late final ChatState _chat = ChatState();
-
-  /// 对话页的伴侣会话会读它（头像 / 名字 / 记忆）。缺了它整页会抛
-  /// ProviderNotFoundException，在 release 里就是白屏 —— 见
-  /// test/xiai_chat_tab_test.dart。
-  late final CompanionState _companion = CompanionState();
 
   /// 对话页发送「带上我的组合」时要读组合快照。这里只装配、不拉行情：
   /// 用户没进组合页就不发网络请求，发送时读不到持仓会提示忽略。
@@ -46,7 +40,6 @@ class _XiaiAppState extends State<XiaiApp> {
     await Future.wait<void>([
       _guard('auth', _auth.bootstrap()),
       _guard('chat', _chat.bootstrap()),
-      _guard('companion', _companion.load()),
     ]);
     if (_auth.isAuthenticated) {
       await _guard('billing', _billing.refreshAll());
@@ -66,7 +59,6 @@ class _XiaiAppState extends State<XiaiApp> {
     _auth.dispose();
     _billing.dispose();
     _chat.dispose();
-    _companion.dispose();
     _portfolio.dispose();
     super.dispose();
   }
@@ -83,7 +75,6 @@ class _XiaiAppState extends State<XiaiApp> {
           ChangeNotifierProvider<AuthState>.value(value: _auth),
           ChangeNotifierProvider<BillingState>.value(value: _billing),
           ChangeNotifierProvider<ChatState>.value(value: _chat),
-          ChangeNotifierProvider<CompanionState>.value(value: _companion),
           ChangeNotifierProvider<PortfolioState>.value(value: _portfolio),
         ],
         child: const _XiaiRoot(),

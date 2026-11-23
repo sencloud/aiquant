@@ -12,31 +12,22 @@ import '../../models/persona.dart';
 import '../../services/analytics.dart';
 import '../../services/image_attach_service.dart';
 import '../../services/market_briefing.dart';
-import '../../services/companion_voice.dart';
-import '../../services/companion_stt.dart';
+import '../../services/chat_stt.dart';
 import '../../state/auth_state.dart';
-import '../../state/billing_state.dart';
 import '../../state/chat_state.dart';
-import '../../state/companion_state.dart';
 import '../../state/portfolio_state.dart';
 import '../../theme/app_theme.dart';
 import '../../wx/wx_kit.dart';
 import '../settings/account_kit.dart';
-import '../companion/companion_avatar.dart';
-import '../companion/interests_sheet.dart';
-import '../companion/companion_moments_screen.dart';
-import '../companion/memory_screen.dart';
-import '../companion/her_screen.dart';
-import '../companion/live_avatar.dart';
-import '../../models/companion_mood.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 
 /// 聊天页。采用豆包式白底问答：用户消息靠右，AI 回答通栏浅灰卡片，
-/// 底部悬浮输入区。伴侣会话保留角色头像。
+/// 底部悬浮输入区。
 ///
-/// 一个会话 = 一段话题，跟哪一位助手聊写在标题上。这一页作为一级「对话」
-/// 页签保留，用户也可以从右上角菜单发起新对话或切换助手。
+/// 这一页就是「和投资助理对话」：会话主题固定为 money，人选是研究助理 /
+/// 巴菲特 / 格雷厄姆那一套（见 [Personas]）。旧版本的「虚拟人伴侣」已经下线，
+/// 历史里遗留的 companion 会话不会再被选中（见 [ChatState.ensureInvestmentSession]）。
 ///
 /// 逻辑（发送、流式、图片、余额不足、重新生成、推荐追问）与重构前一致，
 /// 这次只换了外观与入口。
@@ -100,8 +91,6 @@ class _AssistantScreenState extends State<AssistantScreen>
   /// 已经为哪个会话做过「进入即定位到最新消息」的初始滚动。
   String? _scrolledSessionId;
 
-  /// 右上角「…」的位置：微信式浮层要贴在它下面。
-  final GlobalKey _moreKey = GlobalKey();
 
   @override
   void initState() {
@@ -109,14 +98,8 @@ class _AssistantScreenState extends State<AssistantScreen>
     _scroll.addListener(_onScroll);
     // 输入框有字没字，决定右边是「发送」还是灰着 —— 需要跟着重建。
     _input.addListener(_onInputChanged);
-    CompanionVoice.instance.init();
-    CompanionVoice.instance.speaking.addListener(_onVoiceChanged);
     // ignore: unawaited_futures
     _loadMarketSuggestions();
-  }
-
-  void _onVoiceChanged() {
-    if (mounted) setState(() {});
   }
 
   void _onInputChanged() {
@@ -127,8 +110,6 @@ class _AssistantScreenState extends State<AssistantScreen>
 
   @override
   void dispose() {
-    CompanionVoice.instance.speaking.removeListener(_onVoiceChanged);
-    CompanionVoice.instance.stop();
     _input.removeListener(_onInputChanged);
     _input.dispose();
     _scroll.removeListener(_onScroll);
@@ -225,19 +206,9 @@ class _AssistantScreenState extends State<AssistantScreen>
       }
     }
     final chat = context.read<ChatState>();
-    final isCompanion = chat.active?.topic == 'companion';
-    final companion = isCompanion ? context.read<CompanionState>() : null;
-    final prefs = companion?.interests;
-    companion?.setMood(AvatarMood.listening);
-    await companion?.rememberFrom(text);
     try {
       await chat.sendMessage(text,
-          portfolioContext: ctxJson,
-          imageDataUrls: images,
-          preferences: prefs,
-          companionName: companion?.name,
-          companionStyle: companion?.look.style,
-          memories: companion?.memories);
+          portfolioContext: ctxJson, imageDataUrls: images);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -246,17 +217,6 @@ class _AssistantScreenState extends State<AssistantScreen>
           const SnackBar(content: Text('消息发送失败，请稍后重试。')),
         );
       return;
-    }
-    final reply = chat.latestAssistant?.content ?? '';
-    companion?.setMood(
-      reply.contains('哈哈') || reply.contains('开心') || reply.contains('喜欢')
-          ? AvatarMood.happy
-          : (reply.contains('害羞') ? AvatarMood.shy : AvatarMood.calm),
-    );
-    if (companion?.voiceEnabled == true && reply.trim().isNotEmpty) {
-      // 她说出来；播放期间头像切到「说话」状态。
-      // ignore: unawaited_futures
-      CompanionVoice.instance.speak(reply);
     }
     Analytics.instance.track(Analytics.evChatSend, {
       'chars': text.length,
@@ -270,12 +230,11 @@ class _AssistantScreenState extends State<AssistantScreen>
 
   Future<void> _toggleVoiceInput() async {
     if (_listening) {
-      await CompanionStt.instance.stop();
+      await ChatStt.instance.stop();
       if (mounted) setState(() => _listening = false);
       return;
     }
-    await CompanionVoice.instance.stop();
-    final ok = await CompanionStt.instance.start(
+    final ok = await ChatStt.instance.start(
       onText: (text) {
         if (!mounted) return;
         setState(() => _listening = false);
@@ -473,14 +432,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     final chat = context.watch<ChatState>();
     final session = chat.active;
     final persona = chat.currentPersona;
-    final isCompanion = session?.topic == 'companion';
-    final companion = isCompanion ? context.watch<CompanionState>() : null;
-    final titleName = companion?.name ?? persona.displayName;
-    final companionMood = companion == null
-        ? AvatarMood.calm
-        : (CompanionVoice.instance.speaking.value
-            ? AvatarMood.speaking
-            : (chat.streaming ? AvatarMood.thinking : companion.mood));
+    final titleName = persona.displayName;
     final selfName = context.watch<AuthState>().currentUser?.nickname ?? '';
 
     if (chat.streaming) _scrollToBottom(animate: false);
@@ -548,16 +500,11 @@ class _AssistantScreenState extends State<AssistantScreen>
           ],
         ),
         actions: [
-          Builder(
-            key: _moreKey,
-            builder: (_) => IconButton(
-              key: const ValueKey('chat-menu'),
-              tooltip: '更多',
-              icon: const Icon(Icons.more_horiz_rounded, size: 24),
-              onPressed: () => isCompanion
-                  ? _openCompanionMenu(chat, persona)
-                  : _openChatMenu(chat, persona),
-            ),
+          IconButton(
+            key: const ValueKey('chat-menu'),
+            tooltip: '更多',
+            icon: const Icon(Icons.more_horiz_rounded, size: 24),
+            onPressed: () => _openChatMenu(chat, persona),
           ),
         ],
       ),
@@ -570,11 +517,7 @@ class _AssistantScreenState extends State<AssistantScreen>
                   ? _welcomePanel(persona)
                   : GestureDetector(
                       behavior: HitTestBehavior.translucent,
-                      onTap: () {
-                        FocusScope.of(context).unfocus();
-                        // ignore: unawaited_futures
-                        CompanionVoice.instance.stop();
-                      },
+                      onTap: () => FocusScope.of(context).unfocus(),
                       child: ListView.builder(
                         controller: _scroll,
                         keyboardDismissBehavior:
@@ -604,29 +547,6 @@ class _AssistantScreenState extends State<AssistantScreen>
                                 isLatest: isLatest,
                                 selfName: selfName,
                                 assistantName: titleName,
-                                showActions: !isCompanion,
-                                assistantAvatar: session.topic == 'companion'
-                                    ? GestureDetector(
-                                        onTap: () => Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                              builder: (_) =>
-                                                  const HerScreen()),
-                                        ),
-                                        child: AnimatedSwitcher(
-                                          duration:
-                                              const Duration(milliseconds: 220),
-                                          child: LiveAvatar(
-                                            key: ValueKey(companion!.look.id),
-                                            look: companion.look,
-                                            mood: companionMood,
-                                            width: 40,
-                                            height: 40,
-                                            radius: 20,
-                                            glow: false,
-                                          ),
-                                        ),
-                                      )
-                                    : null,
                                 onSuggestion: isLatest ? _sendSuggestion : null,
                                 onRegenerate: isLatest
                                     ? () => _regenerate(chat, msg)
@@ -646,178 +566,9 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
-  /// 伴侣版的「…」：微信式深色浮层，贴在右上角。
-  Future<void> _openCompanionMenu(ChatState chat, Persona persona) async {
-    final auth = context.read<AuthState>();
-    final billing = context.read<BillingState>();
-    final companion = context.read<CompanionState>();
-    final user = auth.currentUser;
-    final box = _moreKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    final rect = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(Offset.zero),
-        box.localToGlobal(box.size.bottomRight(Offset.zero)),
-      ),
-      Offset.zero & overlay.size,
-    );
-    final action = await showMenu<String>(
-      context: context,
-      position: rect,
-      color: const Color(0xFF2C2C2C),
-      elevation: 10,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      constraints: const BoxConstraints(minWidth: 184),
-      items: [
-        _wxMenuItem('look', Icons.swipe_rounded, '遇见'),
-        _wxMenuItem('moments', Icons.camera_alt_outlined, '看她'),
-        _wxMenuItem('memory', Icons.psychology_alt_outlined, '她记得的事'),
-        _wxMenuItem('interests', Icons.favorite_border_rounded, '兴趣设置'),
-        _wxMenuItem(
-          'credits',
-          Icons.savings_outlined,
-          user == null
-              ? '喜点（登录后可见）'
-              : '喜点 ${CreditFmt.balance(billing.balance)}',
-        ),
-        _wxMenuItem(
-          'voice',
-          CompanionVoice.instance.speaking.value
-              ? Icons.volume_up_rounded
-              : Icons.volume_off_rounded,
-          companion.voiceEnabled ? '她的声音：开' : '她的声音：关',
-        ),
-        _wxMenuItem(
-          user == null ? 'login' : 'logout',
-          user == null ? Icons.login_rounded : Icons.logout_rounded,
-          user == null ? '登录 / 注册' : '退出登录',
-        ),
-        _wxMenuItem('clear', Icons.delete_sweep_outlined, '清空聊天记录'),
-        _wxMenuItem('about', Icons.info_outline_rounded, '关于'),
-      ],
-    );
-    if (!mounted || action == null) return;
-    switch (action) {
-      case 'look':
-        final look = await companion.nextLook();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('现在是 ${look.name} 陪你'),
-          duration: const Duration(milliseconds: 1200),
-        ));
-        break;
-      case 'moments':
-        await Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => const CompanionMomentsScreen()));
-        break;
-      case 'memory':
-        await Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const MemoryScreen()));
-        break;
-      case 'voice':
-        final on = !companion.voiceEnabled;
-        await companion.setVoiceEnabled(on);
-        if (!on) await CompanionVoice.instance.stop();
-        break;
-      case 'interests':
-        await showInterestsSheet(context);
-        break;
-      case 'credits':
-        if (!auth.isAuthenticated) {
-          await requireLogin(context);
-        } else if (rechargeAvailable) {
-          await showRechargeSheet(context);
-        } else {
-          showLedgerSheet(context);
-        }
-        break;
-      case 'login':
-        await requireLogin(context);
-        break;
-      case 'logout':
-        await auth.logout();
-        break;
-      case 'clear':
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('清空这段对话'),
-            content: const Text('她会忘掉这段对话里的内容，但她记得的喜欢还在。'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('再想想')),
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('清空')),
-            ],
-          ),
-        );
-        if (ok != true || !mounted) return;
-        final id = chat.activeId;
-        if (id != null) await chat.deleteSession(id);
-        await chat.newSession(
-            topic: 'companion', personaId: 'xiai', title: companion.name);
-        await chat.addLocalMessage('我是${companion.name}。\n陪着你，是长情的告白。');
-        break;
-      case 'about':
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('关于喜爱'),
-            content: const Text(
-              '她是 AI 伴侣，不是真人。\n\n'
-              '她记得你选过的兴趣，会在你一阵子没说话的时候先开口。'
-              '她不替你下单、不承诺收益、不向你索要钱财或隐私。\n\n'
-              '陪伴是长情的告白，但真实的生活和关系更值得你花时间。',
-              style: TextStyle(fontSize: 14, height: 1.65),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('知道了')),
-            ],
-          ),
-        );
-        break;
-    }
-  }
-
-  PopupMenuItem<String> _wxMenuItem(String value, IconData icon, String label) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: 46,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.white),
-          const SizedBox(width: 10),
-          Text(label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontFamilyFallback: AppType.sansFallback,
-              )),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _switchLook(CompanionState companion) async {
-    final look = await companion.nextLook();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('现在是 ${look.name} 陪你'),
-      duration: const Duration(milliseconds: 1200),
-    ));
-  }
 
   /// 空会话时的问候：豆包式标题、说明与建议问题，不抢对话主体视觉。
   Widget _welcomePanel(Persona persona) {
-    if (context.watch<ChatState>().active?.topic == 'companion') {
-      return _companionWelcome(persona);
-    }
     final loadedAt = _suggestionsLoadedAt;
     if (loadedAt == null ||
         DateTime.now().difference(loadedAt) > const Duration(minutes: 5)) {
@@ -876,41 +627,6 @@ class _AssistantScreenState extends State<AssistantScreen>
             const SizedBox(height: AppSpace.xs),
           ],
         ),
-      ),
-    );
-  }
-
-  /// 伴侣的空会话：她的头像、一句承诺、她记得的喜欢，以及三个开场。
-  Widget _companionWelcome(Persona persona) {
-    final companion = context.watch<CompanionState>();
-    var slot = 0;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpace.xl, AppSpace.xl, AppSpace.xl, AppSpace.xl),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _entrance(
-              slot++,
-              GestureDetector(
-                onTap: () => _switchLook(companion),
-                child: CompanionAvatar(
-                    size: 88, radius: 22, asset: companion.look.asset),
-              )),
-          const SizedBox(height: AppSpace.lg),
-          _entrance(
-              slot++,
-              Text('我是${companion.name}。',
-                  textAlign: TextAlign.center,
-                  style: AppType.title.copyWith(fontSize: 22))),
-          const SizedBox(height: AppSpace.sm),
-          _entrance(
-              slot++,
-              Text('陪着你，是长情的告白。',
-                  textAlign: TextAlign.center,
-                  style: AppType.read
-                      .copyWith(fontSize: 15, color: AppColors.textSecondary))),
-        ],
       ),
     );
   }
