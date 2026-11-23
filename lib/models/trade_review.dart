@@ -121,6 +121,13 @@ class ParsedTradesResult {
     this.screenshotCount = 1,
     this.successfulScreenshotCount = 1,
     this.duplicateTradeCount = 0,
+    this.rawTradeCount = 0,
+    this.validTradeCount = 0,
+    this.invalidRowCount = 0,
+    this.dateFilteredOutTradeCount = 0,
+    this.importSource = '图片',
+    this.periodStart,
+    this.periodEnd,
   });
 
   final String brokerHint;
@@ -130,6 +137,99 @@ class ParsedTradesResult {
   final int screenshotCount;
   final int successfulScreenshotCount;
   final int duplicateTradeCount;
+
+  /// 文件行数，或截图中识别出的原始成交行数。
+  final int rawTradeCount;
+
+  /// 通过字段校验、且尚未按日期过滤的成交数。
+  final int validTradeCount;
+
+  /// 缺字段、方向无效或数字格式错误而跳过的行。
+  final int invalidRowCount;
+
+  /// 通过字段校验，但成交时间不在所选时间段内的行。
+  final int dateFilteredOutTradeCount;
+
+  final String importSource;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+
+  ParsedTradesResult withImportMetadata({
+    required List<ParsedTrade> trades,
+    required DateTime periodStart,
+    required DateTime periodEnd,
+    required String importSource,
+    required int rawTradeCount,
+    required int validTradeCount,
+    required int invalidRowCount,
+    required int dateFilteredOutTradeCount,
+    int duplicateTradeCount = 0,
+  }) {
+    return ParsedTradesResult(
+      brokerHint: brokerHint,
+      currency: currency,
+      trades: trades,
+      warnings: warnings,
+      screenshotCount: screenshotCount,
+      successfulScreenshotCount: successfulScreenshotCount,
+      duplicateTradeCount: duplicateTradeCount,
+      rawTradeCount: rawTradeCount,
+      validTradeCount: validTradeCount,
+      invalidRowCount: invalidRowCount,
+      dateFilteredOutTradeCount: dateFilteredOutTradeCount,
+      importSource: importSource,
+      periodStart: periodStart,
+      periodEnd: periodEnd,
+    );
+  }
+
+  /// Applies an inclusive exchange-date range after recognition.
+  ///
+  /// File imports filter before constructing the result; screenshots need the
+  /// same boundary behavior after all pages have been merged.
+  ParsedTradesResult filterByPeriod({
+    required DateTime periodStart,
+    required DateTime periodEnd,
+  }) {
+    final start = DateTime(periodStart.year, periodStart.month, periodStart.day);
+    final end = DateTime(
+      periodEnd.year,
+      periodEnd.month,
+      periodEnd.day,
+      23,
+      59,
+      59,
+      999,
+    );
+    final selected = [
+      for (final trade in trades)
+        if (!trade.occurredAt.isBefore(start) &&
+            !trade.occurredAt.isAfter(end))
+          trade,
+    ];
+    final filteredOut = trades.length - selected.length;
+    return ParsedTradesResult(
+      brokerHint: brokerHint,
+      currency: currency,
+      trades: selected,
+      warnings: [
+        ...warnings,
+        if (filteredOut > 0)
+          '$filteredOut 笔成交不在所选时间段内，已过滤。',
+      ],
+      screenshotCount: screenshotCount,
+      successfulScreenshotCount: successfulScreenshotCount,
+      duplicateTradeCount: duplicateTradeCount,
+      rawTradeCount: rawTradeCount,
+      validTradeCount: validTradeCount,
+      invalidRowCount: invalidRowCount,
+      dateFilteredOutTradeCount:
+          dateFilteredOutTradeCount + filteredOut,
+      importSource: importSource,
+      periodStart: start,
+      periodEnd: DateTime(periodEnd.year, periodEnd.month, periodEnd.day),
+    );
+  }
 }
 
 /// 合并一组截图的识别结果。
@@ -221,6 +321,10 @@ ParsedTradesResult mergeParsedTradeResults(
     screenshotCount: screenshotCount,
     successfulScreenshotCount: results.length,
     duplicateTradeCount: duplicateCount,
+    rawTradeCount: inputTradeCount,
+    validTradeCount: inputTradeCount,
+    invalidRowCount: 0,
+    dateFilteredOutTradeCount: 0,
   );
 }
 

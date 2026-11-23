@@ -32,8 +32,8 @@ import '../../models/companion_mood.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/persona_picker.dart';
 
-/// 聊天页。版式照微信：灰底、白牙栏居中写对方的名字、气泡左右分色、
-/// 底部一条输入栏，右边一个绿色「发送」。
+/// 聊天页。采用豆包式白底问答：用户消息靠右，AI 回答通栏浅灰卡片，
+/// 底部悬浮输入区。伴侣会话保留角色头像。
 ///
 /// 一个会话 = 一段话题，跟哪一位助手聊写在标题上。这一页作为一级「对话」
 /// 页签保留，用户也可以从右上角菜单发起新对话或切换助手。
@@ -506,14 +506,36 @@ class _AssistantScreenState extends State<AssistantScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgBase,
+      key: const ValueKey('chat-white-surface'),
+      backgroundColor: AppColors.bgSurface,
       appBar: AppBar(
-        titleSpacing: 0,
-        title: Text(
-          titleName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppType.title.copyWith(color: AppColors.textPrimary),
+        centerTitle: true,
+        toolbarHeight: 64,
+        backgroundColor: AppColors.bgSurface,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              titleName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.title.copyWith(
+                color: AppColors.textPrimary,
+                fontSize: 17,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              'AI 生成可能有误，注意核实',
+              style: AppType.micro.copyWith(
+                color: AppColors.textTertiary,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ),
         actions: [
           Builder(
@@ -527,86 +549,90 @@ class _AssistantScreenState extends State<AssistantScreen>
                   : _openChatMenu(chat, persona),
             ),
           ),
-          const SizedBox(width: AppSpace.xs),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: isEmptySession
-                ? _welcomePanel(persona)
-                : GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () {
-                      FocusScope.of(context).unfocus();
-                      // ignore: unawaited_futures
-                      CompanionVoice.instance.stop();
-                    },
-                    child: ListView.builder(
-                      controller: _scroll,
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(
-                          AppSpace.sm, AppSpace.md, AppSpace.sm, AppSpace.lg),
-                      itemCount: session.messages.length,
-                      itemBuilder: (context, i) {
-                        final msg = session.messages[i];
-                        final prev = i == 0 ? null : session.messages[i - 1];
-                        final gap = prev == null
-                            ? null
-                            : msg.timestamp.difference(prev.timestamp);
-                        final showTime = gap == null ||
-                            gap.inMinutes.abs() >= 5 ||
-                            gap.isNegative;
-                        final isLatest = identical(msg, latest);
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (showTime)
-                              WxTimeStamp(wxChatTime(msg.timestamp)),
-                            MessageBubble(
-                              message: msg,
-                              allMessages: session.messages,
-                              showReasoning: _showReasoning,
-                              isLatest: isLatest,
-                              selfName: selfName,
-                              assistantName: titleName,
-                              showActions: !isCompanion,
-                              assistantAvatar: session.topic == 'companion'
-                                  ? GestureDetector(
-                                      onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                            builder: (_) => const HerScreen()),
-                                      ),
-                                      child: AnimatedSwitcher(
-                                        duration:
-                                            const Duration(milliseconds: 220),
-                                        child: LiveAvatar(
-                                          key: ValueKey(companion!.look.id),
-                                          look: companion.look,
-                                          mood: companionMood,
-                                          width: 40,
-                                          height: 40,
-                                          radius: 6,
-                                          glow: false,
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                              onSuggestion: isLatest ? _sendSuggestion : null,
-                              onRegenerate: isLatest
-                                  ? () => _regenerate(chat, msg)
-                                  : null,
-                              onFeedback: (r) => chat.setFeedback(msg, r),
-                            ),
-                          ],
-                        );
+      body: ColoredBox(
+        color: AppColors.bgSurface,
+        child: Column(
+          children: [
+            Expanded(
+              child: isEmptySession
+                  ? _welcomePanel(persona)
+                  : GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        // ignore: unawaited_futures
+                        CompanionVoice.instance.stop();
                       },
+                      child: ListView.builder(
+                        controller: _scroll,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpace.md, AppSpace.sm, AppSpace.md, AppSpace.lg),
+                        itemCount: session.messages.length,
+                        itemBuilder: (context, i) {
+                          final msg = session.messages[i];
+                          final prev = i == 0 ? null : session.messages[i - 1];
+                          final gap = prev == null
+                              ? null
+                              : msg.timestamp.difference(prev.timestamp);
+                          final showTime = gap == null ||
+                              gap.inMinutes.abs() >= 5 ||
+                              gap.isNegative;
+                          final isLatest = identical(msg, latest);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showTime)
+                                WxTimeStamp(wxChatTime(msg.timestamp)),
+                              MessageBubble(
+                                message: msg,
+                                allMessages: session.messages,
+                                showReasoning: _showReasoning,
+                                isLatest: isLatest,
+                                selfName: selfName,
+                                assistantName: titleName,
+                                showActions: !isCompanion,
+                                assistantAvatar: session.topic == 'companion'
+                                    ? GestureDetector(
+                                        onTap: () => Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  const HerScreen()),
+                                        ),
+                                        child: AnimatedSwitcher(
+                                          duration:
+                                              const Duration(milliseconds: 220),
+                                          child: LiveAvatar(
+                                            key: ValueKey(companion!.look.id),
+                                            look: companion.look,
+                                            mood: companionMood,
+                                            width: 40,
+                                            height: 40,
+                                            radius: 20,
+                                            glow: false,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                                onSuggestion:
+                                    isLatest ? _sendSuggestion : null,
+                                onRegenerate: isLatest
+                                    ? () => _regenerate(chat, msg)
+                                    : null,
+                                onFeedback: (r) => chat.setFeedback(msg, r),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
-          ),
-          _composer(chat),
-        ],
+            ),
+            _composer(chat),
+          ],
+        ),
       ),
     );
   }
@@ -778,7 +804,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     ));
   }
 
-  /// 空会话时的问候：一行白字 + 三条快捷提问（白面行，和微信列表同一套）。
+  /// 空会话时的问候：豆包式标题、说明与建议问题，不抢对话主体视觉。
   Widget _welcomePanel(Persona persona) {
     if (context.watch<ChatState>().active?.topic == 'companion') {
       return _companionWelcome(persona);
@@ -810,18 +836,24 @@ class _AssistantScreenState extends State<AssistantScreen>
             const Spacer(),
             _entrance(
               slot++,
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  WxAvatar(
-                    text: persona.displayName,
-                    icon: persona.icon,
-                    background: persona.color,
-                    size: 40,
+                  Text(
+                    'Hi，$who',
+                    style: AppType.title.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                    ),
                   ),
-                  const SizedBox(width: AppSpace.md),
-                  Flexible(
-                    child: Text('Hi，$who',
-                        style: AppType.title.copyWith(fontSize: 20)),
+                  const SizedBox(height: 8),
+                  Text(
+                    '今天想从哪个问题开始？',
+                    style: AppType.body.copyWith(
+                      fontSize: 15,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -898,23 +930,23 @@ class _AssistantScreenState extends State<AssistantScreen>
     }
   }
 
-  /// 快捷提问：白面行（微信列表的样子），点了直接问。
+  /// 快捷提问：豆包式浅灰建议卡片，轻量、可直接点开。
   Widget _suggestion(String text) => Material(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(18),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(18),
           onTap: () => _send(text),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.lg, vertical: 13),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Expanded(
                   child: Text(text, style: AppType.body.copyWith(fontSize: 15)),
                 ),
-                Icon(Icons.chevron_right_rounded,
-                    size: 18, color: AppColors.textTertiary),
+                Icon(Icons.arrow_forward_rounded,
+                    size: 17, color: AppColors.textTertiary),
               ],
             ),
           ),
@@ -942,14 +974,11 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
-  /// 输入栏：微信那条 —— 灰底、一条发丝线、白色圆角输入框、右边绿色发送。
+  /// 输入栏：豆包式白底悬浮输入框，左侧拍照与语音，右侧圆形发送。
   Widget _composer(ChatState chat) {
     final typed = _input.text.trim().isNotEmpty || _pendingImages.isNotEmpty;
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgRaised,
-        border: Border(top: BorderSide(color: AppColors.borderDim, width: 0.5)),
-      ),
+      color: AppColors.bgSurface,
       padding: EdgeInsets.fromLTRB(AppSpace.sm, AppSpace.sm, AppSpace.sm,
           AppSpace.sm + MediaQuery.of(context).padding.bottom),
       child: Column(
@@ -968,40 +997,56 @@ class _AssistantScreenState extends State<AssistantScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _attachButton(),
-              _voiceButton(),
-              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  constraints: const BoxConstraints(minHeight: 48),
                   decoration: BoxDecoration(
                     color: AppColors.bgSurface,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0D000000),
+                        blurRadius: 14,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: TextField(
-                    controller: _input,
-                    focusNode: _focus,
-                    minLines: 1,
-                    maxLines: 5,
-                    style: AppType.body.copyWith(fontSize: 16),
-                    decoration: InputDecoration(
-                      hintText: '发消息…',
-                      isDense: true,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                      hintStyle: AppType.body.copyWith(
-                          fontSize: 16, color: AppColors.textTertiary),
-                    ),
-                    onTapOutside: (_) => _focus.unfocus(),
-                    onSubmitted: (_) => _send(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _attachButton(),
+                      Expanded(
+                        child: TextField(
+                          controller: _input,
+                          focusNode: _focus,
+                          minLines: 1,
+                          maxLines: 5,
+                          style: AppType.body.copyWith(fontSize: 16),
+                          decoration: InputDecoration(
+                            hintText: '发消息或提问…',
+                            isDense: true,
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                            hintStyle: AppType.body.copyWith(
+                                fontSize: 16,
+                                color: AppColors.textTertiary),
+                          ),
+                          onTapOutside: (_) => _focus.unfocus(),
+                          onSubmitted: (_) => _send(),
+                        ),
+                      ),
+                      _voiceButton(),
+                      const SizedBox(width: 2),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpace.sm),
+              const SizedBox(width: 8),
               _sendButton(chat, typed),
             ],
           ),
@@ -1070,7 +1115,7 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
-  /// 输入栏左边的「＋」：拍照 / 相册（一个入口，和微信的 ＋ 同一个位置）。
+  /// 输入栏左侧：拍照 / 相册入口。
   Widget _attachButton() {
     final full = _pendingImages.length >= ImageAttachService.maxImages;
     final disabled = full || _pickingImage;
@@ -1083,8 +1128,8 @@ class _AssistantScreenState extends State<AssistantScreen>
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Icon(
-            Icons.add_circle_outline_rounded,
-            size: 26,
+            Icons.photo_camera_outlined,
+            size: 22,
             color: disabled ? AppColors.textTertiary : AppColors.textPrimary,
           ),
         ),
@@ -1111,42 +1156,37 @@ class _AssistantScreenState extends State<AssistantScreen>
     );
   }
 
-  /// 右边：有字（或带了图）就是绿色「发送」，流式中是「停止」。
+  /// 右边：有字时是可发送的圆形按钮，流式中切换为停止。
   Widget _sendButton(ChatState chat, bool typed) {
     if (chat.streaming) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 2),
-        child: TextButton(
+      return SizedBox(
+        width: 46,
+        height: 46,
+        child: IconButton.filled(
+          tooltip: '停止生成',
           onPressed: () => chat.abort(),
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.bgSurface,
-            foregroundColor: AppColors.textPrimary,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-            minimumSize: const Size(0, 36),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md)),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.textPrimary,
+            foregroundColor: AppColors.bgSurface,
           ),
-          child: const Text('停止', style: TextStyle(fontSize: 15)),
+          icon: const Icon(Icons.stop_rounded, size: 21),
         ),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: TextButton(
+    return SizedBox(
+      width: 46,
+      height: 46,
+      child: IconButton.filled(
         key: const ValueKey('chat-send'),
+        tooltip: '发送',
         onPressed: typed ? _send : null,
-        style: TextButton.styleFrom(
+        style: IconButton.styleFrom(
           backgroundColor: AppColors.amber,
           foregroundColor: AppColors.onAccent,
-          disabledBackgroundColor: AppColors.bgSurface,
+          disabledBackgroundColor: const Color(0xFFF1F1F1),
           disabledForegroundColor: AppColors.textTertiary,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
-          minimumSize: const Size(0, 36),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md)),
         ),
-        child: const Text('发送',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        icon: const Icon(Icons.arrow_upward_rounded, size: 22),
       ),
     );
   }

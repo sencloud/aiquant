@@ -149,9 +149,19 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 		if err != nil {
 			message := err.Error()
 			if strings.Contains(message, "no valid trade rows") {
-				WriteError(w, r, platform.ErrBadRequest(
-					"PORTFOLIO.NO_TRADES",
-					"截图里没有找到可确认的成交行，请换一张清晰的成交记录截图", nil))
+				// 滚动截图的重叠页、页尾空白或已被上一张覆盖的区域，
+				// 视觉模型可能正确返回“没有可确认的成交行”。这是成功的
+				// 空页，不应让整批多图导入失败，更不应显示成网络错误。
+				WriteJSON(w, http.StatusOK, map[string]any{
+					"source":      "qwen-vl",
+					"broker_hint": "",
+					"currency":    "CNY",
+					"trades":      []any{},
+					"warnings": []string{
+						"本页没有发现新的成交行，可能是两张截图的重叠区域或空白页。",
+					},
+					"no_new_rows": true,
+				})
 				return
 			}
 			WriteError(w, r, platform.ErrInternal(
@@ -159,9 +169,15 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 			return
 		}
 		if len(out.Trades) == 0 {
-			WriteError(w, r, platform.ErrBadRequest(
-				"PORTFOLIO.NO_TRADES",
-				"截图里没有找到可确认的成交行，请换一张清晰的成交记录截图", nil))
+			WriteJSON(w, http.StatusOK, map[string]any{
+				"source":      "qwen-vl",
+				"broker_hint": out.BrokerHint,
+				"currency":    out.Currency,
+				"trades":      []any{},
+				"warnings": append(out.Warnings,
+					"本页没有发现新的成交行，可能是两张截图的重叠区域或空白页。"),
+				"no_new_rows": true,
+			})
 			return
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{
@@ -170,6 +186,7 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 			"currency":    out.Currency,
 			"trades":      out.Trades,
 			"warnings":    out.Warnings,
+			"no_new_rows": false,
 		})
 	}
 }

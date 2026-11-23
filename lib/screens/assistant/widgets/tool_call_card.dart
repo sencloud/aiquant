@@ -50,6 +50,9 @@ class _ToolCallCardState extends State<_ToolCallCard> {
   bool _expanded = false;
 
   bool get _running => widget.result?.streaming ?? widget.result == null;
+  bool get _isWebSearch =>
+      widget.call.name == 'search_web' ||
+      widget.call.name.startsWith('search_web_');
   bool get _hasError {
     final r = widget.result;
     if (r == null || r.streaming) return false;
@@ -100,18 +103,22 @@ class _ToolCallCardState extends State<_ToolCallCard> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    widget.call.name,
+                    _label,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       color: accent,
-                      fontFamily: 'monospace',
+                      fontFamily: _isWebSearch ? null : 'monospace',
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _running ? '调用中…' : (_hasError ? '失败' : '完成'),
+                      _running
+                          ? (_isWebSearch ? '搜索中…' : '调用中…')
+                          : (_hasError
+                              ? '失败'
+                              : (_isWebSearch ? '已搜索网页' : '完成')),
                       style: TextStyle(
                           fontSize: 10, color: AppColors.textTertiary),
                     ),
@@ -135,6 +142,8 @@ class _ToolCallCardState extends State<_ToolCallCard> {
       ),
     );
   }
+
+  String get _label => _isWebSearch ? '联网搜索' : widget.call.name;
 
   Widget _kv(String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,

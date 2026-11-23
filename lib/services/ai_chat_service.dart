@@ -87,10 +87,16 @@ class AiChatService {
 
     http.StreamedResponse resp;
     try {
-      resp = await client.send(req).timeout(const Duration(seconds: 180));
+      // 服务端收到请求后会先回响应头并发送 session 事件。30 秒仍没有
+      // 响应头就不是“模型思考慢”，而是请求或网关异常。
+      resp = await client.send(req).timeout(const Duration(seconds: 30));
     } catch (e) {
       client.close();
-      yield AiChatEvent.error('NETWORK', '网络错误：$e');
+      final timeout = e is TimeoutException;
+      yield AiChatEvent.error(
+        timeout ? 'CONNECT_TIMEOUT' : 'CONNECT_FAILED',
+        timeout ? '连接超时，服务暂时没有响应，请稍后重试。' : '无法连接对话服务，请检查网络后重试。',
+      );
       return;
     }
 
@@ -113,15 +119,23 @@ class AiChatService {
     String? eventName;
     final dataBuf = StringBuffer();
 
+    var terminalEventSeen = false;
     try {
       await for (final line in resp.stream
           .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+          .transform(const LineSplitter())
+          .timeout(const Duration(seconds: 60))) {
         if (line.isEmpty) {
           // 一条 event 结束（按 SSE 协议）
           if (eventName != null && dataBuf.isNotEmpty) {
             final ev = _parse(eventName, dataBuf.toString());
-            if (ev != null) yield ev;
+            if (ev != null) {
+              if (ev.kind == AiChatEventKind.done ||
+                  ev.kind == AiChatEventKind.error) {
+                terminalEventSeen = true;
+              }
+              yield ev;
+            }
           }
           eventName = null;
           dataBuf.clear();
@@ -138,10 +152,27 @@ class AiChatService {
       // 流末尾若残留一段未空行结束的事件，补 emit 一次
       if (eventName != null && dataBuf.isNotEmpty) {
         final ev = _parse(eventName, dataBuf.toString());
-        if (ev != null) yield ev;
+        if (ev != null) {
+          if (ev.kind == AiChatEventKind.done ||
+              ev.kind == AiChatEventKind.error) {
+            terminalEventSeen = true;
+          }
+          yield ev;
+        }
       }
+      if (!terminalEventSeen) {
+        yield AiChatEvent.error(
+          'STREAM_EOF',
+          '回复连接提前结束，请重新发送一次。',
+        );
+      }
+    } on TimeoutException {
+      yield AiChatEvent.error(
+        'STREAM_TIMEOUT',
+        '回复等待超时，请稍后重试；已生成的内容仍会保留。',
+      );
     } catch (e) {
-      yield AiChatEvent.error('STREAM_READ', '流读取异常：$e');
+      yield AiChatEvent.error('STREAM_READ', '回复读取中断，请重试。');
     } finally {
       client.close();
     }

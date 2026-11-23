@@ -37,6 +37,8 @@ class ChatState extends ChangeNotifier {
   /// 当前流对应的完成信号：取消订阅不会触发 onDone，主动取消时要手动结束它，
   /// 否则 sendMessage 的 Future 永远不返回。
   Completer<void>? _activeCompleter;
+  ChatMessage? _activeAssistant;
+  DateTime? _activeTurnStartedAt;
 
   void _completeActive() {
     final c = _activeCompleter;
@@ -183,10 +185,26 @@ class ChatState extends ChangeNotifier {
   }
 
   Future<void> abort() async {
+    final assistant = _activeAssistant;
+    final startedAt = _activeTurnStartedAt;
+    if (assistant != null &&
+        assistant.durationMs == null &&
+        startedAt != null) {
+      assistant.durationMs =
+          DateTime.now().difference(startedAt).inMilliseconds;
+    }
+    final activeSession = active;
+    if (assistant != null && activeSession != null) {
+      _finishTurn(activeSession, assistant);
+      // ignore: unawaited_futures
+      activeSession.save();
+    }
     _sendSeq++;
     await _activeStream?.cancel();
     _completeActive();
     _activeStream = null;
+    _activeAssistant = null;
+    _activeTurnStartedAt = null;
     _streaming = false;
     notifyListeners();
   }
@@ -201,6 +219,8 @@ class ChatState extends ChangeNotifier {
   Future<void> reset() async {
     await _activeStream?.cancel();
     _activeStream = null;
+    _activeAssistant = null;
+    _activeTurnStartedAt = null;
     _streaming = false;
 
     _store.clear();
@@ -249,6 +269,7 @@ class ChatState extends ChangeNotifier {
       _completeActive();
     }
     final seq = ++_sendSeq;
+    final turnStartedAt = DateTime.now();
 
     final hasPortfolio =
         portfolioContext != null && portfolioContext.isNotEmpty;
@@ -272,6 +293,8 @@ class ChatState extends ChangeNotifier {
       streaming: true,
     );
     session.messages.add(assistant);
+    _activeAssistant = assistant;
+    _activeTurnStartedAt = turnStartedAt;
 
     _streaming = true;
     _totalToolCalls = 0;
@@ -280,6 +303,40 @@ class ChatState extends ChangeNotifier {
     // 人设 prompt 由服务端按 (topic, persona) 维护，客户端只传 id。
     final completer = Completer<void>();
     _activeCompleter = completer;
+    var streamEnded = false;
+    var terminalEventSeen = false;
+
+    void completeLocalTurn() {
+      if (!completer.isCompleted) completer.complete();
+      if (identical(_activeCompleter, completer)) {
+        _activeCompleter = null;
+      }
+    }
+
+    void finishFromStream({
+      required bool terminal,
+      String? fallbackMessage,
+    }) {
+      if (streamEnded) return;
+      streamEnded = true;
+      assistant.durationMs ??=
+          DateTime.now().difference(turnStartedAt).inMilliseconds;
+      if (!terminal && assistant.content.trim().isEmpty) {
+        assistant.content = fallbackMessage ??
+            '连接提前结束，服务端没有返回内容。请稍后重试。';
+      }
+      if (seq == _sendSeq) {
+        _finishTurn(session, assistant);
+        _streaming = false;
+      } else {
+        assistant.streaming = false;
+      }
+      completeLocalTurn();
+      // ignore: unawaited_futures
+      session.save();
+      notifyListeners();
+    }
+
     _activeStream = _svc
         .stream(
       serverSessionId: _serverIdMap[session.id],
@@ -341,13 +398,15 @@ class ChatState extends ChangeNotifier {
           }
           break;
         case AiChatEventKind.done:
+          terminalEventSeen = true;
           if (ev.balanceAfter != null) _lastBalance = ev.balanceAfter;
+          if (assistant.content.trim().isEmpty &&
+              (ev.finalText ?? '').trim().isNotEmpty) {
+            assistant.content = ev.finalText!.trim();
+          }
           // 回答已经完整：立刻结束「输出中」状态（操作栏出现、可以继续发），
           // 流本身再多开几秒等可选的 suggestions 事件。
-          _finishTurn(session, assistant);
-          _streaming = false;
-          // ignore: unawaited_futures
-          session.save();
+          finishFromStream(terminal: true);
           break;
         case AiChatEventKind.suggestions:
           final qs = ev.suggestions ?? const <String>[];
@@ -358,6 +417,7 @@ class ChatState extends ChangeNotifier {
           }
           break;
         case AiChatEventKind.error:
+          terminalEventSeen = true;
           final code = ev.errorCode ?? '';
           if (code == 'AI.INSUFFICIENT_BALANCE' || code == 'AI.CHARGE') {
             // 余额相关错误：UI 层负责弹「前往充值」对话框，正文不再叠加。
@@ -370,25 +430,40 @@ class ChatState extends ChangeNotifier {
             assistant.content +=
                 '${assistant.content.isEmpty ? '' : '\n\n'}⚠️ ${ev.errorCode}：${ev.errorMessage}';
           }
+          finishFromStream(terminal: true);
           break;
       }
       notifyListeners();
     }, onError: (Object e, StackTrace st) {
-      assistant.content +=
-          '${assistant.content.isEmpty ? '' : '\n\n'}⚠️ 调用失败：$e';
-      if (!completer.isCompleted) completer.complete();
+      if (!terminalEventSeen && !streamEnded) {
+        assistant.content +=
+            '${assistant.content.isEmpty ? '' : '\n\n'}⚠️ 回复连接中断，请重试。';
+      }
+      finishFromStream(terminal: true);
     }, onDone: () {
-      if (!completer.isCompleted) completer.complete();
+      // 正常服务端会先发 done。自然 EOF 没有 done 时也必须结束等待，
+      // 否则 sendMessage 会永久挂住并让发送按钮一直转圈。
+      finishFromStream(
+        terminal: terminalEventSeen,
+        fallbackMessage: '连接提前结束，服务端没有返回内容。请稍后重试。',
+      );
     });
 
     try {
       await completer.future;
     } finally {
+      assistant.durationMs ??=
+          DateTime.now().difference(turnStartedAt).inMilliseconds;
       _finishTurn(session, assistant);
       // 只有仍是当前这一轮时才清理全局状态；已被新一轮取代则不动。
       if (seq == _sendSeq) {
         _streaming = false;
         _activeStream = null;
+        _activeAssistant = null;
+        _activeTurnStartedAt = null;
+      }
+      if (identical(_activeCompleter, completer)) {
+        _activeCompleter = null;
       }
       session.updatedAt = DateTime.now();
       await session.save();

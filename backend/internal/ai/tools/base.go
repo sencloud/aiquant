@@ -21,6 +21,7 @@ import (
 	"github.com/sencloud/finme-backend/internal/ai/tool"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
 	"github.com/sencloud/finme-backend/internal/ai/weather"
+	"github.com/sencloud/finme-backend/internal/ai/websearch"
 )
 
 // Deps 把所有工具会用到的下游 client 打包，避免每个 New* 改签名。
@@ -31,6 +32,7 @@ type Deps struct {
 	Realtime *realtime.Client
 	Calendar *calendar.Client
 	Weather  *weather.Client
+	WebSearch *websearch.Client
 	// Ingest 是本机采集端推上来的行情缓存；有新鲜数据时优先于外部源。
 	Ingest *ingest.Registry
 	// IngestMaxAge 是采集端数据仍被视为新鲜的时长。
@@ -48,6 +50,7 @@ func BuildAll(d Deps) *tool.Registry {
 	registerFundamental(r, d.Tushare)
 	registerMacro(r, d.Tushare)
 	registerEvent(r, d.News, d.CNNews)
+	registerWebSearch(r, d.WebSearch)
 	registerRealtime(r, d.Realtime, d.Tushare, d.Ingest, d.IngestMaxAge)
 	registerGlobal(r, d.Realtime, d.Tushare)
 	registerOverseasWeather(r, d.Realtime, d.Weather)

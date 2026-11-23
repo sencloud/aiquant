@@ -227,6 +227,22 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			return nil
 		}
 
+		var terminalMu sync.Mutex
+		terminalSent := false
+		emitTerminalOnce := func(event string, data any) error {
+			if event != "done" && event != "error" {
+				return emit(event, data)
+			}
+			terminalMu.Lock()
+			if terminalSent {
+				terminalMu.Unlock()
+				return nil
+			}
+			terminalSent = true
+			terminalMu.Unlock()
+			return emit(event, data)
+		}
+
 		// 心跳 goroutine:在 chat.Run 期间周期性写 `: ping`,run 结束或客户端
 		// 断连(r.Context() 取消)时退出。
 		stopHeartbeat := make(chan struct{})
@@ -253,7 +269,8 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			}
 		}()
 
-		_ = d.Chat.Run(r.Context(), chat.ChatInput{
+		defer close(stopHeartbeat)
+		runErr := d.Chat.Run(r.Context(), chat.ChatInput{
 			UserID:           uc.UserID,
 			SessionUUID:      body.SessionID,
 			Persona:          body.Persona,
@@ -268,7 +285,14 @@ func handleAIChatStream(d *Deps) http.HandlerFunc {
 			CompanionName:    strings.TrimSpace(body.CompanionName),
 			CompanionStyle:   strings.TrimSpace(body.CompanionStyle),
 			Memories:         body.Memories,
-		}, emit)
-		close(stopHeartbeat)
+		}, emitTerminalOnce)
+		if runErr != nil {
+			// chat.Service 在大多数失败路径已经发过具体 error；这里是最后兜底，
+			// 由 emitTerminalOnce 保证同一条 SSE 最多一个 done/error。
+			_ = emitTerminalOnce("error", map[string]any{
+				"code":    "AI.RUN_FAILED",
+				"message": "本次回复没有完成，请稍后重试。",
+			})
+		}
 	}
 }

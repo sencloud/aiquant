@@ -108,7 +108,7 @@ class _PersonaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bgSurface,
+      color: selected ? const Color(0xFFFFF7E9) : AppColors.bgSurface,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -135,9 +135,30 @@ class _PersonaTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (selected)
-                Icon(Icons.check_rounded,
-                    size: 20, color: AppColors.amber),
+              if (selected) ...[
+                Container(
+                  key: ValueKey('persona-current-${persona.id}'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.amber.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    '当前',
+                    style: AppType.micro.copyWith(
+                      color: AppColors.amber,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.check_rounded,
+                  size: 20,
+                  color: AppColors.amber,
+                ),
+              ],
             ],
           ),
         ),

@@ -17,7 +17,7 @@ class TradeConfirmScreen extends StatefulWidget {
   });
 
   final ParsedTradesResult parsed;
-  final Uint8List imageBytes;
+  final Uint8List? imageBytes;
 
   @override
   State<TradeConfirmScreen> createState() => _TradeConfirmScreenState();
@@ -167,22 +167,34 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            child: Image.memory(
-              widget.imageBytes,
-              width: 62,
-              height: 78,
-              fit: BoxFit.cover,
-              cacheWidth: 186,
-              errorBuilder: (_, __, ___) => Container(
-                width: 62,
-                height: 78,
-                color: AppColors.bgRaised,
-                child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ),
+            child: widget.imageBytes == null
+                ? Container(
+                    width: 62,
+                    height: 78,
+                    color: AppColors.bgRaised,
+                    child: Icon(
+                      widget.parsed.importSource == 'Excel'
+                          ? Icons.table_chart_outlined
+                          : Icons.description_outlined,
+                      color: AppColors.textTertiary,
+                    ),
+                  )
+                : Image.memory(
+                    widget.imageBytes!,
+                    width: 62,
+                    height: 78,
+                    fit: BoxFit.cover,
+                    cacheWidth: 186,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 62,
+                      height: 78,
+                      color: AppColors.bgRaised,
+                      child: Icon(
+                        Icons.receipt_long_outlined,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
           ),
           const SizedBox(width: AppSpace.md),
           Expanded(
@@ -191,18 +203,20 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
               children: [
                 Text(
                   widget.parsed.brokerHint.isEmpty
-                      ? '已识别成交记录'
+                      ? '已导入成交记录'
                       : widget.parsed.brokerHint,
                   style: AppType.title,
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${widget.parsed.screenshotCount} 张截图 · '
-                  '识别到 ${_trades.length} 笔 · '
+                  '${widget.parsed.importSource} · '
+                  '${_periodLabel(widget.parsed)} · '
+                  '确认 ${_trades.length} 笔 · '
                   '${_trades.where((trade) => trade.side == TradeSide.buy).length} 买 '
                   '${_trades.where((trade) => trade.side == TradeSide.sell).length} 卖',
                   style: AppType.caption.copyWith(
                     color: AppColors.textSecondary,
+                    height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 7),
@@ -210,15 +224,22 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    if (widget.parsed.successfulScreenshotCount <
+                    if (widget.parsed.screenshotCount > 0 &&
+                        widget.parsed.successfulScreenshotCount <
                         widget.parsed.screenshotCount)
                       WkTag(
                         '成功 ${widget.parsed.successfulScreenshotCount}/'
                         '${widget.parsed.screenshotCount} 张',
                       ),
+                    if (widget.parsed.invalidRowCount > 0)
+                      WkTag('跳过 ${widget.parsed.invalidRowCount} 行无效数据'),
+                    if (widget.parsed.dateFilteredOutTradeCount > 0)
+                      WkTag('过滤 ${widget.parsed.dateFilteredOutTradeCount} 笔'),
                     if (widget.parsed.duplicateTradeCount > 0)
                       WkTag('已合并 ${widget.parsed.duplicateTradeCount} 笔重叠'),
-                    const WkTag('图片仅用于本次识别'),
+                    WkTag(
+                      widget.imageBytes == null ? '结构化数据导入' : '图片仅用于本次识别',
+                    ),
                   ],
                 ),
               ],
@@ -278,6 +299,20 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
         ),
       ),
     );
+  }
+
+  static String _periodLabel(ParsedTradesResult parsed) {
+    final start = parsed.periodStart;
+    final end = parsed.periodEnd;
+    if (start == null || end == null) {
+      return parsed.rawTradeCount > 0
+          ? '原始 ${parsed.rawTradeCount} 行'
+          : '未筛选日期';
+    }
+    String date(DateTime value) =>
+        '${value.year}.${value.month.toString().padLeft(2, '0')}.'
+        '${value.day.toString().padLeft(2, '0')}';
+    return '${date(start)}–${date(end)}';
   }
 
   Widget _bottomBar() {

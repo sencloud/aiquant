@@ -97,6 +97,10 @@ class ChatMessage extends HiveObject {
   /// role=assistant 消息：用户反馈。1 = 赞，-1 = 踩，0 = 未评价。
   int feedback;
 
+  /// role=assistant 消息：本轮从发送到收到终止事件的实际耗时。
+  /// 旧版本消息没有该字段，保持 null，UI 不伪造历史耗时。
+  int? durationMs;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -112,6 +116,7 @@ class ChatMessage extends HiveObject {
     this.imageDataUrls,
     this.suggestions,
     this.feedback = 0,
+    this.durationMs,
   })  : id = id ?? _uuid.v4(),
         timestamp = timestamp ?? DateTime.now();
 }
@@ -141,13 +146,14 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       imageDataUrls: (fields[11] as List?)?.cast<String>(),
       suggestions: (fields[12] as List?)?.cast<String>(),
       feedback: fields[13] as int? ?? 0,
+      durationMs: fields[14] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -175,7 +181,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(12)
       ..write(obj.suggestions)
       ..writeByte(13)
-      ..write(obj.feedback);
+      ..write(obj.feedback)
+      ..writeByte(14)
+      ..write(obj.durationMs);
   }
 }
 

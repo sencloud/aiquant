@@ -147,7 +147,7 @@ void main() {
     expect(merged.warnings, hasLength(2));
     expect(
       merged.warnings,
-      contains(contains('第 3 张未识别')),
+      contains(contains('第 3 张没有读取成功')),
     );
   });
 

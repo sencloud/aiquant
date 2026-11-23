@@ -9,7 +9,7 @@ import '../../services/trade_screenshot_parser.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/wk_kit.dart';
-import 'trade_confirm_screen.dart';
+import 'trade_import_screen.dart';
 import 'trade_report_screen.dart';
 import 'trade_review_history.dart';
 import 'trade_review_widgets.dart';
@@ -38,63 +38,22 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
   late final TradeScreenshotParser _parser =
       widget.parser ?? TradeScreenshotParser();
 
-  bool _busy = false;
+  final bool _busy = false;
   String? _error;
   String? _parseProgress;
 
   Future<void> _pickAndParse({required bool camera}) async {
     if (_busy) return;
     if (!await requireLogin(context) || !mounted) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _parseProgress = null;
-    });
-    try {
-      final screenshots = camera
-          ? [
-              if (await _picker.fromCamera() case final screenshot?) screenshot,
-            ]
-          : await _picker.fromGallery();
-      if (screenshots.isEmpty || !mounted) return;
-      setState(() {
-        _parseProgress = screenshots.length == 1
-            ? '正在识别成交记录…'
-            : '正在识别 0/${screenshots.length} 张截图…';
-      });
-      final parsed = await _parser.parseBatch(
-        screenshots,
-        onProgress: (completed, total) {
-          if (!mounted || total <= 1) return;
-          setState(() {
-            _parseProgress = '正在识别 $completed/$total 张截图…';
-          });
-        },
-      );
-      if (!mounted) return;
-      final coverImage = screenshots.first.bytes;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => TradeConfirmScreen(
-            parsed: parsed,
-            imageBytes: coverImage,
-          ),
+    setState(() => _error = null);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TradeImportScreen(
+          screenshotPicker: _picker,
+          screenshotParser: _parser,
         ),
-      );
-    } on TradeParseException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = '识别时遇到问题，请重新上传一次。');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _parseProgress = null;
-        });
-      }
-    }
+      ),
+    );
   }
 
   void _openReport(TradeReviewReport report) {

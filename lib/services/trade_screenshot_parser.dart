@@ -9,6 +9,8 @@ import '../models/trade_review.dart';
 
 enum TradeParseFailureKind {
   network,
+  timeout,
+  unauthorized,
   unavailable,
   noTrades,
   invalidRequest,
@@ -131,10 +133,10 @@ class TradeScreenshotParser {
   final int maxAttempts;
   final Duration retryDelay;
 
-  static const defaultConcurrency = 3;
+  static const defaultConcurrency = 1;
 
-  /// 相册多选后按小并发批次识别。服务端仍是一图一请求，这样既能缩短等待，
-  /// 也能给视觉模型留下稳定的限流余量。
+  /// 相册多选后逐张识别。视觉模型对突发并发很敏感，串行处理更稳定，
+  /// 也能保证相邻截图去重时顺序确定。
   Future<ParsedTradesResult> parseBatch(
     List<PickedTradeScreenshot> screenshots, {
     int concurrency = defaultConcurrency,
@@ -201,15 +203,45 @@ class TradeScreenshotParser {
       );
     }
 
-    return mergeParsedTradeResults(
+    final emptyPageWarnings = <String>[
+      for (var i = 0; i < results.length; i++)
+        if (results[i] != null && results[i]!.trades.isEmpty)
+          i == 0
+              ? '第 1 张没有发现成交行，可能截取到了表头或空白区域。'
+              : '第 ${i + 1} 张没有发现新的成交行，可能和上一张重叠。',
+    ];
+    final merged = mergeParsedTradeResults(
       successful,
       screenshotCount: total,
       sourceScreenshotIndices: successfulIndices,
       failureWarnings: [
         for (var i = 0; i < failures.length; i++)
           if (failures[i] case final failure?)
-            '第 ${i + 1} 张未识别：${failure.message}',
+            '第 ${i + 1} 张没有读取成功：${failure.message}',
       ],
+    );
+    if (merged.trades.isEmpty) {
+      throw TradeParseException(
+        TradeParseFailureKind.noTrades,
+        '$total 张截图都没有识别到成交行。请确认包含「成交记录」或'
+            '「历史成交」列表，并保留日期、方向、数量、价格这几列。',
+      );
+    }
+    return ParsedTradesResult(
+      brokerHint: merged.brokerHint,
+      currency: merged.currency,
+      trades: merged.trades,
+      warnings: [...emptyPageWarnings, ...merged.warnings],
+      screenshotCount: merged.screenshotCount,
+      successfulScreenshotCount: merged.successfulScreenshotCount,
+      duplicateTradeCount: merged.duplicateTradeCount,
+      rawTradeCount: merged.rawTradeCount,
+      validTradeCount: merged.validTradeCount,
+      invalidRowCount: merged.invalidRowCount,
+      dateFilteredOutTradeCount: merged.dateFilteredOutTradeCount,
+      importSource: merged.importSource,
+      periodStart: merged.periodStart,
+      periodEnd: merged.periodEnd,
     );
   }
 
@@ -241,6 +273,7 @@ class TradeScreenshotParser {
 
   bool _isRetryable(TradeParseFailureKind kind) => switch (kind) {
         TradeParseFailureKind.network ||
+        TradeParseFailureKind.timeout ||
         TradeParseFailureKind.unavailable ||
         TradeParseFailureKind.server =>
           true,
@@ -279,12 +312,6 @@ class TradeScreenshotParser {
         for (final row in (data['trades'] as List? ?? const []))
           if (row is Map) ParsedTrade.fromJson(Map<String, dynamic>.from(row)),
       ];
-      if (trades.isEmpty) {
-        throw const TradeParseException(
-          TradeParseFailureKind.noTrades,
-          '没有找到可确认的成交行，请换一张清晰的成交记录截图。',
-        );
-      }
       return ParsedTradesResult(
         brokerHint: (data['broker_hint'] ?? '').toString().trim(),
         currency: (data['currency'] ?? 'CNY').toString().trim(),
@@ -305,16 +332,37 @@ class TradeScreenshotParser {
   }
 
   TradeParseException _networkFailure(DioException error) {
-    if (error.type == DioExceptionType.cancel) {
-      return const TradeParseException(
-        TradeParseFailureKind.cancelled,
-        '已取消识别。',
-      );
-    }
-    return const TradeParseException(
-      TradeParseFailureKind.network,
-      '网络连接失败。请检查网络后重试，截图不会保存在服务器。',
-    );
+    return switch (error.type) {
+      DioExceptionType.cancel => const TradeParseException(
+          TradeParseFailureKind.cancelled,
+          '已取消识别。',
+        ),
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout =>
+        const TradeParseException(
+          TradeParseFailureKind.timeout,
+          '图片识别等待超时，可能是识别服务繁忙。请重试，或先裁掉截图里的空白区域。',
+        ),
+      DioExceptionType.badResponse => _responseFailure(
+          error.response?.statusCode ?? 0,
+          error.response?.data is Map
+              ? Map<String, dynamic>.from(
+                  error.response!.data as Map,
+                )
+              : null,
+        ),
+      DioExceptionType.badCertificate => const TradeParseException(
+          TradeParseFailureKind.network,
+          '安全连接校验失败，请检查系统时间或网络代理后重试。',
+        ),
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown =>
+        const TradeParseException(
+          TradeParseFailureKind.network,
+          '无法连接识别服务。请检查网络后重试，截图不会保存在服务器。',
+        ),
+    };
   }
 
   TradeParseException _responseFailure(
@@ -323,6 +371,18 @@ class TradeScreenshotParser {
   ) {
     final code = (data?['code'] ?? '').toString();
     final serverMessage = (data?['message'] ?? '').toString().trim();
+    if (status == 401 || status == 403) {
+      return TradeParseException(
+        TradeParseFailureKind.unauthorized,
+        serverMessage.isNotEmpty ? serverMessage : '登录已过期，请重新登录后识别。',
+      );
+    }
+    if (status == 429) {
+      return const TradeParseException(
+        TradeParseFailureKind.unavailable,
+        '识别请求过于频繁，请稍等片刻再试。',
+      );
+    }
     if (code == 'PORTFOLIO.VISION_UNAVAILABLE' || status == 503) {
       return const TradeParseException(
         TradeParseFailureKind.unavailable,
@@ -347,9 +407,15 @@ class TradeScreenshotParser {
         serverMessage.isNotEmpty ? serverMessage : '这张截图无法识别，请换一张重试。',
       );
     }
-    return const TradeParseException(
+    if (serverMessage.isNotEmpty && status >= 500) {
+      return TradeParseException(
+        TradeParseFailureKind.server,
+        '识别服务暂时出错：$serverMessage',
+      );
+    }
+    return TradeParseException(
       TradeParseFailureKind.server,
-      '识别服务遇到问题，请稍后重试。',
+      status > 0 ? '识别服务返回 HTTP $status，请稍后重试。' : '识别服务遇到问题，请稍后重试。',
     );
   }
 }

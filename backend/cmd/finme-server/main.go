@@ -29,6 +29,7 @@ import (
 	aitools "github.com/sencloud/finme-backend/internal/ai/tools"
 	"github.com/sencloud/finme-backend/internal/ai/tushare"
 	"github.com/sencloud/finme-backend/internal/ai/weather"
+	"github.com/sencloud/finme-backend/internal/ai/websearch"
 	"github.com/sencloud/finme-backend/internal/api"
 	"github.com/sencloud/finme-backend/internal/auth"
 	"github.com/sencloud/finme-backend/internal/billing"
@@ -225,7 +226,8 @@ func runAPI(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 			liveCn := cnnews.New(cfg.News.TimeoutSec)
 			liveCal := calendar.New(cfg.News.TimeoutSec)
 			liveReg := aitools.BuildAll(aitools.Deps{
-				Tushare: liveTu, News: liveNw, CNNews: liveCn, Realtime: liveRt, Calendar: liveCal,
+				Tushare: liveTu, News: liveNw, CNNews: liveCn, Realtime: liveRt,
+				Calendar: liveCal, WebSearch: newWebSearchClient(cfg),
 			})
 			liveExec := live.NewExecutor(ds, liveReg)
 			liveHost := live.NewHostPlanner(ds)
@@ -437,6 +439,13 @@ func buildToolRegistry(cfg *platform.Config, l *zerolog.Logger) *tool.Registry {
 	return buildToolRegistryWithIngest(cfg, l, ingest.Default())
 }
 
+// newWebSearchClient makes DeepSeek's official web search available to the
+// API, scheduler, and live runners. A missing key leaves the client
+// unconfigured, so the search tool is not registered.
+func newWebSearchClient(cfg *platform.Config) *websearch.Client {
+	return websearch.New(cfg.LLM.APIKey, cfg.LLM.BaseURL, 20*time.Second)
+}
+
 // buildToolRegistryWithIngest 允许调用方注入行情采集端缓存（api 进程用它接收推送，
 // scheduler 进程读同一份库；测试可传 nil 走纯内存）。
 func buildToolRegistryWithIngest(
@@ -451,13 +460,14 @@ func buildToolRegistryWithIngest(
 	rt := realtime.New(0)
 	cal := calendar.New(cfg.News.TimeoutSec)
 	reg := aitools.BuildAll(aitools.Deps{
-		Tushare:  tu,
-		News:     nw,
-		CNNews:   cn,
-		Realtime: rt,
-		Calendar: cal,
-		Weather:  wx,
-		Ingest:   ig,
+		Tushare:   tu,
+		News:      nw,
+		CNNews:    cn,
+		Realtime:  rt,
+		Calendar:  cal,
+		Weather:   wx,
+		WebSearch: newWebSearchClient(cfg),
+		Ingest:    ig,
 		IngestMaxAge: func() time.Duration {
 			sec := cfg.Ingest.MaxAgeSec
 			if sec <= 0 {
@@ -571,7 +581,8 @@ func runScheduler(cfg *platform.Config, l zerolog.Logger, st *store.Store) {
 			rt := realtime.New(0)
 			cal := calendar.New(cfg.News.TimeoutSec)
 			reg := aitools.BuildAll(aitools.Deps{
-				Tushare: tu, News: nw, CNNews: cn, Realtime: rt, Calendar: cal,
+				Tushare: tu, News: nw, CNNews: cn, Realtime: rt,
+				Calendar: cal, WebSearch: newWebSearchClient(cfg),
 			})
 			// Live v2 调度器:host_planner(无 tools) + guest_speaker(有 tools 走 executor)。
 			exec := live.NewExecutor(ds, reg)

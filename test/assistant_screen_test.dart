@@ -173,8 +173,12 @@ void main() {
     for (final t in ['重新生成', '复制', '有帮助', '没帮助', '分享']) {
       expect(find.byTooltip(t), findsOneWidget, reason: t);
     }
-    // 气泡旁边要有头像（微信的样子）。
-    expect(find.byType(WxAvatar), findsNWidgets(2));
+    // 普通问答采用豆包式消息流，不再显示双方头像。
+    expect(find.byType(WxAvatar), findsNothing);
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const ValueKey('chat-white-surface')),
+    );
+    expect(scaffold.backgroundColor, AppColors.bgSurface);
     expect(find.text('3 个来源'), findsOneWidget);
     expect(find.text('马来西亚棕榈油库存什么时候可能见顶？'), findsOneWidget);
 
@@ -225,6 +229,45 @@ void main() {
     expect(find.text('马来西亚棕榈油库存什么时候可能见顶？'), findsNothing);
     expect(find.byTooltip('重新生成'), findsOneWidget);
     expect(find.byTooltip('复制'), findsNWidgets(2));
+  });
+
+  testWidgets('联网搜索与耗时使用豆包式状态行', (tester) async {
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final session = ChatSession(id: 'web', title: '周末政策怎么看');
+    session.messages.addAll([
+      ChatMessage(role: 'user', content: '这周末有什么政策消息？'),
+      ChatMessage(
+        role: 'assistant',
+        content: '已结合公开网页整理主要政策变化。',
+        durationMs: 1200,
+        toolCalls: [
+          ToolCall(
+            id: 'web-1',
+            name: 'search_web',
+            argumentsJson: '{"query":"周末 财经 政策"}',
+          ),
+        ],
+      ),
+      ChatMessage(
+        role: 'tool',
+        toolCallId: 'web-1',
+        name: 'search_web',
+        content: '{"results":[{"title":"政策发布",'
+            '"url":"https://example.com/policy","site_name":"证监会",'
+            '"date":"2026-11-22"}]}',
+      ),
+    ]);
+
+    await tester.pumpWidget(_app(ChatState()..debugSeed([session])));
+    await _settle(tester);
+
+    expect(find.text('已搜索网页'), findsWidgets);
+    expect(find.text('耗时 1.2s'), findsOneWidget);
+    expect(find.text('1 个来源'), findsOneWidget);
+    expect(find.byType(WxAvatar), findsNothing);
   });
 
   // 只在显式要求时生成截图（字体渲染因平台而异，不做回归比对）：

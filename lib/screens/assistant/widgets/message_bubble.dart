@@ -107,10 +107,13 @@ class MessageBubble extends StatelessWidget {
     final imageUrls = message.imageDataUrls ?? const <String>[];
     final hasImages = imageUrls.isNotEmpty;
 
-    // 微信的气泡形状 + 喜爱自己的配色：自己说的是墨金实心（白字），
-    // 对方说的是白面（墨字）。
-    final fg = isUser ? AppColors.onAccent : AppColors.textPrimary;
-    final maxWidth = MediaQuery.of(context).size.width * 0.74;
+    // 普通问答走豆包式结构：用户消息右侧浅蓝气泡，AI 回答左侧浅灰通栏
+    // 卡片，双方都不显示头像。伴侣会话仍保留角色头像与微信式气泡。
+    final isCompanion = assistantAvatar != null;
+    final fg = isUser ? const Color(0xFF1F2329) : AppColors.textPrimary;
+    final width = MediaQuery.of(context).size.width;
+    final maxWidth =
+        width * (isCompanion ? 0.74 : (isUser ? 0.78 : 0.94));
 
     // 时间顺序：推理 → 工具调用 → 正文。AI 通常先「调用工具拿数据」，再
     // 「基于数据写正文」，UI 顺序按真实时序展示更直观。
@@ -144,26 +147,53 @@ class MessageBubble extends StatelessWidget {
         if (hasContent)
           Padding(
             padding: EdgeInsets.only(top: (hasToolCalls || hasImages) ? 6 : 0),
-            child: WxBubble(
-              isSelf: isUser,
-              maxWidth: maxWidth,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isUser && message.portfolioAttached)
-                    _PortfolioBadge(name: message.portfolioName),
-                  _content(context, fg),
-                ],
-              ),
-            ),
+            child: isCompanion
+                ? WxBubble(
+                    isSelf: isUser,
+                    maxWidth: maxWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isUser && message.portfolioAttached)
+                          _PortfolioBadge(name: message.portfolioName),
+                        _content(context, fg),
+                      ],
+                    ),
+                  )
+                : Container(
+                    width: isUser ? null : double.infinity,
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: isUser
+                          ? const Color(0xFFE8F1FF)
+                          : const Color(0xFFF5F6F7),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: Radius.circular(isUser ? 5 : 18),
+                        bottomLeft: const Radius.circular(18),
+                        bottomRight: const Radius.circular(18),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isUser && message.portfolioAttached)
+                          _PortfolioBadge(name: message.portfolioName),
+                        _content(context, fg),
+                      ],
+                    ),
+                  ),
           ),
         if (showActions && !isUser && hasContent && !message.streaming)
           Padding(
-            padding: const EdgeInsets.only(top: 4, left: 8),
+            padding: const EdgeInsets.only(top: 2, left: 2),
             child: _MessageActionsBar(
               text: message.content,
               question: _previousUserText(),
               timestamp: message.timestamp,
+              durationMs: message.durationMs,
               showShareActions: showShareActions,
               feedback: message.feedback,
               onRegenerate: isLatest ? onRegenerate : null,
@@ -204,27 +234,32 @@ class MessageBubble extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: isUser
-            ? [
-                Flexible(child: body),
-                const SizedBox(width: AppSpace.sm),
-                _avatar(isUser: true),
-              ]
-            : [
-                _avatar(isUser: false),
-                const SizedBox(width: AppSpace.sm),
-                Flexible(child: body),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: isUser
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: body,
+                ),
               ],
-      ),
+            )
+          : isCompanion
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _avatar(isUser: false),
+                    const SizedBox(width: AppSpace.sm),
+                    Flexible(child: body),
+                  ],
+                )
+              : body,
     );
   }
 
-  /// 气泡旁边的头像：自己用昵称首字，对面用这位助手的图标（微信同款位置）。
+  /// 伴侣会话保留头像；普通问答不再显示双方头像。
   Widget _avatar({required bool isUser}) {
     if (isUser) {
       return WxAvatar(
@@ -256,12 +291,20 @@ class MessageBubble extends StatelessWidget {
         if (url is String && url.startsWith('http') && seen.add(url)) {
           final title = node['title'] ?? node['name'] ?? node['digest'];
           final src = node['source'] ?? node['media'] ?? node['domain'];
+          final publishedAt = node['published_at'] ??
+              node['date'] ??
+              node['pub_time'] ??
+              node['publish_time'];
           out.add(_Source(
             url: url,
             title: title is String && title.trim().isNotEmpty
                 ? title.trim()
                 : url,
-            source: src is String ? src : null,
+            source: src is String && src.trim().isNotEmpty ? src.trim() : null,
+            publishedAt: publishedAt is String &&
+                    publishedAt.trim().isNotEmpty
+                ? publishedAt.trim()
+                : null,
           ));
         }
         for (final v in node.values) {
@@ -500,6 +543,7 @@ class _MessageActionsBar extends StatefulWidget {
   const _MessageActionsBar({
     required this.text,
     required this.timestamp,
+    required this.durationMs,
     this.question,
     this.showShareActions = true,
     this.feedback = 0,
@@ -522,6 +566,7 @@ class _MessageActionsBar extends StatefulWidget {
 
   final String text;
   final DateTime timestamp;
+  final int? durationMs;
 
   /// 触发这条 assistant 回答的上一条 user 提问；长图 / 分享页里会同时渲染。
   final String? question;
@@ -752,56 +797,111 @@ class _MessageActionsBarState extends State<_MessageActionsBar> {
   @override
   Widget build(BuildContext context) {
     final busy = _sharingLink || _copying;
-    return Row(
+    final searchedWeb = widget.tools.any(
+      (name) => name == 'search_web' || name.startsWith('search_web_'),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.onRegenerate != null)
-          _ActionIcon(
-            icon: Icons.refresh_rounded,
-            tooltip: '重新生成',
-            onTap: widget.onRegenerate,
+        if (searchedWeb)
+          Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.travel_explore_rounded,
+                    size: 14, color: AppColors.textTertiary),
+                const SizedBox(width: 5),
+                Text(
+                  '已搜索网页',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (widget.durationMs != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '耗时 ${_formatDuration(widget.durationMs!)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        _ActionIcon(
-          icon: Icons.copy_rounded,
-          tooltip: '复制',
-          onTap: () => _copyText(context, widget.text),
+        Row(
+          children: [
+            if (widget.onRegenerate != null)
+              _ActionIcon(
+                icon: Icons.refresh_rounded,
+                tooltip: '重新生成',
+                onTap: widget.onRegenerate,
+              ),
+            _ActionIcon(
+              icon: Icons.copy_rounded,
+              tooltip: '复制',
+              onTap: () => _copyText(context, widget.text),
+            ),
+            if (widget.onFeedback != null) ...[
+              _ActionIcon(
+                icon: widget.feedback == 1
+                    ? Icons.thumb_up_alt_rounded
+                    : Icons.thumb_up_alt_outlined,
+                tooltip: '有帮助',
+                active: widget.feedback == 1,
+                onTap: () => widget.onFeedback!(1),
+              ),
+              _ActionIcon(
+                icon: widget.feedback == -1
+                    ? Icons.thumb_down_alt_rounded
+                    : Icons.thumb_down_alt_outlined,
+                tooltip: '没帮助',
+                active: widget.feedback == -1,
+                onTap: () => widget.onFeedback!(-1),
+              ),
+            ],
+            // 分享类依赖系统分享面板（share_plus），桌面端隐藏。
+            if (widget.showShareActions)
+              _ActionIcon(
+                icon: busy ? Icons.hourglass_top_rounded : Icons.share_outlined,
+                tooltip: '分享',
+                onTap: busy ? null : _openShareSheet,
+              ),
+            const Spacer(),
+            if (!searchedWeb && widget.durationMs != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  _formatDuration(widget.durationMs!),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            if (widget.sources.isNotEmpty || widget.tools.isNotEmpty)
+              _SourcesChip(
+                count: widget.sources.isNotEmpty
+                    ? widget.sources.length
+                    : widget.tools.length,
+                withLinks: widget.sources.isNotEmpty,
+                onTap: _openSources,
+              ),
+          ],
         ),
-        if (widget.onFeedback != null) ...[
-          _ActionIcon(
-            icon: widget.feedback == 1
-                ? Icons.thumb_up_alt_rounded
-                : Icons.thumb_up_alt_outlined,
-            tooltip: '有帮助',
-            active: widget.feedback == 1,
-            onTap: () => widget.onFeedback!(1),
-          ),
-          _ActionIcon(
-            icon: widget.feedback == -1
-                ? Icons.thumb_down_alt_rounded
-                : Icons.thumb_down_alt_outlined,
-            tooltip: '没帮助',
-            active: widget.feedback == -1,
-            onTap: () => widget.onFeedback!(-1),
-          ),
-        ],
-        // 分享类依赖系统分享面板（share_plus），桌面端隐藏。
-        if (widget.showShareActions)
-          _ActionIcon(
-            icon: busy ? Icons.hourglass_top_rounded : Icons.share_outlined,
-            tooltip: '分享',
-            onTap: busy ? null : _openShareSheet,
-          ),
-        const Spacer(),
-        if (widget.sources.isNotEmpty || widget.tools.isNotEmpty)
-          _SourcesChip(
-            count: widget.sources.isNotEmpty
-                ? widget.sources.length
-                : widget.tools.length,
-            withLinks: widget.sources.isNotEmpty,
-            onTap: _openSources,
-          ),
       ],
     );
   }
+}
+
+String _formatDuration(int milliseconds) {
+  if (milliseconds < 1000) return '${milliseconds}ms';
+  final seconds = milliseconds / 1000;
+  return '${seconds.toStringAsFixed(seconds >= 10 ? 0 : 1)}s';
 }
 
 /// 回答下方的图标按钮（元宝那一排：重新生成 / 复制 / 赞 / 踩 / 分享）。
@@ -884,10 +984,16 @@ class _SourcesChip extends StatelessWidget {
 
 /// 工具结果里抽出的一条来源。
 class _Source {
-  const _Source({required this.url, required this.title, this.source});
+  const _Source({
+    required this.url,
+    required this.title,
+    this.source,
+    this.publishedAt,
+  });
   final String url;
   final String title;
   final String? source;
+  final String? publishedAt;
 }
 
 /// 「来源」面板：带链接的资讯条目（点开浏览器）+ 本次用到的数据工具。
@@ -925,13 +1031,20 @@ class _SourcesSheet extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 13, color: AppColors.textPrimary)),
                 subtitle: Text(
-                  s.source == null || s.source!.isEmpty
-                      ? (Uri.tryParse(s.url)?.host ?? s.url)
-                      : s.source!,
-                  maxLines: 1,
+                  [
+                    if (s.source != null && s.source!.isNotEmpty) s.source!,
+                    if (s.publishedAt != null && s.publishedAt!.isNotEmpty)
+                      s.publishedAt!,
+                  ].join(' · '),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style:
                       TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+                trailing: Text(
+                  Uri.tryParse(s.url)?.host ?? '',
+                  style:
+                      TextStyle(fontSize: 10, color: AppColors.textTertiary),
                 ),
                 onTap: () {
                   final uri = Uri.tryParse(s.url);
