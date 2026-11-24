@@ -154,6 +154,15 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
     );
   }
 
+  /// 真正贡献了成交行的截图数。
+  ///
+  /// 「识别成功但 0 行」的重叠页不算有效；老数据没有这个字段时退回成功数。
+  int get _effectiveScreenshotCount {
+    final matched = widget.parsed.matchedScreenshotCount;
+    if (matched > 0) return matched;
+    return widget.parsed.successfulScreenshotCount;
+  }
+
   Widget _summary() {
     return Container(
       color: AppColors.bgSurface,
@@ -216,12 +225,18 @@ class _TradeConfirmScreenState extends State<TradeConfirmScreen> {
                       spacing: 6,
                       runSpacing: 4,
                       children: [
-                        if (widget.parsed.screenshotCount > 0)
+                        if (widget.parsed.screenshotCount > 1)
                           WkTag(
-                            '成功 ${widget.parsed.successfulScreenshotCount}/'
+                            '有效 $_effectiveScreenshotCount/'
                             '${widget.parsed.screenshotCount} 张',
                           ),
-                        if (widget.parsed.invalidRowCount > 0)
+                        if (widget.parsed.screenshotCount > 1 &&
+                            _effectiveScreenshotCount <
+                                widget.parsed.screenshotCount)
+                          WkTag(
+                            '${widget.parsed.screenshotCount - _effectiveScreenshotCount}'
+                            ' 张没有贡献成交行',
+                          ),                        if (widget.parsed.invalidRowCount > 0)
                           WkTag('跳过 ${widget.parsed.invalidRowCount} 行无效数据'),
                         if (widget.parsed.dateFilteredOutTradeCount > 0)
                           WkTag(

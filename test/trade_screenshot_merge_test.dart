@@ -474,6 +474,40 @@ void main() {
       ),
     );
   });
+  test('缺标的的页被服务端拒绝后，用同批表头页的标的补一次并成功', () async {
+    final parser = _NamelessPageParser();
+
+    // 顺序反着来：先传滚动页（没有表头），再传顶部页（有表头）。
+    final merged = await parser.parseBatch([
+      _screenshot('nameless'),
+      _screenshot('header'),
+    ]);
+
+    expect(merged.trades, hasLength(3));
+    expect(merged.matchedScreenshotCount, 2);
+    expect(merged.warnings.any((w) => w.contains('没有读取成功')), isFalse);
+    // 第 1 页先按空标的试（被拒），等到第 2 页给出标的后补一次。
+    expect(parser.fallbackNames, [null, null, '沪深300ETF嘉实']);
+  });
+
+  test('一批里出现两种标的后，不再跨页补齐，缺标的的页保留失败提示', () async {
+    final parser = _NamelessPageParser();
+
+    final merged = await parser.parseBatch([
+      _screenshot('header'),
+      _screenshot('other'),
+      _screenshot('nameless'),
+    ]);
+
+    expect(merged.trades, hasLength(2));
+    expect(merged.matchedScreenshotCount, 2);
+    expect(
+      merged.warnings,
+      contains(contains('第 3 张没有读取成功')),
+    );
+    // 第 3 页没有可借的标的：不补，也不把行安到别的股票上。
+    expect(parser.fallbackNames, [null, '沪深300ETF嘉实', null]);
+  });
 }
 
 PickedTradeScreenshot _screenshot(String key) {
@@ -481,6 +515,81 @@ PickedTradeScreenshot _screenshot(String key) {
     bytes: Uint8List.fromList([1]),
     mimeType: key,
   );
+}
+
+class _NamelessPageParser extends TradeScreenshotParser {
+  _NamelessPageParser() : super(dio: Dio());
+
+  final List<String?> fallbackNames = <String?>[];
+
+  @override
+  Future<ParsedTradesResult> parse({
+    required List<int> imageBytes,
+    required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
+  }) async {
+    fallbackNames.add(defaultName);
+    switch (mimeType) {
+      case 'header':
+        return _result([
+          ParsedTrade(
+            occurredAt: DateTime(2026, 11, 20, 10, 30),
+            symbol: '159919',
+            name: '沪深300ETF嘉实',
+            side: TradeSide.buy,
+            quantity: 2400,
+            price: 4.171,
+          ),
+        ]);
+      case 'other':
+        return _result([
+          ParsedTrade(
+            occurredAt: DateTime(2026, 11, 18, 10),
+            symbol: '000001',
+            name: '平安银行',
+            side: TradeSide.buy,
+            quantity: 100,
+            price: 10,
+          ),
+        ]);
+      case 'nameless':
+        if (defaultName == null || defaultName.isEmpty) {
+          // 服务端对「有行但一行都缺标的」的回应：422 + 行级原因。
+          throw const TradeParseException(
+            TradeParseFailureKind.rowsRejected,
+            '这一页识别到 2 行，但都缺少关键字段，请重传包含表头的截图。',
+          );
+        }
+        return _result([
+          ParsedTrade(
+            occurredAt: DateTime(2026, 10, 23, 14, 39),
+            symbol: defaultSymbol ?? '',
+            name: defaultName,
+            side: TradeSide.sell,
+            quantity: 2300,
+            price: 4.364,
+          ),
+          ParsedTrade(
+            occurredAt: DateTime(2026, 10, 22, 13, 59),
+            symbol: defaultSymbol ?? '',
+            name: defaultName,
+            side: TradeSide.buy,
+            quantity: 2400,
+            price: 4.306,
+          ),
+        ]);
+    }
+    throw StateError('unexpected mime: $mimeType');
+  }
+
+  ParsedTradesResult _result(List<ParsedTrade> trades) =>
+      ParsedTradesResult(
+        brokerHint: '测试券商',
+        currency: 'CNY',
+        trades: trades,
+        warnings: const [],
+      );
 }
 
 class _FakeTradeParser extends TradeScreenshotParser {
@@ -493,6 +602,8 @@ class _FakeTradeParser extends TradeScreenshotParser {
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
     required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
   }) async {
     _active++;
     if (_active > maxActive) maxActive = _active;
@@ -545,6 +656,8 @@ class _RetryingTradeParser extends TradeScreenshotParser {
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
     required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
   }) async {
     final attempt = (attempts[mimeType] ?? 0) + 1;
     attempts[mimeType] = attempt;
@@ -580,6 +693,8 @@ class _AlwaysNetworkFailTradeParser extends TradeScreenshotParser {
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
     required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
   }) async {
     throw const TradeParseException(
       TradeParseFailureKind.network,

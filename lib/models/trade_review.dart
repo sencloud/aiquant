@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 enum TradeSide { buy, sell }
 
@@ -120,6 +120,7 @@ class ParsedTradesResult {
     required this.warnings,
     this.screenshotCount = 1,
     this.successfulScreenshotCount = 1,
+    this.matchedScreenshotCount = 0,
     this.duplicateTradeCount = 0,
     this.rawTradeCount = 0,
     this.validTradeCount = 0,
@@ -136,6 +137,14 @@ class ParsedTradesResult {
   final List<String> warnings;
   final int screenshotCount;
   final int successfulScreenshotCount;
+
+  /// 真正贡献了成交行的截图数。
+  ///
+  /// 和 [successfulScreenshotCount] 的区别：一张图「识别成功但 0 行」（重叠页、
+  /// 空白页）算成功、不算有效。界面上的「成功 2/2 张」正是把这个当成全部有效，
+  /// 才让整页丢行看起来像正常。
+  final int matchedScreenshotCount;
+
   final int duplicateTradeCount;
 
   /// 文件行数，或截图中识别出的原始成交行数。
@@ -172,6 +181,7 @@ class ParsedTradesResult {
       warnings: warnings,
       screenshotCount: screenshotCount,
       successfulScreenshotCount: successfulScreenshotCount,
+      matchedScreenshotCount: matchedScreenshotCount,
       duplicateTradeCount: duplicateTradeCount,
       rawTradeCount: rawTradeCount,
       validTradeCount: validTradeCount,
@@ -219,6 +229,7 @@ class ParsedTradesResult {
       ],
       screenshotCount: screenshotCount,
       successfulScreenshotCount: successfulScreenshotCount,
+      matchedScreenshotCount: matchedScreenshotCount,
       duplicateTradeCount: duplicateTradeCount,
       rawTradeCount: rawTradeCount,
       validTradeCount: validTradeCount,

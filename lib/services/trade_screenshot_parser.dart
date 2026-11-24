@@ -14,6 +14,7 @@ enum TradeParseFailureKind {
   unauthorized,
   unavailable,
   noTrades,
+  rowsRejected,
   invalidRequest,
   server,
   cancelled,
@@ -153,6 +154,9 @@ class TradeScreenshotParser {
     final total = screenshots.length;
     final results = List<ParsedTradesResult?>.filled(total, null);
     final failures = List<TradeParseException?>.filled(total, null);
+    final rejectedIndices = <int>[];
+    _BatchInstrument? instrument;
+    var mixedBatch = false;
     var nextIndex = 0;
     var completed = 0;
     var workerCount = concurrency < 1 ? 1 : concurrency;
@@ -163,19 +167,36 @@ class TradeScreenshotParser {
       while (true) {
         final index = nextIndex++;
         if (index >= total) return;
+        final fallback = mixedBatch ? null : instrument;
         try {
           final screenshot = screenshots[index];
-          results[index] = await _parseWithRetry(
+          final parsed = await _parseWithRetry(
             imageBytes: screenshot.bytes,
             mimeType: screenshot.mimeType,
+            defaultSymbol: fallback?.symbol,
+            defaultName: fallback?.name,
           );
+          results[index] = parsed;
+          final found = _instrumentOf(parsed);
+          if (found != null) {
+            if (instrument == null) {
+              instrument = found;
+            } else if (!instrument!.sameAs(found)) {
+              // 一批里出现了第二种标的：不再跨页补齐，避免把钱安到别的股票上。
+              mixedBatch = true;
+            }
+          }
         } catch (error) {
-          failures[index] = error is TradeParseException
+          final failure = error is TradeParseException
               ? error
               : const TradeParseException(
                   TradeParseFailureKind.server,
                   '识别服务遇到问题，请稍后重试。',
                 );
+          failures[index] = failure;
+          if (failure.kind == TradeParseFailureKind.rowsRejected) {
+            rejectedIndices.add(index);
+          }
         } finally {
           completed++;
           onProgress?.call(completed, total);
@@ -184,6 +205,27 @@ class TradeScreenshotParser {
     }
 
     await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+
+    // 被「整页缺标的」拒掉的页：等其它页给出标的后再补一次，只补一次。
+    // 单张截图时没有可借的标的，保持失败，让用户重传含表头的那一张。
+    if (instrument != null && !mixedBatch && rejectedIndices.isNotEmpty) {
+      for (final index in rejectedIndices) {
+        final fallback = instrument;
+        if (fallback == null) break;
+        try {
+          final screenshot = screenshots[index];
+          results[index] = await parse(
+            imageBytes: screenshot.bytes,
+            mimeType: screenshot.mimeType,
+            defaultSymbol: fallback.symbol,
+            defaultName: fallback.name,
+          );
+          failures[index] = null;
+        } catch (error) {
+          if (error is TradeParseException) failures[index] = error;
+        }
+      }
+    }
 
     final successfulIndices = [
       for (var index = 0; index < results.length; index++)
@@ -211,6 +253,21 @@ class TradeScreenshotParser {
               ? '第 1 张没有发现成交行，可能截取到了表头或空白区域。'
               : '第 ${i + 1} 张没有发现新的成交行，可能和上一张重叠。',
     ];
+    final mixedWarnings = <String>[
+      for (var i = 0; i < results.length; i++)
+        if (results[i] case final parsed?)
+          if (parsed.trades
+                  .map((trade) => trade.instrumentKey)
+                  .where((key) => key.isNotEmpty)
+                  .toSet()
+                  .length >
+              1)
+            '第 ${i + 1} 张里出现了多个标的，这批截图可能混了不同股票，请分开上传。',
+    ];
+    final matchedScreenshotCount = results
+        .where((result) => result != null && result.trades.isNotEmpty)
+        .length;
+
     final merged = mergeParsedTradeResults(
       successful,
       screenshotCount: total,
@@ -222,19 +279,29 @@ class TradeScreenshotParser {
       ],
     );
     if (merged.trades.isEmpty) {
+      final rejected = failures.firstWhere(
+        (failure) => failure?.kind == TradeParseFailureKind.rowsRejected,
+        orElse: () => null,
+      );
       throw TradeParseException(
-        TradeParseFailureKind.noTrades,
-        '$total 张截图都没有识别到成交行。请确认包含「成交记录」或'
-        '「历史成交」列表，并保留日期、方向、数量、价格这几列。',
+        rejected?.kind ?? TradeParseFailureKind.noTrades,
+        rejected?.message ??
+            '$total 张截图都没有识别到成交行。请确认包含「成交记录」或'
+                '「历史成交」列表，并保留日期、方向、数量、价格这几列。',
       );
     }
     return ParsedTradesResult(
       brokerHint: merged.brokerHint,
       currency: merged.currency,
       trades: merged.trades,
-      warnings: [...emptyPageWarnings, ...merged.warnings],
+      warnings: [
+        ...emptyPageWarnings,
+        ...mixedWarnings,
+        ...merged.warnings,
+      ],
       screenshotCount: merged.screenshotCount,
       successfulScreenshotCount: merged.successfulScreenshotCount,
+      matchedScreenshotCount: matchedScreenshotCount,
       duplicateTradeCount: merged.duplicateTradeCount,
       rawTradeCount: merged.rawTradeCount,
       validTradeCount: merged.validTradeCount,
@@ -246,15 +313,36 @@ class TradeScreenshotParser {
     );
   }
 
+  /// 从一页结果里取出这一批的标的：只有唯一标的时才算数。
+  _BatchInstrument? _instrumentOf(ParsedTradesResult result) {
+    final keys = <String>{};
+    _BatchInstrument? first;
+    for (final trade in result.trades) {
+      final symbol = trade.symbol.trim();
+      final name = trade.name.trim();
+      if (symbol.isEmpty && name.isEmpty) continue;
+      keys.add(trade.instrumentKey);
+      first ??= _BatchInstrument(symbol, name);
+    }
+    return keys.length == 1 ? first : null;
+  }
+
   Future<ParsedTradesResult> _parseWithRetry({
     required List<int> imageBytes,
     required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
   }) async {
     var attempt = 0;
     while (true) {
       attempt++;
       try {
-        return await parse(imageBytes: imageBytes, mimeType: mimeType);
+        return await parse(
+          imageBytes: imageBytes,
+          mimeType: mimeType,
+          defaultSymbol: defaultSymbol,
+          defaultName: defaultName,
+        );
       } on TradeParseException catch (error) {
         final canRetry = _isRetryable(error.kind) && attempt < maxAttempts;
         if (!canRetry) {
@@ -284,14 +372,22 @@ class TradeScreenshotParser {
   Future<ParsedTradesResult> parse({
     required List<int> imageBytes,
     required String mimeType,
+    String? defaultSymbol,
+    String? defaultName,
   }) async {
     late Response<Map<String, dynamic>> response;
+    final fallbackSymbol = (defaultSymbol ?? '').trim();
+    final fallbackName = (defaultName ?? '').trim();
     try {
       response = await _dio.post<Map<String, dynamic>>(
         '/v1/portfolio/parse-trades',
         data: {
           'image_base64': base64Encode(imageBytes),
           'mime_type': mimeType,
+          // 同一批滚动截图里表头通常只在第一张：把第一张的标的带下去，
+          // 让服务端补齐「代码和名称都空」的行，而不是整页丢掉。
+          if (fallbackSymbol.isNotEmpty) 'default_symbol': fallbackSymbol,
+          if (fallbackName.isNotEmpty) 'default_name': fallbackName,
         },
         options: Options(
           sendTimeout: const Duration(seconds: 90),
@@ -413,6 +509,16 @@ class TradeScreenshotParser {
         '截图里没有识别到成交行。请确认这是「成交记录」或「历史成交」页面。',
       );
     }
+    if (code == 'PORTFOLIO.ROWS_REJECTED') {
+      // 服务端识别到行、但每一行都缺必填字段：这不是「空页」，必须让用户
+      // 看到并重传，而不是当成重叠页悄悄丢掉。
+      return TradeParseException(
+        TradeParseFailureKind.rowsRejected,
+        serverMessage.isNotEmpty
+            ? serverMessage
+            : '这一页识别到成交行，但都缺少关键字段，请重传包含表头的截图。',
+      );
+    }
     if (status == 413) {
       return const TradeParseException(
         TradeParseFailureKind.invalidRequest,
@@ -436,6 +542,17 @@ class TradeScreenshotParser {
       status > 0 ? '识别服务返回 HTTP $status，请稍后重试。' : '识别服务遇到问题，请稍后重试。',
     );
   }
+}
+
+/// 一批截图共用的标的。表头通常只在第一张出现，后续页缺标的时用它补齐。
+class _BatchInstrument {
+  const _BatchInstrument(this.symbol, this.name);
+
+  final String symbol;
+  final String name;
+
+  bool sameAs(_BatchInstrument other) =>
+      symbol == other.symbol && name == other.name;
 }
 
 String sniffImageMime(List<int> bytes, String path) {
