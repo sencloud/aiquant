@@ -144,8 +144,6 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                           onOpen: () => _openReport(latest),
                           onUpload:
                               _busy ? null : () => _pickAndParse(camera: false),
-                          onCamera:
-                              _busy ? null : () => _pickAndParse(camera: true),
                         ),
                       ),
                       if (store.syncError != null)
@@ -204,9 +202,20 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: const Color(0xFFFCFAF6),
-          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFDFBF6), Color(0xFFF7F1E7)],
+          ),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xFFE9DFCF)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0D7A5A20),
+              blurRadius: 26,
+              offset: Offset(0, 10),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,13 +225,22 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                 AppSpace.xl,
                 AppSpace.lg,
                 AppSpace.xl,
-                AppSpace.md,
+                AppSpace.lg,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AppColors.amber,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Text(
                         '最近复盘',
                         style: AppType.caption.copyWith(
@@ -238,13 +256,13 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpace.xl),
+                  const SizedBox(height: AppSpace.lg),
                   Text(
                     '把成交记录交给嘻，AI',
                     style: AppType.display.copyWith(
                       fontSize: 25,
                       fontWeight: FontWeight.w700,
-                      height: 1.3,
+                      height: 1.28,
                     ),
                   ),
                   const SizedBox(height: AppSpace.sm),
@@ -261,13 +279,13 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpace.lg),
-                  const _EmptyStatement(),
+                  const _EmptySteps(),
                 ],
               ),
             ),
             Container(
               decoration: const BoxDecoration(
-                color: Color(0xFFF7F1E7),
+                color: Color(0xFFF5EEE1),
                 border: Border(
                   top: BorderSide(color: Color(0xFFE9DFCF), width: 0.5),
                 ),
@@ -287,36 +305,6 @@ class _TradeReviewHomeScreenState extends State<TradeReviewHomeScreen> {
                     icon: Icons.add_photo_alternate_outlined,
                     busy: _busy,
                     onPressed: () => _pickAndParse(camera: false),
-                  ),
-                  const SizedBox(height: AppSpace.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 44,
-                          child: OutlinedButton.icon(
-                            key: const ValueKey('trade-upload-camera'),
-                            onPressed: _busy
-                                ? null
-                                : () => _pickAndParse(camera: true),
-                            icon: const Icon(
-                              Icons.photo_camera_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('现场拍一张'),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: AppColors.bgSurface,
-                              side: BorderSide(color: AppColors.borderMed),
-                              foregroundColor: AppColors.textPrimary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.md),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: AppSpace.md),
                   Row(
@@ -562,13 +550,11 @@ class _LatestReportHero extends StatelessWidget {
     required this.report,
     required this.onOpen,
     required this.onUpload,
-    required this.onCamera,
   });
 
   final TradeReviewReport report;
   final VoidCallback onOpen;
   final VoidCallback? onUpload;
-  final VoidCallback? onCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -779,28 +765,6 @@ class _LatestReportHero extends StatelessWidget {
                             ),
                           ),
                           child: const Text('查看完整报告'),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpace.sm),
-                      SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: OutlinedButton(
-                          key: const ValueKey('trade-review-again-camera'),
-                          onPressed: onCamera,
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            backgroundColor: AppColors.bgSurface,
-                            foregroundColor: AppColors.textSecondary,
-                            side: BorderSide(color: AppColors.borderMed),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.photo_camera_outlined,
-                            size: 19,
-                          ),
                         ),
                       ),
                     ],
@@ -1057,87 +1021,100 @@ class _TradeTraceRow extends StatelessWidget {
   }
 }
 
-class _EmptyStatement extends StatelessWidget {
-  const _EmptyStatement();
+class _EmptySteps extends StatefulWidget {
+  const _EmptySteps();
+
+  @override
+  State<_EmptySteps> createState() => _EmptyStepsState();
+}
+
+class _EmptyStepsState extends State<_EmptySteps>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 780),
+  )..forward();
+
+  static const _steps = <(IconData, String, String)>[
+    (Icons.add_photo_alternate_outlined, '选截图', '一次挑最多 20 张相邻成交页'),
+    (Icons.fact_check_outlined, '逐笔核对', '日期、方向、数量、价格、手续费'),
+    (Icons.auto_awesome_outlined, '拿到复盘', '交易逻辑 · 问题 · 下一步'),
+  ];
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          decoration: const BoxDecoration(
-            border: Border(
-              top: BorderSide(color: Color(0xFFE9DFCF), width: 0.5),
-              bottom: BorderSide(color: Color(0xFFE9DFCF), width: 0.5),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
-          child: Row(
-            children: [
-              Text(
-                '成交时间',
-                style: AppType.micro.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '标的 · 方向 · 成交价',
-                style: AppType.micro.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ],
-          ),
+        for (var i = 0; i < _steps.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          _step(context, i),
+        ],
+      ],
+    );
+  }
+
+  Widget _step(BuildContext context, int index) {
+    final start = (index * 0.16).clamp(0.0, 0.6);
+    final curve = CurvedAnimation(
+      parent: _ctl,
+      curve: Interval(start, (start + 0.55).clamp(0.0, 1.0),
+          curve: Curves.easeOutCubic),
+    );
+    final (icon, title, caption) = _steps[index];
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (_, child) => Opacity(
+        opacity: curve.value,
+        child: Transform.translate(
+          offset: Offset(0, 10 * (1 - curve.value)),
+          child: child,
         ),
-        for (var i = 0; i < 3; i++)
+      ),
+      child: Row(
+        children: [
           Container(
-            constraints: const BoxConstraints(minHeight: 42),
-            padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: i == 2 ? Colors.transparent : AppColors.borderDim,
-                  width: 0.5,
-                ),
-              ),
+              color: AppColors.amber.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Row(
+            child: Icon(icon, size: 16, color: AppColors.amber),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '--:--',
-                  style: AppType.micro.copyWith(
-                    color: AppColors.textTertiary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  title,
+                  style: AppType.body.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
                   ),
                 ),
-                const SizedBox(width: AppSpace.lg),
-                Expanded(
-                  child: Container(
-                    height: 1,
-                    color: AppColors.borderDim,
-                  ),
-                ),
-                const SizedBox(width: AppSpace.lg),
+                const SizedBox(height: 2),
                 Text(
-                  '待识别',
+                  caption,
                   style: AppType.micro.copyWith(
-                    color: AppColors.textTertiary,
+                    color: AppColors.textSecondary,
+                    height: 1.45,
                   ),
                 ),
               ],
             ),
           ),
-        const SizedBox(height: AppSpace.md),
-        Text(
-          '截图导入后，这里会按真实成交顺序还原买卖。',
-          style: AppType.micro.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

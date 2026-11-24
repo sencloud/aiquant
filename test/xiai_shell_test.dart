@@ -100,7 +100,8 @@ void main() {
     final surface = tester.widget<ColoredBox>(
       find.byKey(const ValueKey('my-page-surface')),
     );
-    expect(surface.color, AppColors.bgSurface);
+    // 页面灰底 + 白色分组：最后一个分组下方露出灰色作为分割。
+    expect(surface.color, AppColors.bgBase);
     expect(
       tester.getCenter(find.text('行情终端')).dx,
       greaterThan(tester.getCenter(find.text('看盘')).dx),

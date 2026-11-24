@@ -76,6 +76,8 @@ tools/quote-agent/agent.log
 .impeccable/questions/
 # 设计走查截图（tools/design-qa/shoot_web.py 的产物，随时可重跑，不入库）
 .impeccable/shots/
+# UI 走查截图（widget test 里 --update-goldens 生成，见 output/ui/）
+output/ui/
 # 早期直接用 headless Chrome 截的调试图（同上，不入库）
 .impeccable/shot-*.png
 # 结构选型与评审的中间产物（决策草图 mocks/、走查截图 review/，随时可重跑，不入库）

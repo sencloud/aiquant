@@ -172,7 +172,9 @@ class _MyScreenState extends State<MyScreen> {
         bottom: false,
         child: ColoredBox(
           key: const ValueKey('my-page-surface'),
-          color: AppColors.bgSurface,
+          // 页面底色用灰，白面只留给档案区与分组：最后一个分组（设置）下面
+          // 自然露出灰色，作为分组之间的分割，而不是一直白到底。
+          color: AppColors.bgBase,
           child: AnimatedBuilder(
             animation: TradeReviewStore.instance,
             builder: (context, _) {

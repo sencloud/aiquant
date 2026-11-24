@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:fincept_app/models/chat.dart';
 import 'package:fincept_app/screens/assistant/assistant_screen.dart';
@@ -202,13 +202,33 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('chat-menu')));
     await tester.pumpAndSettle();
+    // 新版「…」：当前助手一行 + 历史对话 + 新建 / 删除。
     expect(find.text('发起新的对话'), findsOneWidget);
-    expect(find.text('换个助手'), findsOneWidget);
+    expect(find.text('当前助手 · 点这里换一个'), findsOneWidget);
+    expect(find.text('历史对话'), findsOneWidget);
 
     await tester.tap(find.text('发起新的对话'));
     await tester.pumpAndSettle();
     expect(chat.activeId, isNot('fixture'));
     expect(chat.active!.messages, isEmpty);
+  });
+
+  testWidgets('工具调用默认折叠成一行摘要，点开才列出工具', (tester) async {
+    tester.view.physicalSize = const Size(390, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app(_seeded()));
+    await _settle(tester);
+
+    expect(find.byKey(const ValueKey('chat-tool-summary')), findsOneWidget);
+    expect(find.text('查主力合约'), findsNothing);
+    expect(find.text('查中文新闻'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('chat-tool-summary')));
+    await tester.pumpAndSettle();
+    expect(find.text('查主力合约'), findsOneWidget);
+    expect(find.text('查中文新闻'), findsOneWidget);
   });
 
   testWidgets('推荐追问只跟着最新一条回答', (tester) async {

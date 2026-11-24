@@ -123,9 +123,10 @@ class MessageBubble extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.92,
             ),
-            child: ToolCallList(
+            child: ToolCallSummary(
               calls: message.toolCalls!,
               findResult: _findToolResult,
+              durationMs: message.durationMs,
             ),
           ),
         if (hasImages)
