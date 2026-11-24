@@ -94,12 +94,53 @@ type ParseTradesResult struct {
 	Warnings   []string      `json:"warnings"`
 }
 
+// TradeInstrument 是一批滚动截图共用的标的。
+//
+// 券商「持仓明细 / 历史成交」只在页面顶部显示证券名称与代码，往下滚动的
+// 那几页里一个字都没有，模型只能输出缺标的的行。客户端把同一批第一张截图上
+// 看到的标的带过来，服务端用它补齐这些行，避免整页被丢掉。
+type TradeInstrument struct {
+	Symbol string
+	Name   string
+}
+
+func (i TradeInstrument) Empty() bool {
+	return strings.TrimSpace(i.Symbol) == "" && strings.TrimSpace(i.Name) == ""
+}
+
+func (i TradeInstrument) label() string {
+	symbol := strings.TrimSpace(i.Symbol)
+	name := strings.TrimSpace(i.Name)
+	switch {
+	case symbol != "" && name != "":
+		return name + "（" + symbol + "）"
+	case name != "":
+		return name
+	default:
+		return symbol
+	}
+}
+
+// RejectedRowsError 表示模型返回了成交行，但没有任何一行通过字段校验。
+//
+// 这和「这一页本来就是空白/重叠」是两件事：前者是数据问题，需要客户端提示
+// 用户重传或手工补录，不能伪装成空页悄悄丢掉。
+type RejectedRowsError struct {
+	Total   int
+	Reasons []string
+}
+
+func (e *RejectedRowsError) Error() string {
+	return fmt.Sprintf("qwen vision: no valid trade rows (rejected %d)", e.Total)
+}
+
 // ParseTradesFromImage 从券商成交记录截图中抽取实际成交行。
 //
 // 模型只负责识别，不负责评价交易。日期、方向、数量和价格会在 Go 侧再次校验，
 // 避免模型把委托价、成交额或持仓数量误当成一行成交。
+// fallback 非空时，补齐「代码和名称都没有」的行（滚动截图丢失表头的情况）。
 func (c *VisionClient) ParseTradesFromImage(
-	ctx context.Context, imageDataURL string,
+	ctx context.Context, imageDataURL string, fallback TradeInstrument,
 ) (*ParseTradesResult, error) {
 	if !c.Configured() {
 		return nil, errors.New("qwen vision: api key not configured")
@@ -139,15 +180,41 @@ func (c *VisionClient) ParseTradesFromImage(
 	if err := c.ImageJSON(ctx, system, "请解析这张交易记录截图。", imageDataURL, &out); err != nil {
 		return nil, err
 	}
+	filled := applyFallbackInstrument(out.Trades, fallback)
 	normalized, warnings, err := normalizeTradeRows(out.Trades)
 	if err != nil {
 		return nil, err
+	}
+	if filled > 0 {
+		warnings = append(warnings, fmt.Sprintf(
+			"这一页有 %d 行没有证券名称和代码，已按同批第一张截图补齐为 %s，请逐行核对。",
+			filled, fallback.label()))
 	}
 	out.Trades = normalized
 	out.Warnings = uniqueStrings(append(out.Warnings, warnings...))
 	out.BrokerHint = strings.TrimSpace(out.BrokerHint)
 	out.Currency = normalizeCurrency(out.Currency)
 	return &out, nil
+}
+
+// applyFallbackInstrument 只补「代码和名称都空」的行，并返回补齐的行数。
+// 模型自己读到的标的永远优先，避免把另一只股票的行错误归属。
+func applyFallbackInstrument(rows []ParsedTrade, fallback TradeInstrument) int {
+	if fallback.Empty() {
+		return 0
+	}
+	symbol := strings.TrimSpace(fallback.Symbol)
+	name := strings.TrimSpace(fallback.Name)
+	filled := 0
+	for i := range rows {
+		if strings.TrimSpace(rows[i].Symbol) != "" || strings.TrimSpace(rows[i].Name) != "" {
+			continue
+		}
+		rows[i].Symbol = symbol
+		rows[i].Name = name
+		filled++
+	}
+	return filled
 }
 
 func normalizeTradeRows(rows []ParsedTrade) ([]ParsedTrade, []string, error) {
@@ -188,7 +255,8 @@ func normalizeTradeRows(rows []ParsedTrade) ([]ParsedTrade, []string, error) {
 		normalized = append(normalized, row)
 	}
 	if len(rows) > 0 && len(normalized) == 0 {
-		return nil, warnings, errors.New("qwen vision: no valid trade rows")
+		// 有行但一行都没通过：这是数据问题，不能当成「空白页」。
+		return nil, warnings, &RejectedRowsError{Total: len(rows), Reasons: warnings}
 	}
 	return normalized, warnings, nil
 }

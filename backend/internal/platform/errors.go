@@ -49,6 +49,12 @@ func ErrPaymentRequired(code, msg string) *APIError {
 func ErrTooManyRequests(code, msg string) *APIError {
 	return NewAPIError(http.StatusTooManyRequests, code, msg, nil)
 }
+
+// ErrUnprocessable 表示请求格式没问题，但内容无法处理（例如截图里识别到行，
+// 却每一行都缺必填字段）。客户端应据 code 提示用户重传，而不是当成服务故障。
+func ErrUnprocessable(code, msg string, err error) *APIError {
+	return NewAPIError(http.StatusUnprocessableEntity, code, msg, err)
+}
 func ErrInternal(code string, err error) *APIError {
 	return NewAPIError(http.StatusInternalServerError, code, "internal error", err)
 }

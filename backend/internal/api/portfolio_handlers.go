@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/sencloud/finme-backend/internal/ai/qwen"
 	"github.com/sencloud/finme-backend/internal/platform"
 )
 
@@ -110,6 +112,10 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 	type reqBody struct {
 		ImageBase64 string `json:"image_base64"`
 		MimeType    string `json:"mime_type,omitempty"`
+		// 同一批滚动截图里，表头只出现在第一张；客户端把第一张看到的标的
+		// 带过来，服务端用它补齐「代码和名称都空」的行。
+		DefaultSymbol string `json:"default_symbol,omitempty"`
+		DefaultName   string `json:"default_name,omitempty"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		_ = MustUser(r)
@@ -145,28 +151,25 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 			raw = "data:" + mime + ";base64," + raw
 		}
 
-		out, err := d.Qwen.ParseTradesFromImage(r.Context(), raw)
+		out, err := d.Qwen.ParseTradesFromImage(r.Context(), raw, qwen.TradeInstrument{
+			Symbol: body.DefaultSymbol,
+			Name:   body.DefaultName,
+		})
 		if err != nil {
-			message := err.Error()
-			if strings.Contains(message, "no valid trade rows") {
-				platform.LoggerFrom(r.Context()).Info().
+			// 模型返回了行、但一行都没通过校验：这是数据问题，不能当成
+			// 「重叠/空白页」静默丢掉。行级原因写日志 + 回给客户端。
+			var rejected *qwen.RejectedRowsError
+			if errors.As(err, &rejected) {
+				platform.LoggerFrom(r.Context()).Warn().
+					Int("rejected_rows", rejected.Total).
+					Strs("reasons", clipRejectReasons(rejected.Reasons)).
 					Str("mime_type", safeVisionMime(body.MimeType)).
-					Int("image_base64_chars", len(body.ImageBase64)).
-					Bool("no_new_rows", true).
-					Msg("trade screenshot contained no new rows")
-				// 滚动截图的重叠页、页尾空白或已被上一张覆盖的区域，
-				// 视觉模型可能正确返回“没有可确认的成交行”。这是成功的
-				// 空页，不应让整批多图导入失败，更不应显示成网络错误。
-				WriteJSON(w, http.StatusOK, map[string]any{
-					"source":      "qwen-vl",
-					"broker_hint": "",
-					"currency":    "CNY",
-					"trades":      []any{},
-					"warnings": []string{
-						"本页没有发现新的成交行，可能是两张截图的重叠区域或空白页。",
-					},
-					"no_new_rows": true,
-				})
+					Bool("no_new_rows", false).
+					Msg("trade screenshot rows all rejected")
+				WriteError(w, r, platform.ErrUnprocessable(
+					"PORTFOLIO.ROWS_REJECTED",
+					rejectedRowsMessage(rejected),
+					err))
 				return
 			}
 			platform.LoggerFrom(r.Context()).Warn().
@@ -180,6 +183,11 @@ func handleParseTradesScreenshot(d *Deps) http.HandlerFunc {
 			return
 		}
 		if len(out.Trades) == 0 {
+			// 模型确实一行都没返回：滚动截图的重叠页、页尾空白都可能是这样。
+			platform.LoggerFrom(r.Context()).Info().
+				Str("mime_type", safeVisionMime(body.MimeType)).
+				Bool("no_new_rows", true).
+				Msg("trade screenshot contained no rows")
 			WriteJSON(w, http.StatusOK, map[string]any{
 				"source":      "qwen-vl",
 				"broker_hint": out.BrokerHint,
@@ -208,4 +216,35 @@ func safeVisionMime(raw string) string {
 		return "unknown"
 	}
 	return mime
+}
+
+// rejectedRowsMessage 把「整页都被过滤」翻译成用户能照做的提示。
+// 只带第一处原因，避免把十行报错原样摔到用户脸上。
+func rejectedRowsMessage(e *qwen.RejectedRowsError) string {
+	reason := ""
+	if len(e.Reasons) > 0 && strings.TrimSpace(e.Reasons[0]) != "" {
+		reason = "；第一处是「" + e.Reasons[0] + "」"
+	}
+	return fmt.Sprintf(
+		"这一页识别到 %d 行，但没有一行能确认%s。请重传包含证券名称和代码（表头）的截图，或把这页成交手工补录。",
+		e.Total, reason)
+}
+
+// clipRejectReasons 限制日志里的行级原因条数与单条长度。
+func clipRejectReasons(reasons []string) []string {
+	const maxItems = 6
+	const maxLen = 160
+	out := make([]string, 0, maxItems)
+	for i, reason := range reasons {
+		if i >= maxItems {
+			out = append(out, fmt.Sprintf("…其余 %d 条已省略", len(reasons)-maxItems))
+			break
+		}
+		runes := []rune(reason)
+		if len(runes) > maxLen {
+			reason = string(runes[:maxLen]) + "…"
+		}
+		out = append(out, reason)
+	}
+	return out
 }
